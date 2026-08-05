@@ -123,8 +123,14 @@ class ReadPdfTool(CaseTool):
     }
     output_type = "string"
 
+    def __init__(self, root: Path, allowed_case: str):
+        super().__init__(root, allowed_case)
+        self.read_documents: set[str] = set()
+
     def forward(self, case_id: str, filename: str) -> str:
-        return _pdf_text(_safe_pdf(self.root, self.allowed_case, case_id, filename))
+        text = _pdf_text(_safe_pdf(self.root, self.allowed_case, case_id, filename))
+        self.read_documents.add(filename)
+        return text
 
 
 class SearchCaseTool(CaseTool):
@@ -184,7 +190,12 @@ class LookupPolicyTool(Tool):
     }
     output_type = "string"
 
+    def __init__(self):
+        super().__init__()
+        self.call_count = 0
+
     def forward(self, topic: str) -> str:
+        self.call_count += 1
         terms = [term.casefold() for term in re.findall(r"\w+", topic) if len(term) > 1]
         if topic.casefold().strip() == "all":
             selected = POLICIES

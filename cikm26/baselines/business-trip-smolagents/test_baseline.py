@@ -1,7 +1,7 @@
 import json
-import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from business_trip_tools import (
     CheckFactsTool,
@@ -10,7 +10,7 @@ from business_trip_tools import (
     ReadPdfTool,
     SearchCaseTool,
 )
-from predict import input_cases, parse_decision
+from predict import build_case_evidence, decide_case, input_cases, parse_decision
 
 
 DATASET = (
@@ -87,9 +87,46 @@ class BaselineTest(unittest.TestCase):
         )
         self.assertEqual("abgelehnt", parse_decision(answer, "dienstreiseantrag-01")["result"])
 
+    def test_parses_json_embedded_in_short_explanation(self):
+        answer = (
+            "Ergebnis:\n"
+            '{"antrag":"dienstreiseantrag-01","result":"abgelehnt",'
+            '"begruendung":"Der Antrag wurde nach Reisebeginn gestellt."}'
+        )
+        self.assertEqual("abgelehnt", parse_decision(answer, "dienstreiseantrag-01")["result"])
+
     def test_does_not_accept_malformed_decision(self):
         with self.assertRaises(ValueError):
             parse_decision("abgelehnt", "dienstreiseantrag-01")
+
+    def test_builds_complete_case_evidence(self):
+        evidence = build_case_evidence(DATASET, "dienstreiseantrag-01")
+        self.assertIn("antrag-dienstreisegenehmigung.pdf", evidence["documents"])
+        self.assertTrue(evidence["document_completeness_check"]["complete"])
+        self.assertIn("advance_approval", evidence["policies"]["policies"])
+
+    def test_decides_from_preloaded_evidence_without_agent_protocol(self):
+        class FakeModel:
+            def __init__(self):
+                self.messages = None
+
+            def generate(self, messages, **_kwargs):
+                self.messages = messages
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "antrag": "dienstreiseantrag-01",
+                            "result": "abgelehnt",
+                            "begruendung": "Der Antrag wurde nach der Reise gestellt.",
+                        }
+                    ),
+                    raw=None,
+                )
+
+        model = FakeModel()
+        decision = decide_case(DATASET, "dienstreiseantrag-01", model)
+        self.assertEqual("abgelehnt", decision["result"])
+        self.assertIn("bahn-rechnung-kassel-leipzig.pdf", model.messages[1]["content"])
 
 
 if __name__ == "__main__":

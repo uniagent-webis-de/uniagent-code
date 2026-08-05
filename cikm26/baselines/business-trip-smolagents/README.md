@@ -1,6 +1,6 @@
 # Smolagents Business-Trip Baseline
 
-This baseline uses a smolagents `ToolCallingAgent` and an OpenAI-compatible
+This baseline uses smolagents tools and `OpenAIModel` with an OpenAI-compatible
 endpoint to review every application independently. It exposes five tools:
 
 1. `list_case_documents` inventories the PDFs.
@@ -14,6 +14,13 @@ Tools are restricted to the current case. The baseline fails explicitly if
 the endpoint is unavailable or the agent returns malformed output; it does not
 silently substitute a default label.
 
+The five tools run in a deterministic evidence-collection pipeline before the
+model is called. This avoids relying on native tool calls or generated code:
+some OpenAI-compatible deployments of gpt-oss20 emit neither in the format
+expected by `ToolCallingAgent` or `CodeAgent`. Every PDF is therefore read,
+the case is searched, policies are loaded, and document completeness is
+checked before the model receives the evidence and returns the final JSON.
+
 ## Configuration
 
 Set an OpenAI-compatible proxy or endpoint:
@@ -22,6 +29,8 @@ Set an OpenAI-compatible proxy or endpoint:
 export OPENAI_BASE_URL=https://your-proxy.example/v1
 export OPENAI_API_KEY=...
 export OPENAI_MODEL=your-model
+# Optional for reasoning models:
+export OPENAI_REASONING_EFFORT=low
 ```
 
 Use a dedicated, short-lived proxy credential rather than a production API
@@ -35,6 +44,7 @@ docker run --rm \
   --env OPENAI_BASE_URL \
   --env OPENAI_API_KEY \
   --env OPENAI_MODEL \
+  --env OPENAI_REASONING_EFFORT \
   --volume "$PWD/../../datasets/business-trip-spot-check/inputs:/input:ro" \
   --volume "$PWD/output:/output" \
   business-trip-smolagents \
@@ -48,13 +58,12 @@ After the dataset has been uploaded, replace `DATASET-ID` with its TIRA ID:
 
 ```bash
 tira-cli code-submission \
-  --path cikm26/baselines/business-trip-smolagents \
+  --path . \
   --task uniagent-2026 \
-  --dataset DATASET-ID \
-  --dry-run \
-  --allow-network \
-  --forward-environment-variable OPENAI_API_KEY OPENAI_BASE_URL OPENAI_MODEL \
-  --command '/predict.py --input $inputDataset --output $outputDir'
+  --dataset business-trip-spot-check-20260805-training \
+  --forward-environment-variable OPENAI_API_KEY OPENAI_BASE_URL OPENAI_MODEL OPENAI_REASONING_EFFORT \
+  --command '/predict.py --input $inputDataset --output $outputDir' \
+  --dry-run
 ```
 
 ## Tests
