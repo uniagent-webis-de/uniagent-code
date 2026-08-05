@@ -12,3 +12,14 @@ python3 predict.py \
 ```
 
 The output is `/tmp/business-trip-predictions/predictions.jsonl`.
+
+## Submit to TIRA
+
+```bash
+tira-cli code-submission \
+  --path . \
+  --task uniagent-2026 \
+  --dataset business-trip-spot-check-20260805-training \
+  --command '/predict.py --input $inputDataset --output $outputDir' \
+  --dry-run
+```

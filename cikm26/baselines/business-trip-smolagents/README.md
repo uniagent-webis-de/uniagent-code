@@ -61,7 +61,7 @@ tira-cli code-submission \
   --path . \
   --task uniagent-2026 \
   --dataset business-trip-spot-check-20260805-training \
-  --forward-environment-variable OPENAI_API_KEY OPENAI_BASE_URL OPENAI_MODEL OPENAI_REASONING_EFFORT \
+  --forward-environment-variable OPENAI_API_KEY OPENAI_BASE_URL OPENAI_MODEL \
   --command '/predict.py --input $inputDataset --output $outputDir' \
   --dry-run
 ```
