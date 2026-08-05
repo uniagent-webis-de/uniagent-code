@@ -134,9 +134,18 @@ Systeme schreiben `predictions.jsonl` mit genau einer Zeile pro Antrag:
 ```
 
 Zulässige Werte für `result` sind `angenommen` und `abgelehnt`. Bewertet wird
-die Accuracy über den Hugging-Face-Evaluator von TIRA. Die vorläufige Baseline
-unter `../../baselines/business-trip-always-rejected/` sagt für jeden Antrag
-`abgelehnt` voraus.
+die Accuracy über den Hugging-Face-Evaluator von TIRA.
+
+The preliminary baseline in `../../baselines/business-trip-always-rejected/`
+predicts `abgelehnt` for every application.
+
+The advanced baseline in `../../baselines/business-trip-smolagents/` uses
+smolagents tools for listing, reading, and searching PDFs, looking up policies,
+and checking dates, amounts, overlaps, and required fields deterministically
+before an `OpenAIModel` makes the decision. It is documented as a separate code submission
+because it requires an OpenAI-compatible endpoint and forwarded credentials;
+the credential-free preliminary baseline therefore remains the dataset-card
+default.
 
 Die lokale Paketierung lässt sich ohne Upload und ohne Baseline prüfen:
 
