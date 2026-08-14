@@ -1,0 +1,5 @@
+click
+fastwarc
+langdetect
+nltk
+resiliparse
