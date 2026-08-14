@@ -36,13 +36,14 @@ def write_document(
     output_file.write(
         json.dumps(
             {
-                "id": warc_record.record_id.removeprefix(
+                "doc_id": warc_record.record_id.removeprefix(
                     "<urn:uuid:"
                 ).removesuffix(">"),
                 "url": warc_record.headers.get("WARC-Target-URI"),
                 "language": language,
                 "title": title,
                 "content": content,
+                "text": "\n\n".join(part for part in (title, content) if part),
             },
             ensure_ascii=False,
         )
