@@ -1,0 +1,12 @@
+# Python dependencies. Install into the pyenv environment:
+#   pyenv activate uniagent && pip install -r requirements.txt
+#
+# NOTE: the pipeline also needs liteparse, which is an npm package, not a Python one:
+#   npm i -g @llamaindex/liteparse     (provides the `lit` command)
+
+requests==2.34.2          # fetching CEUR-WS / DBLP pages and PDFs
+beautifulsoup4==4.15.0    # parsing the volume index and DBLP records
+lxml==6.1.1               # the parser backend BeautifulSoup is constructed with
+pillow==12.3.0            # cropping table images out of rendered pages
+
+pytest==9.1.1             # test suite
