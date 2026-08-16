@@ -106,11 +106,14 @@ class ConfigurationTest(unittest.TestCase):
             "sys.modules", {"umbrela.gpt_judge": module}
         ):
             self.assertIs(judge, create_umbrela_judge())
+            self.assertEqual("key", os.environ["OPEN_AI_API_KEY"])
+            self.assertEqual("", os.environ["AZURE_OPENAI_API_VERSION"])
+            self.assertEqual("", os.environ["AZURE_OPENAI_API_BASE"])
+            self.assertEqual("model", os.environ["DEPLOYMENT_NAME"])
 
         constructor.assert_called_once_with(
             qrel="dl19-passage",
-            model_name="model",
-            prompt_type="bing",
+            engine="model",
             few_shot_count=0,
         )
 

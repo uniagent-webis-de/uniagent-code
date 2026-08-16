@@ -40,8 +40,8 @@ directory and writes `qrels.txt`. Each topic is judged independently. A topic
 is skipped when its persisted request and response both match the current
 dataset and pool.
 
-The `.devcontainer` uses Python 3.12 and installs the UMBRELA cloud
-dependencies. Build it manually with:
+The `.devcontainer` uses Python 3.12 and Java 21 and installs the UMBRELA
+cloud dependencies. Build it manually with:
 
 ```bash
 docker build \

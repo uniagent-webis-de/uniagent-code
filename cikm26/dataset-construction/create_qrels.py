@@ -41,6 +41,11 @@ def get_openai_configuration() -> dict[str, str]:
 
 def create_umbrela_judge():
     configuration = get_openai_configuration()
+    os.environ["OPEN_AI_API_KEY"] = configuration["OPENAI_API_KEY"]
+    os.environ["AZURE_OPENAI_API_VERSION"] = ""
+    os.environ["AZURE_OPENAI_API_BASE"] = ""
+    os.environ["DEPLOYMENT_NAME"] = configuration["OPENAI_MODEL"]
+
     try:
         from umbrela.gpt_judge import GPTJudge
     except ImportError as error:
@@ -50,8 +55,7 @@ def create_umbrela_judge():
 
     return GPTJudge(
         qrel="dl19-passage",
-        model_name=configuration["OPENAI_MODEL"],
-        prompt_type="bing",
+        engine=configuration["OPENAI_MODEL"],
         few_shot_count=0,
     )
 
