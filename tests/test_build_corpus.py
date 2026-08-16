@@ -67,3 +67,29 @@ def test_coverage_ratio_out_of_bounds_fails(caplog):
 def test_null_coverage_ratio_is_allowed():
     tasks = [make_task("t1", "ov1.pdf", ["p1.pdf"], coverage_ratio=None)]
     assert validate(tasks, LOGGER) is True
+
+
+def test_fulltext_paths_are_published_on_the_records():
+    # Consumers must be able to go from a corpus entry straight to its parsed text,
+    # rather than deriving filenames from pdf_url by string manipulation.
+    from src.build_corpus import join_fulltext_paths
+
+    task = make_task("t1", "https://x/ov.pdf", ["https://x/p1.pdf", "https://x/p2.pdf"])
+    manifest = {
+        "https://x/ov.pdf": "data/final/fulltext/t1/overview.md",
+        "https://x/p1.pdf": "data/final/fulltext/t1/participants/p1.md",
+    }
+    join_fulltext_paths(task, manifest, LOGGER)
+
+    assert task["overview"]["fulltext_path"] == "data/final/fulltext/t1/overview.md"
+    assert task["participants"][0]["fulltext_path"] == "data/final/fulltext/t1/participants/p1.md"
+    # An unparsed document yields null rather than a fabricated path.
+    assert task["participants"][1]["fulltext_path"] is None
+
+
+def test_fulltext_join_is_a_no_op_when_stage_7_has_not_run():
+    from src.build_corpus import join_fulltext_paths
+
+    task = make_task("t1", "https://x/ov.pdf", ["https://x/p1.pdf"])
+    join_fulltext_paths(task, {}, LOGGER)
+    assert "fulltext_path" not in task["overview"]

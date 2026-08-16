@@ -22,7 +22,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FINAL_CORPUS_PATH = PROJECT_ROOT / "data" / "final" / "shared_tasks.jsonl"
+# Reads the candidate list rather than the assembled corpus: build_corpus.py joins this
+# stage's manifest to publish fulltext paths, so depending on its output would be circular.
+CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
 PDF_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "pdf"
 FULLTEXT_DIR = PROJECT_ROOT / "data" / "final" / "fulltext"
 MANIFEST_PATH = FULLTEXT_DIR / "manifest.jsonl"
@@ -114,12 +116,14 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         logger.warning("%s: missing cached PDF for %s — run extract_counts.py/find_code.py first", task_id, pdf_url)
         return None
 
-    out_path = out_dir / f"{'overview' if role == 'overview' else stem}.md"
+    # Overview at the task root, notebook papers grouped under participants/ — keeps the
+    # target output visibly separate from the inputs it is generated from.
+    out_path = out_dir / "overview.md" if role == "overview" else out_dir / "participants" / f"{stem}.md"
     if out_path.exists():
         logger.info("fulltext cache hit: %s", out_path)
         text = out_path.read_text(encoding="utf-8")
     else:
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         if not parse_document(pdf_path, out_path, ocr_server_url, ocr_language, logger):
             return None
         text = out_path.read_text(encoding="utf-8")
@@ -179,16 +183,26 @@ the published CEUR-WS PDFs to Markdown.
 
 ## Layout
 
-    {{task_id}}/overview.md      the task's overview paper (organizer-written)
-    {{task_id}}/{{paper_stem}}.md  one file per participant/notebook paper
+    {{task_id}}/overview.md                   the task's overview paper (the target output)
+    {{task_id}}/participants/{{paper_stem}}.md  one file per notebook paper (the inputs)
 
 `{{paper_stem}}` matches the source PDF filename on CEUR-WS, so a document can always be
 traced back to its origin. `manifest.jsonl` records, per document: `task_id`, `role`,
 source `pdf_url`, output `markdown_path`, `chars`, `pages`, `chars_per_page`, whether an
 OCR server was used, and whether the text layer looked too thin to trust (`needs_ocr`).
 
-Task-level metadata (participants, counts, code links, coverage ratios) lives alongside
-this directory in `shared_tasks.jsonl` / `shared_tasks.csv`, keyed by the same `task_id`.
+## Aligning with the corpus files
+
+`shared_tasks.jsonl` carries the path to each parsed document directly, so no filename
+munging is needed:
+
+    task["overview"]["fulltext_path"]        -> {{task_id}}/overview.md
+    task["participants"][i]["fulltext_path"] -> {{task_id}}/participants/....md
+
+In `shared_tasks.csv`, `overview_fulltext_path` holds the overview and
+`participant_fulltext_paths` holds the notebook papers joined by `; ` in the same order
+as `participant_pdf_urls`, so the two columns line up positionally. A path is empty only
+when that document could not be parsed.
 
 ## Parsing
 
@@ -213,6 +227,7 @@ blind test set, or the answer leaks.
 def main() -> None:
     parser = argparse.ArgumentParser(description="Parse full text of corpus PDFs to markdown for participants.")
     parser.add_argument("--task-id", type=str, default=None, help="Parse only this task (for testing).")
+    parser.add_argument("--confidence", type=str, default="high", choices=["high", "medium", "all"], help="Which candidate tasks to parse (default: high, matching build_corpus.py).")
     parser.add_argument("--ocr-server-url", type=str, default=None, help="HTTP OCR server URL (e.g. a served PaddleOCR-VL). Default: use the PDF's own text layer.")
     parser.add_argument("--ocr-language", type=str, default="eng", help="OCR language passed through to the OCR server (default: eng).")
     parser.add_argument("--only-needs-ocr", action="store_true", help="Re-parse only documents a previous run flagged as needing OCR.")
@@ -226,11 +241,13 @@ def main() -> None:
     else:
         logger.info("using each PDF's own text layer (--no-ocr); pass --ocr-server-url to route OCR to a server")
 
-    if not FINAL_CORPUS_PATH.exists():
-        logger.error("missing %s — run build_corpus.py first", FINAL_CORPUS_PATH)
+    if not CANDIDATES_PATH.exists():
+        logger.error("missing %s — run group_tasks.py first", CANDIDATES_PATH)
         sys.exit(1)
 
-    tasks = [json.loads(line) for line in FINAL_CORPUS_PATH.read_text(encoding="utf-8").splitlines()]
+    tasks = [json.loads(line) for line in CANDIDATES_PATH.read_text(encoding="utf-8").splitlines()]
+    if args.confidence != "all":
+        tasks = [t for t in tasks if t["provenance"]["confidence"] == args.confidence]
     if args.task_id:
         tasks = [t for t in tasks if t["task_id"] == args.task_id]
         if not tasks:

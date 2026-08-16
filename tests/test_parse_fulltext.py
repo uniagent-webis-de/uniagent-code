@@ -34,3 +34,16 @@ def test_manifest_records_are_shaped_for_auditing(tmp_path):
     path.write_text(json.dumps(record) + "\n", encoding="utf-8")
     loaded = json.loads(path.read_text(encoding="utf-8").strip())
     assert set(loaded) >= {"task_id", "role", "pdf_url", "markdown_path", "chars", "pages", "needs_ocr", "ocr_server_used"}
+
+
+def test_participants_are_grouped_under_a_subfolder():
+    # Layout contract relied on by the corpus files: the overview (the target output)
+    # sits at the task root, notebook papers (the inputs) under participants/.
+    from src.parse_fulltext import FULLTEXT_DIR
+
+    task_dir = FULLTEXT_DIR / "some-task"
+    overview = task_dir / "overview.md"
+    participant = task_dir / "participants" / "paper_130.md"
+    assert overview.parent == task_dir
+    assert participant.parent.name == "participants"
+    assert participant.parent.parent == task_dir
