@@ -19,41 +19,37 @@ def find_run_files(runs_directory: Path) -> list[Path]:
     return run_files
 
 
-def create_pool(dataset, run_files: list[Path], k: int) -> list[dict[str, str]]:
+def get_pool(
+    runs_directory: Path, k: int, output_directory: Path
+) -> dict[str, list[str]]:
+    output_file = output_directory / f"top-{k}-pool.json"
+    if output_file.is_file():
+        click.echo(f"Load existing pool from {output_file}.")
+        with output_file.open(encoding="utf-8") as file:
+            return json.load(file)
+
     if k < 1:
         raise ValueError("k must be at least 1.")
 
+    run_files = find_run_files(runs_directory)
+    click.echo(f"Create top-{k} pool from {len(run_files)} runs.")
     pool = TrecPoolMaker().make_pool_from_files(
         [str(path) for path in run_files],
         strategy="topX",
         topX=k,
     )
-    queries = {str(query.query_id) for query in dataset.queries_iter()}
-    documents = dataset.docs_store()
-    records = []
+    pool_dictionary = {
+        str(qid): sorted(str(docno) for docno in docnos)
+        for qid, docnos in sorted(pool.pool.items(), key=lambda item: str(item[0]))
+    }
 
-    for qid, docnos in sorted(pool.pool.items(), key=lambda item: str(item[0])):
-        qid = str(qid)
-        if qid not in queries:
-            raise ValueError(f"Run contains unknown query ID: {qid}")
-
-        for docno in sorted(docnos):
-            docno = str(docno)
-            if documents.get(docno) is None:
-                raise ValueError(f"Run contains unknown document ID: {docno}")
-            records.append({"qid": qid, "docno": docno})
-
-    return records
-
-
-def write_pool(records: list[dict[str, str]], output_directory: Path) -> Path:
     output_directory.mkdir(parents=True, exist_ok=True)
-    output_file = output_directory / "pool.jsonl"
     output_file.write_text(
-        "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records),
+        json.dumps(pool_dictionary, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    return output_file
+
+    return pool_dictionary
 
 
 @click.command()
@@ -72,7 +68,7 @@ def write_pool(records: list[dict[str, str]], output_directory: Path) -> Path:
     "--output",
     required=True,
     type=click.Path(path_type=Path, file_okay=False),
-    help="Directory in which pool.jsonl is written.",
+    help="Directory in which the top-k pool JSON file is written.",
 )
 @click.option(
     "--k",
@@ -83,16 +79,16 @@ def write_pool(records: list[dict[str, str]], output_directory: Path) -> Path:
 )
 def main(dataset: str, runs: Path, output: Path, k: int) -> None:
     try:
-        records = create_pool(
-            ir_datasets.load(dataset),
-            find_run_files(runs),
-            k,
-        )
-        output_file = write_pool(records, output)
+        ir_datasets.load(dataset)
+        pool = get_pool(runs, k, output)
     except ValueError as error:
         raise click.ClickException(str(error)) from error
 
-    click.echo(f"Wrote {len(records):,} pooled query-document pairs to {output_file}.")
+    pool_size = sum(len(documents) for documents in pool.values())
+    click.echo(
+        f"Pool contains {pool_size:,} query-document pairs in "
+        f"{output / f'top-{k}-pool.json'}."
+    )
 
 
 if __name__ == "__main__":
