@@ -33,6 +33,72 @@ TIRA_DOCKER_RE = re.compile(r"\bdocker\.io/[\w\-./:]+", re.IGNORECASE)
 # (e.g. "see https://github.com/x/y." at the end of a sentence).
 TRAILING_PUNCTUATION_RE = re.compile(r"[.,;:)\]]+$")
 
+# A paper's bibliography cites the tools it used; those are not the team's own code.
+# PLAN.md Stage 5 says code links live in a footnote or a "Reproducibility"/"Availability"
+# section, so everything from the reference list onward is dropped before matching.
+REFERENCES_HEADING_RE = re.compile(r"(?im)^[ \t]*(?:\d+\.?\s*)?(references|bibliography|works cited)[ \t]*$")
+
+# Namespaces that publish the field's shared infrastructure and pretrained weights. A URL
+# under one of these is a dependency the team *used*, never the code the team *wrote*.
+# Audit found these made up ~48% of stored code_urls, so the field misrepresented
+# ubiquitous libraries (transformers, nltk, keras, trec_eval) as team submissions.
+THIRD_PARTY_NAMESPACES = {
+    "huggingface", "pytorch", "tensorflow", "keras", "fchollet", "scikit-learn", "scipy",
+    "numpy", "pandas-dev", "explosion", "nltk", "facebookresearch", "facebookai", "facebook",
+    "meta-llama", "google", "google-research", "google-bert", "googlecreativelab", "microsoft",
+    "openai", "allenai", "ukplab", "sentence-transformers", "cardiffnlp", "castorini",
+    "usnistgov", "fasterxml", "rare-technologies", "stanfordnlp", "flairnlp", "deepset-ai",
+    "deepset", "mistralai", "qwen", "bigscience", "eleutherai", "tiiuae", "intfloat", "baai",
+    "sentencepiece", "apache", "elastic", "terrier-org", "terrierteam", "explosion-ai",
+    "spacy-io", "dmlc", "xgboost", "unslothai", "langchain-ai", "jina-ai", "nomic-ai",
+    "salesforce", "databricks", "mosaicml", "togethercomputer", "thudm", "internlm",
+    "openai-community", "datasets", "sebastianruder", "zenodo",
+}
+
+# Hugging Face paths are frequently a bare pretrained-model name with no org segment
+# (e.g. huggingface.co/bert-base-uncased) — also a dependency, not team code.
+BARE_MODEL_NAME_RE = re.compile(
+    r"^(bert|roberta|distilbert|albert|xlm|xlnet|gpt2|gpt-2|t5|flan|deberta|electra|bart|mbart|mt5|opt|bloom|llama)[\w.\-]*$",
+    re.IGNORECASE,
+)
+
+# Phrases that mark a link as the authors' own released artifact rather than a passing
+# mention. Recorded as evidence so a consumer can prefer high-signal links.
+CODE_AVAILABILITY_RE = re.compile(
+    r"(our code|source code|code is available|code are available|code can be found|is available at|are available at|"
+    r"we release|publicly available|made available|reproducib|our implementation|our repository|"
+    r"github repository|our system is available|we provide the code|implementation is available)",
+    re.IGNORECASE,
+)
+OWNER_RE = re.compile(r"^https?://(?:www\.)?(?:github\.com|gitlab\.[^/]+|huggingface\.co|zenodo\.org)/([^/\s?#]+)", re.IGNORECASE)
+
+
+def strip_bibliography(text: str) -> str:
+    """Drop the reference list. Uses the last heading found, and only when it sits past
+    the first third of the document, so an in-body mention of the word "references"
+    does not truncate the paper."""
+    matches = list(REFERENCES_HEADING_RE.finditer(text))
+    if not matches:
+        return text
+    last = matches[-1]
+    if last.start() < len(text) * 0.3:
+        return text
+    return text[: last.start()]
+
+
+def is_third_party(url: str) -> bool:
+    match = OWNER_RE.match(url)
+    if not match:
+        return False
+    owner = match.group(1).lower()
+    return owner in THIRD_PARTY_NAMESPACES or bool(BARE_MODEL_NAME_RE.match(owner))
+
+
+def has_availability_evidence(text: str, position: int) -> bool:
+    """Look at the sentence-ish window around the URL for a code-release phrase."""
+    window = text[max(0, position - 240) : position + 120]
+    return bool(CODE_AVAILABILITY_RE.search(window))
+
 
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -58,10 +124,34 @@ def clean_url(url: str) -> str:
     return TRAILING_PUNCTUATION_RE.sub("", url)
 
 
-def extract_links(text: str) -> tuple[list[str], list[str]]:
-    code_urls = sorted({clean_url(u) for u in CODE_URL_RE.findall(text)})
-    tira_refs = sorted({clean_url(u) for u in TIRA_URL_RE.findall(text)} | {clean_url(u) for u in TIRA_DOCKER_RE.findall(text)})
-    return code_urls, tira_refs
+def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
+    """Return (candidate_code_links, third_party_urls, tira_refs) from a paper's text.
+
+    Candidates are the links plausibly pointing at the team's own artifact: found outside
+    the bibliography and not under a known third-party namespace. Each carries an
+    `evidence` flag recording whether it appeared in a code-availability context.
+    Third-party URLs are returned separately rather than discarded, so the exclusion stays
+    auditable instead of silently dropping data."""
+    body = strip_bibliography(text)
+
+    candidates: dict[str, bool] = {}
+    third_party: set[str] = set()
+    for match in CODE_URL_RE.finditer(body):
+        url = clean_url(match.group(0))
+        if not url:
+            continue
+        if is_third_party(url):
+            third_party.add(url)
+            continue
+        evidence = has_availability_evidence(body, match.start())
+        candidates[url] = candidates.get(url, False) or evidence
+
+    tira_refs = sorted(
+        {clean_url(u) for u in TIRA_URL_RE.findall(body)}
+        | {clean_url(u) for u in TIRA_DOCKER_RE.findall(body)}
+    )
+    candidate_links = [{"url": u, "evidence": candidates[u]} for u in sorted(candidates)]
+    return candidate_links, sorted(third_party), tira_refs
 
 
 def validate_url(url: str, logger: logging.Logger) -> str:
@@ -126,20 +216,26 @@ def process_participant(task_id: str, participant: dict, logger: logging.Logger)
     pdf_path = pdf_dir / f"{stem}.pdf"
     txt_path = pdf_dir / f"{stem}.txt"
 
+    empty = {"pdf_url": pdf_url, "code_urls": [], "third_party_urls": [], "tira_refs": []}
     if not fetch_pdf(pdf_url, pdf_path, logger):
-        return {"pdf_url": pdf_url, "code_urls": [], "tira_refs": []}
+        return empty
 
     text = parse_pdf_text(pdf_path, txt_path, logger)
     if text is None:
-        return {"pdf_url": pdf_url, "code_urls": [], "tira_refs": []}
+        return empty
 
-    code_urls, tira_refs = extract_links(text)
-    if not code_urls and not tira_refs:
+    candidates, third_party, tira_refs = extract_links(text)
+    if third_party:
+        logger.info("%s: excluded %d third-party dependency link(s)", pdf_url, len(third_party))
+    if not candidates and not tira_refs:
         logger.info("%s: no code links found", pdf_url)
-        return {"pdf_url": pdf_url, "code_urls": [], "tira_refs": tira_refs}
+        return {"pdf_url": pdf_url, "code_urls": [], "third_party_urls": third_party, "tira_refs": tira_refs}
 
-    validated = [{"url": url, "status": validate_url(url, logger)} for url in code_urls]
-    return {"pdf_url": pdf_url, "code_urls": validated, "tira_refs": tira_refs}
+    validated = [
+        {"url": c["url"], "status": validate_url(c["url"], logger), "evidence": c["evidence"]}
+        for c in candidates
+    ]
+    return {"pdf_url": pdf_url, "code_urls": validated, "third_party_urls": third_party, "tira_refs": tira_refs}
 
 
 def process_task(task: dict, logger: logging.Logger) -> list[dict]:

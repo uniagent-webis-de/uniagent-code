@@ -33,7 +33,9 @@ SEARCH_WINDOW_CHARS = 15000
 # the latter is the correct denominator for coverage_ratio.
 TEAM_PATTERNS = [
     re.compile(r"(\d+)\s+participating\s+teams", re.IGNORECASE),
-    re.compile(r"received\s+(?:results|submissions)\s+from\s+(\d+)\s+teams", re.IGNORECASE),
+    re.compile(r"received\s+(?:results|submissions)\s+(?:coming\s+)?from\s+(\d+)\s+(?:distinct\s+|different\s+)?teams", re.IGNORECASE),
+    re.compile(r"(\d+)\s+distinct\s+teams", re.IGNORECASE),
+    re.compile(r"(\d+)\s+participating\s+groups", re.IGNORECASE),
     re.compile(r"(\d+)\s+teams\s+(?:actively\s+)?participat\w*", re.IGNORECASE),
     re.compile(r"(\d+)\s+teams\s+submitted", re.IGNORECASE),
     re.compile(r"total\s+of\s+(\d+)\s+teams", re.IGNORECASE),

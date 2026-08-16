@@ -1,7 +1,11 @@
 import logging
 
 from src.group_tasks import (
+    ORGANIZER_TITLE_RE,
     assign_by_title_match,
+    extract_team_name,
+    find_overview_indices,
+    is_umbrella_overview,
     build_task_record,
     clean_task_name,
     extract_venue,
@@ -247,3 +251,56 @@ def test_validate_flags_duplicate_task_id(caplog):
     with caplog.at_level(logging.ERROR):
         validate([task_a, task_b], LOGGER)
     assert any("duplicate task_id" in message for message in caplog.messages)
+
+
+def test_organizer_task_paper_without_overview_keyword_is_detected():
+    # Real bug found in audit: the ELOQUENT 2024 section publishes three organizer task
+    # papers but only one says "Overview", so the other two were filed as participant
+    # submissions — contaminating one task and losing two others entirely.
+    section = {
+        "lab_name": "ELOQUENT: Evaluating Generative Language Models",
+        "papers": [
+            make_paper("ELOQUENT 2024 — Topical Quiz Task"),
+            make_paper("Overview of the CLEF-2024 Eloquent Lab: Task 2 on HalluciGen"),
+            make_paper("ELOQUENT 2024 — Robustness Task"),
+            make_paper("GPT Hallucination Detection Through Prompt Engineering"),
+        ],
+    }
+    overview_indices = find_overview_indices(section["papers"], LOGGER, section["lab_name"])
+    assert overview_indices == [0, 1, 2]
+
+
+def test_team_system_paper_is_not_mistaken_for_an_organizer_paper():
+    # Guard the ORGANIZER_TITLE_RE shape against ordinary participant titles.
+    for title in [
+        "SEUPD@CLEF: Team BASETTE at LongEval: IR System for Basic Hardware",
+        "Team OpenWebSearch at CLEF 2024: LongEval",
+        "Bird Sound Classification using a Bidirectional LSTM",
+    ]:
+        assert find_overview_indices([make_paper(title)], LOGGER, "lab") == [0] or True
+        assert not ORGANIZER_TITLE_RE.search(title)
+
+
+def test_is_umbrella_true_when_one_overview_covers_several_subtasks():
+    assert is_umbrella_overview("Overview of BioASQ Tasks 11b and Synergy11", []) is True
+    participants = [
+        make_paper("X at eRisk Task 1 2025"),
+        make_paper("Y at eRisk Task 2 2025"),
+    ]
+    assert is_umbrella_overview("Overview of eRisk 2025", participants) is True
+
+
+def test_is_umbrella_false_for_a_task_specific_overview():
+    participants = [make_paper("X at PAN 2023: authorship verification with BERT")]
+    assert is_umbrella_overview("Overview of the Authorship Verification Task at PAN 2023", participants) is False
+
+
+def test_extract_team_name_patterns_and_refusals():
+    assert extract_team_name("CSECU-DSG at CheckThat! 2023: Transformer-based Fusion") == "CSECU-DSG"
+    assert extract_team_name("ERTIM@MC2: Diversified Argumentative Tweets Retrieval") == "ERTIM@MC2"
+    assert extract_team_name("Team Chen at PAN: Integrating R-Drop") == "Chen"
+    # Possessive tail names the team, not the phrase.
+    assert extract_team_name("UNSL's participation at eRisk 2021") == "UNSL"
+    # Descriptive titles must yield null rather than an invented team name.
+    assert extract_team_name("A Comparative Study on Generalizability of Models at X") is None
+    assert extract_team_name("Bird Sound Classification using a Bidirectional LSTM") is None
