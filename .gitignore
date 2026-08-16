@@ -2,12 +2,7 @@
 # Project-specific: logs and data are gitignored except .gitkeep (see AGENT.md)
 /logs/*
 !/logs/.gitkeep
-/data/raw/*
-!/data/raw/.gitkeep
-/data/intermediate/*
-!/data/intermediate/.gitkeep
-/data/final/*
-!/data/final/.gitkeep
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
