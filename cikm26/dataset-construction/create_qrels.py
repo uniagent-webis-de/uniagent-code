@@ -60,18 +60,6 @@ def create_umbrela_judge():
     )
 
 
-def query_text(query) -> str:
-    original_query = (
-        query.original_query if isinstance(query.original_query, dict) else {}
-    )
-    fields = [
-        ("Query", query.default_text()),
-        ("Description", original_query.get("description")),
-        ("Narrative", original_query.get("narrative")),
-    ]
-    return "\n\n".join(f"{label}: {value}" for label, value in fields if value)
-
-
 def build_topic_request(query, document_ids: list[str], documents) -> dict:
     candidates = []
     for document_id in document_ids:
@@ -88,7 +76,7 @@ def build_topic_request(query, document_ids: list[str], documents) -> dict:
     return {
         "query": {
             "qid": str(query.query_id),
-            "text": query_text(query),
+            "text": query.default_text(),
         },
         "candidates": candidates,
     }
@@ -212,6 +200,43 @@ def write_qrels(pool: dict[str, list[str]], output_directory: Path) -> Path:
     return qrels_path
 
 
+def get_relevance_label_distribution(
+    pool: dict[str, list[str]], output_directory: Path
+) -> dict[str, dict[int, int]]:
+    distributions = {}
+    responses_directory = output_directory / "responses"
+
+    for qid in sorted(pool):
+        response_path = topic_path(responses_directory, qid)
+        if not response_path.is_file():
+            raise ValueError(f"Missing response for query {qid}.")
+        response = load_json(response_path)
+        request = {
+            "query": {"qid": qid},
+            "candidates": [{"docid": docno} for docno in pool[qid]],
+        }
+        validate_response(request, response)
+
+        counts = {label: 0 for label in range(4)}
+        for judgment in response["judgments"]:
+            counts[judgment["judgment"]] += 1
+        distributions[qid] = counts
+
+    return distributions
+
+
+def report_relevance_label_distribution(
+    distributions: dict[str, dict[int, int]],
+) -> None:
+    click.echo("Relevance label distribution per topic:")
+    click.echo("topic\t0\t1\t2\t3\ttotal")
+    for qid, counts in distributions.items():
+        total = sum(counts.values())
+        click.echo(
+            f"{qid}\t{counts[0]}\t{counts[1]}\t{counts[2]}\t{counts[3]}\t{total}"
+        )
+
+
 @click.command()
 @click.option(
     "--dataset",
@@ -243,10 +268,12 @@ def main(dataset: str, runs: Path, output: Path, k: int) -> None:
         pool = get_pool(runs, k, output / "pools")
         create_topic_judgments(loaded_dataset, pool, output)
         qrels_path = write_qrels(pool, output)
+        distributions = get_relevance_label_distribution(pool, output)
     except (ImportError, ValueError) as error:
         raise click.ClickException(str(error)) from error
 
     click.echo(f"Wrote qrels to {qrels_path}.")
+    report_relevance_label_distribution(distributions)
 
 
 if __name__ == "__main__":

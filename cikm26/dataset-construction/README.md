@@ -27,18 +27,21 @@ export OPENAI_MODEL=openai/gpt-oss-20b
 python create_qrels.py \
   --dataset ../datasets/retrieval-en-spot-check/ \
   --runs ../baselines/retrieval-baseline/runs/retrieval-en-spot-check/ \
+  --k 10 \
   --output qrels/retrieval-en-spot-check/gpt-oss-20b
 
 python create_qrels.py \
   --dataset ../datasets/retrieval-de-spot-check/ \
   --runs ../baselines/retrieval-baseline/runs/retrieval-de-spot-check/ \
+  --k 10 \
   --output qrels/retrieval-de-spot-check/gpt-oss-20b
 ```
 
 The command creates `pools/`, `requests/`, and `responses/` below the output
 directory and writes `qrels.txt`. Each topic is judged independently. A topic
 is skipped when its persisted request and response both match the current
-dataset and pool.
+dataset and pool. After writing the qrels, the command always prints the
+distribution of relevance labels 0 through 3 for every topic.
 
 The `.devcontainer` uses Python 3.12 and Java 21 and installs the UMBRELA
 cloud dependencies. Build it manually with:

@@ -12,8 +12,10 @@ from create_qrels import (
     build_topic_request,
     create_topic_judgments,
     create_umbrela_judge,
+    get_relevance_label_distribution,
     get_openai_configuration,
     main,
+    report_relevance_label_distribution,
     topic_path,
     write_qrels,
 )
@@ -218,8 +220,57 @@ class QrelsTest(unittest.TestCase):
 
         self.assertEqual("1 0 a 3\n1 0 b 0\n", qrels)
 
+    def test_reports_label_distribution_for_every_topic(self) -> None:
+        pool = {"1": ["a", "b"], "2": ["c"]}
+        responses = {
+            "1": {
+                "qid": "1",
+                "judgments": [
+                    {"docno": "a", "judgment": 3},
+                    {"docno": "b", "judgment": 0},
+                ],
+            },
+            "2": {
+                "qid": "2",
+                "judgments": [{"docno": "c", "judgment": 1}],
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = Path(temporary_directory)
+            responses_directory = output / "responses"
+            responses_directory.mkdir()
+            for qid, response in responses.items():
+                topic_path(responses_directory, qid).write_text(
+                    json.dumps(response),
+                    encoding="utf-8",
+                )
+
+            distributions = get_relevance_label_distribution(pool, output)
+            with patch("create_qrels.click.echo") as echo:
+                report_relevance_label_distribution(distributions)
+
+        self.assertEqual(
+            {
+                "1": {0: 1, 1: 0, 2: 0, 3: 1},
+                "2": {0: 0, 1: 1, 2: 0, 3: 0},
+            },
+            distributions,
+        )
+        self.assertEqual(
+            [
+                unittest.mock.call("Relevance label distribution per topic:"),
+                unittest.mock.call("topic\t0\t1\t2\t3\ttotal"),
+                unittest.mock.call("1\t1\t0\t0\t1\t2"),
+                unittest.mock.call("2\t0\t1\t0\t0\t1"),
+            ],
+            echo.call_args_list,
+        )
+
 
 class MainTest(unittest.TestCase):
+    @patch("create_qrels.report_relevance_label_distribution")
+    @patch("create_qrels.get_relevance_label_distribution")
     @patch("create_qrels.write_qrels")
     @patch("create_qrels.create_topic_judgments")
     @patch("create_qrels.get_pool")
@@ -230,11 +281,15 @@ class MainTest(unittest.TestCase):
         get_pool,
         create_topic_judgments,
         write_qrels,
+        get_relevance_label_distribution,
+        report_relevance_label_distribution,
     ) -> None:
         dataset = object()
+        distributions = {"1": {0: 1, 1: 0, 2: 0, 3: 0}}
         load.return_value = dataset
         get_pool.return_value = {"1": ["a"]}
         write_qrels.return_value = Path("output/qrels.txt")
+        get_relevance_label_distribution.return_value = distributions
         runner = CliRunner()
 
         with runner.isolated_filesystem():
@@ -259,6 +314,10 @@ class MainTest(unittest.TestCase):
             Path("output"),
         )
         write_qrels.assert_called_once_with({"1": ["a"]}, Path("output"))
+        get_relevance_label_distribution.assert_called_once_with(
+            {"1": ["a"]}, Path("output")
+        )
+        report_relevance_label_distribution.assert_called_once_with(distributions)
 
 
 if __name__ == "__main__":
