@@ -16,13 +16,15 @@ CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl
 COUNTS_DIR = PROJECT_ROOT / "data" / "intermediate" / "counts"
 CODE_DIR = PROJECT_ROOT / "data" / "intermediate" / "code"
 FINAL_DIR = PROJECT_ROOT / "data" / "final"
+FULLTEXT_MANIFEST_PATH = FINAL_DIR / "fulltext" / "manifest.jsonl"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 CSV_FIELDS = [
     "task_id", "venue", "parent_venue", "year", "task_name", "ceur_volume",
     "overview_title", "overview_pdf_url", "overview_authors", "is_umbrella",
     "notebook_papers", "teams_claimed_in_overview", "runs_claimed_in_overview", "coverage_ratio",
-    "participant_pdf_urls", "team_names", "code_urls", "code_urls_live", "tira_refs",
+    "participant_pdf_urls", "team_names", "overview_fulltext_path", "participant_fulltext_paths",
+    "code_urls", "code_urls_live", "tira_refs",
     "task_assignment_method", "confidence", "extracted_at",
 ]
 
@@ -90,6 +92,47 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         ]
         participant["third_party_urls"] = entry.get("third_party_urls", [])
         participant["tira_refs"] = entry["tira_refs"]
+
+
+def join_fulltext_paths(task: dict, manifest: dict[str, str], logger: logging.Logger) -> None:
+    """Publish each document's parsed-markdown path on the record itself, so consumers can
+    go from a corpus entry straight to its text without deriving filenames from URLs."""
+    if not manifest:
+        return
+
+    def apply(document: dict, record: dict | None) -> None:
+        document["fulltext_path"] = record["markdown_path"] if record else None
+        document["figures_dir"] = record.get("figures_dir") if record else None
+        document["n_figures"] = record.get("n_figures", 0) if record else 0
+        document["tables_dir"] = record.get("tables_dir") if record else None
+        document["n_tables"] = record.get("n_tables", 0) if record else 0
+
+    overview_record = manifest.get(task["overview"]["pdf_url"])
+    apply(task["overview"], overview_record)
+    if overview_record is None:
+        logger.warning("%s: overview has no parsed full text", task["task_id"])
+
+    missing = 0
+    for participant in task["participants"]:
+        record = manifest.get(participant["pdf_url"])
+        apply(participant, record)
+        if record is None:
+            missing += 1
+    if missing:
+        logger.warning("%s: %d/%d participants have no parsed full text", task["task_id"], missing, len(task["participants"]))
+
+
+def load_fulltext_manifest(logger: logging.Logger) -> dict[str, dict]:
+    """Map pdf_url -> parsed-document record from Stage 7's manifest, if it has run."""
+    if not FULLTEXT_MANIFEST_PATH.exists():
+        logger.warning("no full-text manifest at %s — run parse_fulltext.py to add fulltext_path fields", FULLTEXT_MANIFEST_PATH)
+        return {}
+    manifest = {}
+    for line in FULLTEXT_MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        manifest[record["pdf_url"]] = record
+    logger.info("loaded full-text manifest with %d documents", len(manifest))
+    return manifest
 
 
 CONFIDENCE_RANK = {"high": 0, "medium": 1, "low": 2}
@@ -199,6 +242,9 @@ def write_csv(tasks: list[dict], path: Path) -> None:
                 "coverage_ratio": t["counts"]["coverage_ratio"],
                 "participant_pdf_urls": "; ".join(p["pdf_url"] for p in t["participants"]),
                 "team_names": "; ".join(team_names),
+                "overview_fulltext_path": t["overview"].get("fulltext_path") or "",
+                # Positionally aligned with participant_pdf_urls; empty where unparsed.
+                "participant_fulltext_paths": "; ".join(p.get("fulltext_path") or "" for p in t["participants"]),
                 "code_urls": "; ".join(all_code_urls),
                 "code_urls_live": "; ".join(live_code_urls),
                 "tira_refs": "; ".join(all_tira_refs),
@@ -291,9 +337,11 @@ def main() -> None:
         tasks = [t for t in tasks if t["provenance"]["confidence"] == args.confidence]
     logger.info("assembling corpus from %d tasks (confidence=%s)", len(tasks), args.confidence)
 
+    fulltext_manifest = load_fulltext_manifest(logger)
     for task in tasks:
         join_counts(task, logger)
         join_code_links(task, logger)
+        join_fulltext_paths(task, fulltext_manifest, logger)
 
     tasks = select_corpus(tasks, args.target, logger)
 
