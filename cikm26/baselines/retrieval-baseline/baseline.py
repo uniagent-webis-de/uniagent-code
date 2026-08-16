@@ -9,6 +9,10 @@ import pandas as pd
 import pyterrier as pt
 from tira.third_party_integrations import ir_datasets
 
+# We use the tracker to monitor resource consumption etc. of the indexing and retrieval.
+# The tracking is optional, i.e., you can remove it or switch to an alternative such as repro_eval.
+from tirex_tracker import tracking
+
 RETRIEVAL_CONFIGURATION = {
     "de": {
         "stemmer": pt.TerrierStemmer.german,
@@ -56,7 +60,7 @@ def detect_query_language(dataset) -> str:
     return languages.pop()
 
 
-def create_index(dataset, language: str):
+def create_index(dataset, language: str, output_dir: Path):
     if language not in RETRIEVAL_CONFIGURATION:
         raise ValueError(f"Unsupported language: {language}")
 
@@ -69,17 +73,16 @@ def create_index(dataset, language: str):
         verbose=True,
         **RETRIEVAL_CONFIGURATION[language],
     )
-    index_ref = indexer.index(
-        {
-            "docno": str(document.doc_id),
-            "text": document.default_text(),
-        }
-        for document in tqdm(list(dataset.docs_iter()), "Index documents")
-    )
+    docs_to_index = ({"docno": str(document.doc_id), "text": document.default_text()}
+        for document in tqdm(list(dataset.docs_iter()), "Index documents"))
+    
+    with tracking(export_file_path=output_dir / "index-ir-metadata.yml"):
+        index_ref = indexer.index(docs_to_index)
+
     return pt.IndexFactory.of(index_ref)
 
 
-def retrieve(dataset, index, language: str) -> pd.DataFrame:
+def retrieve(dataset, index, language: str, wmodel: str, output: Path) -> pd.DataFrame:
     if language not in RETRIEVAL_CONFIGURATION:
         raise ValueError(f"Unsupported language: {language}")
 
@@ -99,7 +102,10 @@ def retrieve(dataset, index, language: str) -> pd.DataFrame:
     if topics.empty:
         raise ValueError("Cannot retrieve because the dataset has no queries.")
 
-    return pt.terrier.Retriever(index, wmodel="BM25", verbose=True).transform(topics)
+
+    with tracking(export_file_path=output / "retrieval-ir-metadata.yml"):
+        ret = pt.terrier.Retriever(index, wmodel=wmodel, verbose=True).transform(topics)
+    pt.io.write_results(ret, output / "run.txt.gz")
 
 
 @click.command()
@@ -109,12 +115,18 @@ def retrieve(dataset, index, language: str) -> pd.DataFrame:
     help="The TIRA dataset ID or local dataset directory.",
 )
 @click.option(
+    "--wmodel",
+    required=True,
+    help="The retrieval model for PyTerrier.",
+    type=click.Choice(["BM25", "DFIC", "DFIZ", "DirichletLM", "DLH", "DPH", "Hiemstra_LM", "LGD", "PL2", "TF_IDF"])
+)
+@click.option(
     "--output",
     required=True,
     type=click.Path(path_type=Path, file_okay=False),
     help="The output directory.",
 )
-def main(dataset: str, output: Path) -> None:
+def main(dataset: str, output: Path, wmodel: str) -> None:
     ir_dataset = ir_datasets.load(dataset)
 
     try:
@@ -124,12 +136,9 @@ def main(dataset: str, output: Path) -> None:
 
     click.echo(f"Language: {language}")
 
-    index = create_index(ir_dataset, language)
-    run = retrieve(ir_dataset, index, language)
-
     output.mkdir(parents=True, exist_ok=True)
-    pt.io.write_results(run, output / "run.txt.gz")
-
+    index = create_index(ir_dataset, language, output)
+    retrieve(ir_dataset, index, language, wmodel, output)
 
 if __name__ == "__main__":
     main()
