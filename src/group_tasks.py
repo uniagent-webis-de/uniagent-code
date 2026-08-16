@@ -27,6 +27,21 @@ INTERMEDIATE_DIR = PROJECT_ROOT / "data" / "intermediate"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 OVERVIEW_TITLE_RE = re.compile(r"\boverview\b|\bextended abstract\b", re.IGNORECASE)
+
+# Organizer-written task descriptions that never use the word "overview". Real bug found
+# in audit: the ELOQUENT 2024 section publishes three organizer task papers, but only
+# "Overview of the CLEF-2024 Eloquent Lab: Task 2 on HalluciGen" says "overview" — so
+# "ELOQUENT 2024 — Topical Quiz Task" and "ELOQUENT 2024 — Robustness Task" were filed as
+# participant submissions, contaminating one task and losing two others entirely.
+# The distinguishing shape is lab-branding + year + a dash + a task name, with no team
+# attribution. Verified across all 8 volumes: adds exactly those 2 real detections and
+# no false positives.
+#
+# An author-overlap rule (paper sharing authors with a detected overview) was evaluated
+# for this and REJECTED: lab organizers routinely also submit competing systems ("DPRL
+# Systems in the CLEF 2021 ARQMath Lab", "Organiser Team at ImageCLEFlifelog 2020"), so
+# it flagged ~48 genuine participant papers.
+ORGANIZER_TITLE_RE = re.compile(r"^\S+\s+20\d\d\s*[—–-]\s*.*\btask\b\s*$", re.IGNORECASE)
 BEST_OF_LABS_RE = re.compile(r"\bbest of (the )?labs?\b", re.IGNORECASE)
 STOPWORDS = {
     "a", "an", "the", "of", "in", "on", "at", "for", "to", "and", "or", "with",
@@ -128,7 +143,10 @@ def clean_task_name(overview_title: str) -> str:
 
 
 def find_overview_indices(papers: list[dict], logger: logging.Logger, lab_name: str) -> list[int]:
-    indices = [i for i, p in enumerate(papers) if OVERVIEW_TITLE_RE.search(p["title"])]
+    indices = [
+        i for i, p in enumerate(papers)
+        if OVERVIEW_TITLE_RE.search(p["title"]) or ORGANIZER_TITLE_RE.search(p["title"])
+    ]
     if not indices and papers:
         logger.warning("no title matched overview keyword in section %r — using first paper as overview", lab_name)
         indices = [0]
@@ -238,6 +256,49 @@ def has_hidden_second_task(overview_title: str, participants: list[dict]) -> boo
     )
 
 
+MULTI_TASK_TITLE_RE = re.compile(r"\btasks\b", re.IGNORECASE)
+
+# "TeamName at Venue 2023: ..." / "TeamName@Venue: ..." — the two shapes CEUR working-note
+# titles actually use for team attribution. Anything else yields null rather than a guess.
+TEAM_AT_RE = re.compile(r"^\s*(?:team\s+)?(?P<team>[^:]{2,40}?)\s+at\s+\S", re.IGNORECASE)
+TEAM_HANDLE_RE = re.compile(r"^\s*(?:team\s+)?(?P<team>[\w.\-]{2,30}@[\w.\-]{2,30})\s*[:,]", re.IGNORECASE)
+
+
+def extract_team_name(title: str) -> str | None:
+    """Best-effort team name from a working-note title. Returns None when no clear
+    attribution pattern matches — never guesses (AGENT.md: write null, don't invent)."""
+    handle = TEAM_HANDLE_RE.match(title)
+    if handle:
+        return handle.group("team").strip()
+    at_match = TEAM_AT_RE.match(title)
+    if at_match:
+        team = at_match.group("team").strip().strip(",")
+        # "UNSL's participation at eRisk 2021" names the team UNSL, not "UNSL's
+        # participation" — drop the possessive tail so the field holds just the team.
+        team = re.sub(r"[’']s\s+(participation|submission|approach|system|contribution)$", "", team, flags=re.IGNORECASE).strip()
+        # Guard against sentence-like prefixes ("A Comparative Study of X at ...") which
+        # are descriptions, not team names.
+        if len(team.split()) <= 4 and not team.lower().startswith(("a ", "an ", "the ")):
+            return team
+    return None
+
+
+def is_umbrella_overview(overview_title: str, participants: list[dict]) -> bool:
+    """PLAN.md section 1: is_umbrella is true when the only available overview for these
+    participants is a combined multi-task overview rather than a task-specific one.
+
+    Detected either from the overview's own title naming multiple tasks ("BioASQ Tasks 11b
+    and Synergy11") or from its participants declaring two or more distinct task numbers,
+    which means one overview is serving several sub-tasks. Best-effort: a lab whose
+    overview and participant titles both omit task numbers entirely will read as
+    non-umbrella even if it ran several sub-tasks."""
+    if MULTI_TASK_TITLE_RE.search(overview_title):
+        return True
+    task_numbers = {declared_task_number(p["title"]) for p in participants}
+    task_numbers.discard(None)
+    return len(task_numbers) >= 2
+
+
 def group_section(section: dict, entry: dict, logger: logging.Logger, extracted_at: str) -> list[dict]:
     lab_name = section["lab_name"]
     papers, best_of_labs = split_best_of_labs(section["papers"], logger)
@@ -288,14 +349,16 @@ def build_task_record(entry: dict, lab_name: str, overview: dict, participants: 
             "title": overview["title"],
             "pdf_url": overview["pdf_url"],
             "authors": overview["authors"],
-            "is_umbrella": False,
+            # Only a single-overview section can be serving as an umbrella; when a section
+            # has several task-specific overviews, each task has its own dedicated one.
+            "is_umbrella": method == "section_grouping" and is_umbrella_overview(overview["title"], participants),
         },
         "participants": [
             {
                 "title": p["title"],
                 "authors": p["authors"],
                 "pdf_url": p["pdf_url"],
-                "team_name": None,
+                "team_name": extract_team_name(p["title"]),
                 "code_urls": [],
                 "tira_refs": [],
             }
