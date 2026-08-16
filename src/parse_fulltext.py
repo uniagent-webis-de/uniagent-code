@@ -13,11 +13,11 @@ note has, and which PLAN.md section 3 Stage 2 asks for ("Avoid OCR unless absolu
 necessary").
 """
 import argparse
-import csv
 import json
 import logging
 import subprocess
 import sys
+import tempfile
 import re
 from datetime import datetime
 from pathlib import Path
@@ -121,24 +121,217 @@ def table_to_rows(table_lines: list[str]) -> list[list[str]]:
     return rows
 
 
-def write_tables(markdown: str, tables_dir: Path) -> int:
-    """Write each table as verbatim markdown plus a CSV when it is rectangular.
+# Rendering resolution for cropped table images. 150 DPI keeps the glyphs crisp; going
+# lower and downscaling actually produced *larger* files, because the resampling blurs
+# the text and defeats PNG compression.
+TABLE_IMAGE_DPI = 150
+POINTS_PER_INCH = 72
+TABLE_CROP_PADDING_PT = 8
 
-    The tables stay inline in the document too — this is an additional view for analysis,
-    not a removal, so the parsed paper still reads as a whole."""
+# A booktabs rule spans the text column; the short rule above a footnote block is ~56pt
+# and must not be mistaken for a table.
+MIN_RULE_LENGTH_PT = 100
+# Two rules belong to the same table when they are vertically close and share most of
+# their horizontal extent.
+MAX_RULE_GAP_PT = 260
+
+
+def horizontal_rules(page: dict) -> list[dict]:
+    """Horizontal ruling lines on a page, long enough to be table rules, top to bottom."""
+    lines = (page.get("vector_graphics") or {}).get("lines") or []
+    rules = [
+        line for line in lines
+        if abs(line["y1"] - line["y2"]) < 1 and (line["x2"] - line["x1"]) > MIN_RULE_LENGTH_PT
+    ]
+    return sorted(rules, key=lambda line: line["y1"])
+
+
+def group_rules_into_tables(rules: list[dict]) -> list[dict]:
+    """Cluster ruling lines into table regions.
+
+    LaTeX tables are delimited by a top rule, optional mid rules and a bottom rule, so a
+    run of nearby rules sharing an x-extent bounds exactly one table. This is far more
+    reliable than inferring the extent from matched text, which under-runs when the
+    matched cells are sparse and over-runs into body text when a cell string recurs."""
+    if not rules:
+        return []
+    groups: list[list[dict]] = [[rules[0]]]
+    for previous, current in zip(rules, rules[1:]):
+        overlap = min(previous["x2"], current["x2"]) - max(previous["x1"], current["x1"])
+        same_table = (
+            current["y1"] - previous["y1"] < MAX_RULE_GAP_PT
+            and overlap > 0.5 * (previous["x2"] - previous["x1"])
+        )
+        groups[-1].append(current) if same_table else groups.append([current])
+
+    regions = []
+    for group in groups:
+        # A single isolated rule is a separator, not a table.
+        if len(group) < 2:
+            continue
+        regions.append({
+            "x0": min(line["x1"] for line in group),
+            "x1": max(line["x2"] for line in group),
+            "y0": group[0]["y1"],
+            "y1": group[-1]["y1"],
+        })
+    return regions
+
+
+def page_geometry(pdf_path: Path, logger: logging.Logger) -> list[dict]:
+    """Per-page text items and vector rules, parsed once per document."""
+    result = subprocess.run(
+        ["lit", "parse", str(pdf_path), "--format", "json", "--no-ocr",
+         "--extract-vector-graphics", "-o", "/dev/stdout", "-q"],
+        capture_output=True, text=True,
+    )
+    try:
+        return json.loads(result.stdout).get("pages") or []
+    except (json.JSONDecodeError, TypeError):
+        logger.warning("could not read page geometry for %s — table images skipped", pdf_path.name)
+        return []
+
+
+def locate_table(table_lines: list[str], pages: list[dict]) -> tuple[int, dict] | None:
+    """Find the page and bounding box of one markdown table.
+
+    Distinctive cell strings anchor the table to a page and a vertical position; the
+    ruling lines around that position give the actual crop box."""
+    cells = [cell for row in table_to_rows(table_lines) for cell in row if len(cell) > 4]
+    if not cells:
+        return None
+
+    best_page, best_hits = None, []
+    for page in pages:
+        hits = [item for item in (page.get("text_items") or []) if any(c in item["text"] for c in cells)]
+        if len(hits) > len(best_hits):
+            best_page, best_hits = page, hits
+    if best_page is None or not best_hits:
+        return None
+
+    regions = group_rules_into_tables(horizontal_rules(best_page))
+    if not regions:
+        return None
+
+    # Pick the ruled region containing the most of this table's matched text.
+    def contained(region: dict) -> int:
+        return sum(1 for h in best_hits if region["y0"] - 4 <= h["y"] <= region["y1"] + 4)
+
+    if regions:
+        region = max(regions, key=contained)
+        if contained(region):
+            return best_page["page"], region
+
+    # Unruled table (no booktabs rules on that page): fall back to the text block itself.
+    # Seed from the matched cells, then grow through vertically adjacent lines so the crop
+    # covers the whole table rather than only the rows whose text happened to match.
+    return best_page["page"], text_block_region(best_page, best_hits)
+
+
+def text_block_region(page: dict, hits: list[dict]) -> dict | None:
+    """Bounding box of the contiguous block of text lines containing the matched cells."""
+    items = page.get("text_items") or []
+    if not items or not hits:
+        return None
+    x0 = min(h["x"] for h in hits)
+    x1 = max(h["x"] + h["width"] for h in hits)
+    line_height = max(h["height"] for h in hits) or 10
+
+    # Only lines overlapping the matched columns can belong to this table.
+    column = sorted(
+        (i for i in items if i["x"] + i["width"] > x0 - line_height and i["x"] < x1 + line_height),
+        key=lambda i: i["y"],
+    )
+    y0 = min(h["y"] for h in hits)
+    y1 = max(h["y"] + h["height"] for h in hits)
+    changed = True
+    while changed:
+        changed = False
+        for item in column:
+            top, bottom = item["y"], item["y"] + item["height"]
+            if bottom < y0 - 2 * line_height or top > y1 + 2 * line_height:
+                continue
+            if top < y0 or bottom > y1:
+                y0, y1 = min(y0, top), max(y1, bottom)
+                changed = True
+
+    # A block taller than half the page is body text, not a table — refuse rather than
+    # ship a crop that is mostly prose.
+    if (y1 - y0) > 0.5 * page.get("height", 792):
+        return None
+    return {
+        "x0": min(i["x"] for i in column if y0 - 2 <= i["y"] <= y1 + 2),
+        "x1": max(i["x"] + i["width"] for i in column if y0 - 2 <= i["y"] <= y1 + 2),
+        "y0": y0,
+        "y1": y1,
+    }
+
+
+def render_table_images(pdf_path: Path, located: dict[int, tuple[int, dict]], tables_dir: Path, logger: logging.Logger) -> int:
+    """Crop each located table out of a rendered page image."""
+    if not located:
+        return 0
+    from PIL import Image
+
+    pages_needed = sorted({page for page, _ in located.values()})
+    with tempfile.TemporaryDirectory() as tmp:
+        result = subprocess.run(
+            ["lit", "screenshot", str(pdf_path), "--target-pages", ",".join(str(p) for p in pages_needed),
+             "--dpi", str(TABLE_IMAGE_DPI), "-o", tmp, "-q"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            logger.warning("page render failed for %s — table images skipped", pdf_path.name)
+            return 0
+
+        scale = TABLE_IMAGE_DPI / POINTS_PER_INCH
+        written = 0
+        for index, (page_number, region) in sorted(located.items()):
+            page_image = Path(tmp) / f"page_{page_number}.png"
+            if not page_image.exists():
+                continue
+            with Image.open(page_image) as image:
+                pad = TABLE_CROP_PADDING_PT
+                box = (
+                    max(0, int((region["x0"] - pad) * scale)),
+                    max(0, int((region["y0"] - pad) * scale)),
+                    min(image.width, int((region["x1"] + pad) * scale)),
+                    min(image.height, int((region["y1"] + pad) * scale)),
+                )
+                if box[2] <= box[0] or box[3] <= box[1]:
+                    continue
+                # Grayscale: these are black-on-white tables, and it roughly halves the
+                # file size with no loss of legibility.
+                image.crop(box).convert("L").save(tables_dir / f"table-{index:02d}.png", optimize=True)
+                written += 1
+    return written
+
+
+def write_tables(markdown: str, tables_dir: Path, pdf_path: Path | None = None, logger: logging.Logger | None = None) -> tuple[int, int]:
+    """Write each table as verbatim markdown, plus a cropped image of it from the PDF.
+
+    Tables stay inline in the document as well — these files are an additional view, not
+    a removal, so the parsed paper still reads as a whole. Returns (tables, images)."""
     tables = split_markdown_tables(markdown)
     if not tables:
-        return 0
+        return 0, 0
     tables_dir.mkdir(parents=True, exist_ok=True)
     for index, table_lines in enumerate(tables, start=1):
         (tables_dir / f"table-{index:02d}.md").write_text("\n".join(table_lines) + "\n", encoding="utf-8")
-        rows = table_to_rows(table_lines)
-        # Only emit CSV for a well-formed grid; a ragged table would silently misalign
-        # columns, and a wrong CSV is worse than none.
-        if rows and len({len(r) for r in rows}) == 1 and len(rows[0]) > 1:
-            with (tables_dir / f"table-{index:02d}.csv").open("w", encoding="utf-8", newline="") as f:
-                csv.writer(f).writerows(rows)
-    return len(tables)
+
+    if pdf_path is None or logger is None:
+        return len(tables), 0
+
+    pages = page_geometry(pdf_path, logger)
+    located = {}
+    for index, table_lines in enumerate(tables, start=1):
+        found = locate_table(table_lines, pages)
+        if found and found[1]:
+            located[index] = found
+    images = render_table_images(pdf_path, located, tables_dir, logger)
+    if images < len(tables):
+        logger.info("%s: %d/%d tables could be imaged (unruled tables have markdown only)", pdf_path.name, images, len(tables))
+    return len(tables), images
 
 
 def rewrite_figure_refs(markdown_path: Path, figures_rel_prefix: str) -> None:
@@ -204,13 +397,14 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
             return None
         rewrite_figure_refs(out_path, figures_rel_prefix)
         text = out_path.read_text(encoding="utf-8")
-        write_tables(text, tables_dir)
+        write_tables(text, tables_dir, pdf_path, logger)
         if not any(figures_dir.iterdir()):
             figures_dir.rmdir()
         logger.info("parsed %s -> %s (%d chars)", pdf_path.name, out_path, len(text))
 
     figures = sorted(p.name for p in figures_dir.glob("*")) if figures_dir.exists() else []
     tables = sorted(p.name for p in tables_dir.glob("*.md")) if tables_dir.exists() else []
+    table_images = sorted(p.name for p in tables_dir.glob("*.png")) if tables_dir.exists() else []
 
     pages, _ = probe_pdf(pdf_path)
     chars_per_page = round(len(text) / pages, 1) if pages else None
@@ -243,6 +437,7 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         "n_figures": len(figures),
         "tables_dir": str(tables_dir.relative_to(PROJECT_ROOT)) if tables else None,
         "n_tables": len(tables),
+        "n_table_images": len(table_images),
         "ocr_server_used": bool(ocr_server_url),
         "needs_ocr": bool(reasons) and not ocr_server_url,
         "quality_flags": reasons,
@@ -273,14 +468,20 @@ the published CEUR-WS PDFs to Markdown.
     {{task_id}}/overview.md                    the task's overview paper (the target output)
     {{task_id}}/participants/{{paper_stem}}.md   one file per notebook paper (the inputs)
     {{task_id}}/figures/{{doc}}/img_p4_1.png     figures, grouped per document
-    {{task_id}}/tables/{{doc}}/table-01.md       tables, verbatim markdown
-    {{task_id}}/tables/{{doc}}/table-01.csv      same table as CSV, when rectangular
+    {{task_id}}/tables/{{doc}}/table-01.md       table as verbatim markdown
+    {{task_id}}/tables/{{doc}}/table-01.png      the same table cropped from the page
 
 `{{doc}}` is `overview` or the notebook paper's stem. Figures are raster images embedded
 in the PDF, and the markdown keeps an inline `![](...)` reference to each one, so a
-document still reads as a whole. Tables likewise stay inline in the markdown; the files
-under `tables/` are an extra view for analysis, not a removal. A table only gets a `.csv`
-when its rows are rectangular — a ragged table would silently misalign columns.
+document still reads as a whole. Tables are handled the same way: markdown for the text,
+plus an image of the table exactly as it appears in the paper, which preserves the
+column layout, spanning headers and alignment that a flattened text version loses.
+Tables also stay inline in the markdown — these files are an extra view, not a removal.
+
+Table images are cropped using the paper's own ruling lines. A table that is drawn
+without rules, or a block that the parser rendered as a table but is not one, gets
+markdown only rather than a crop that might be mispositioned; `manifest.jsonl` records
+`n_tables` alongside `n_table_images` so the gap is visible.
 
 Note that figures drawn as vector graphics (many plots and diagrams) are not raster
 images and are therefore not extracted as files; their captions remain in the text.

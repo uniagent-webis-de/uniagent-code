@@ -77,21 +77,58 @@ def test_table_rows_drop_the_separator_row():
     assert rows == [["a", "b"], ["1", "2"]]
 
 
-def test_ragged_table_gets_markdown_but_no_csv(tmp_path):
-    # A wrong CSV silently misaligns columns, which is worse than not providing one.
+def test_tables_are_written_as_markdown_only(tmp_path):
+    # Tables ship as verbatim markdown plus a cropped image of the real table; no CSV,
+    # since a reconstructed grid loses the layout that makes a results table readable.
     from src.parse_fulltext import write_tables
 
-    md = "| a | b | c |\n|---|---|---|\n| 1 | 2 |\n"
-    assert write_tables(md, tmp_path) == 1
+    n_tables, n_images = write_tables("| a | b |\n|---|---|\n| 1 | 2 |\n", tmp_path)
+    assert (n_tables, n_images) == (1, 0)
     assert (tmp_path / "table-01.md").exists()
-    assert not (tmp_path / "table-01.csv").exists()
+    assert list(tmp_path.glob("*.csv")) == []
 
 
-def test_rectangular_table_also_gets_csv(tmp_path):
-    from src.parse_fulltext import write_tables
+def test_isolated_rule_is_a_separator_not_a_table():
+    # The short rule above a footnote block must not be mistaken for a table.
+    from src.parse_fulltext import group_rules_into_tables
 
-    write_tables("| a | b |\n|---|---|\n| 1 | 2 |\n", tmp_path)
-    assert (tmp_path / "table-01.csv").read_text().splitlines() == ["a,b", "1,2"]
+    single = [{"x1": 135, "x2": 480, "y1": 300, "y2": 300}]
+    assert group_rules_into_tables(single) == []
+
+
+def test_booktabs_rules_bound_one_table():
+    from src.parse_fulltext import group_rules_into_tables
+
+    rules = [
+        {"x1": 135, "x2": 480, "y1": 131, "y2": 131},
+        {"x1": 135, "x2": 480, "y1": 160, "y2": 160},
+        {"x1": 135, "x2": 480, "y1": 255, "y2": 255},
+    ]
+    regions = group_rules_into_tables(rules)
+    assert len(regions) == 1
+    assert (regions[0]["y0"], regions[0]["y1"]) == (131, 255)
+
+
+def test_distant_rule_groups_are_separate_tables():
+    from src.parse_fulltext import group_rules_into_tables
+
+    rules = [
+        {"x1": 135, "x2": 480, "y1": 100, "y2": 100},
+        {"x1": 135, "x2": 480, "y1": 140, "y2": 140},
+        {"x1": 135, "x2": 480, "y1": 600, "y2": 600},
+        {"x1": 135, "x2": 480, "y1": 640, "y2": 640},
+    ]
+    assert len(group_rules_into_tables(rules)) == 2
+
+
+def test_short_footnote_rules_are_filtered_out():
+    from src.parse_fulltext import horizontal_rules
+
+    page = {"vector_graphics": {"lines": [
+        {"x1": 135, "x2": 191, "y1": 653, "y2": 653},   # 56pt footnote separator
+        {"x1": 135, "x2": 480, "y1": 131, "y2": 131},   # real table rule
+    ]}}
+    assert [r["y1"] for r in horizontal_rules(page)] == [131]
 
 
 def test_figure_refs_are_rewritten_to_the_figures_directory(tmp_path):
