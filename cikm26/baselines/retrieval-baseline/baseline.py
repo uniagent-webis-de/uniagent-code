@@ -60,11 +60,14 @@ def detect_query_language(dataset) -> str:
     return languages.pop()
 
 
-def create_index(dataset, language: str, output_dir: Path):
+def create_index(dataset, language: str, output_dir: Path | None = None):
     if language not in RETRIEVAL_CONFIGURATION:
         raise ValueError(f"Unsupported language: {language}")
 
     index_directory = Path(tempfile.mkdtemp(prefix="uniagent-retrieval_"))
+    if output_dir is None:
+        output_dir = Path(tempfile.mkdtemp(prefix="uniagent-index-metadata_"))
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     indexer = pt.IterDictIndexer(
         str(index_directory.resolve()),
@@ -73,16 +76,24 @@ def create_index(dataset, language: str, output_dir: Path):
         verbose=True,
         **RETRIEVAL_CONFIGURATION[language],
     )
-    docs_to_index = ({"docno": str(document.doc_id), "text": document.default_text()}
-        for document in tqdm(list(dataset.docs_iter()), "Index documents"))
-    
+    docs_to_index = (
+        {"docno": str(document.doc_id), "text": document.default_text()}
+        for document in tqdm(list(dataset.docs_iter()), "Index documents")
+    )
+
     with tracking(export_file_path=output_dir / "index-ir-metadata.yml"):
         index_ref = indexer.index(docs_to_index)
 
     return pt.IndexFactory.of(index_ref)
 
 
-def retrieve(dataset, index, language: str, wmodel: str, output: Path) -> pd.DataFrame:
+def retrieve(
+    dataset,
+    index,
+    language: str,
+    wmodel: str = "BM25",
+    output: Path | None = None,
+) -> pd.DataFrame:
     if language not in RETRIEVAL_CONFIGURATION:
         raise ValueError(f"Unsupported language: {language}")
 
@@ -102,10 +113,19 @@ def retrieve(dataset, index, language: str, wmodel: str, output: Path) -> pd.Dat
     if topics.empty:
         raise ValueError("Cannot retrieve because the dataset has no queries.")
 
+    if output is None:
+        metadata_directory = Path(
+            tempfile.mkdtemp(prefix="uniagent-retrieval-metadata_")
+        )
+    else:
+        output.mkdir(parents=True, exist_ok=True)
+        metadata_directory = output
 
-    with tracking(export_file_path=output / "retrieval-ir-metadata.yml"):
+    with tracking(export_file_path=metadata_directory / "retrieval-ir-metadata.yml"):
         ret = pt.terrier.Retriever(index, wmodel=wmodel, verbose=True).transform(topics)
-    pt.io.write_results(ret, output / "run.txt.gz")
+    if output is not None:
+        pt.io.write_results(ret, output / "run.txt.gz")
+    return ret
 
 
 @click.command()
@@ -116,9 +136,23 @@ def retrieve(dataset, index, language: str, wmodel: str, output: Path) -> pd.Dat
 )
 @click.option(
     "--wmodel",
-    required=True,
+    default="BM25",
+    show_default=True,
     help="The retrieval model for PyTerrier.",
-    type=click.Choice(["BM25", "DFIC", "DFIZ", "DirichletLM", "DLH", "DPH", "Hiemstra_LM", "LGD", "PL2", "TF_IDF"])
+    type=click.Choice(
+        [
+            "BM25",
+            "DFIC",
+            "DFIZ",
+            "DirichletLM",
+            "DLH",
+            "DPH",
+            "Hiemstra_LM",
+            "LGD",
+            "PL2",
+            "TF_IDF",
+        ]
+    ),
 )
 @click.option(
     "--output",
@@ -134,11 +168,13 @@ def main(dataset: str, output: Path, wmodel: str) -> None:
     except ValueError as error:
         raise click.ClickException(str(error)) from error
 
-    click.echo(f"Language: {language}")
-
     output.mkdir(parents=True, exist_ok=True)
+    (output / "language.txt").write_text(f"{language}\n", encoding="utf-8")
+    click.echo(f"Detected query language: {language}")
+
     index = create_index(ir_dataset, language, output)
     retrieve(ir_dataset, index, language, wmodel, output)
+
 
 if __name__ == "__main__":
     main()

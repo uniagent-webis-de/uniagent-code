@@ -415,9 +415,19 @@ class RetrieveTest(unittest.TestCase):
 
 
 class MainTest(unittest.TestCase):
+    @patch("baseline.retrieve")
+    @patch("baseline.create_index")
     @patch("baseline.ir_datasets.load")
-    def test_loads_dataset_and_writes_detected_language(self, load: Mock) -> None:
-        load.return_value = dataset_with_languages("en", "en")
+    def test_loads_dataset_and_writes_detected_language(
+        self,
+        load: Mock,
+        create_index_mock: Mock,
+        retrieve_mock: Mock,
+    ) -> None:
+        dataset = dataset_with_languages("en", "en")
+        index = object()
+        load.return_value = dataset
+        create_index_mock.return_value = index
         runner = CliRunner()
 
         with runner.isolated_filesystem():
@@ -433,6 +443,18 @@ class MainTest(unittest.TestCase):
                 "en\n",
             )
             self.assertIn("Detected query language: en", result.output)
+            create_index_mock.assert_called_once_with(
+                dataset,
+                "en",
+                Path("output"),
+            )
+            retrieve_mock.assert_called_once_with(
+                dataset,
+                index,
+                "en",
+                "BM25",
+                Path("output"),
+            )
 
 
 if __name__ == "__main__":
