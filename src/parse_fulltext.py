@@ -13,10 +13,12 @@ note has, and which PLAN.md section 3 Stage 2 asks for ("Avoid OCR unless absolu
 necessary").
 """
 import argparse
+import csv
 import json
 import logging
 import subprocess
 import sys
+import re
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -62,8 +64,6 @@ def setup_logging() -> Path:
 
 def pdf_stem_for(pdf_url: str) -> str:
     """Local filename stem for a paper, matching the layout Stage 4/5 already cached."""
-    import re
-
     stem = Path(urlparse(pdf_url).path).stem
     return re.sub(r"[^a-zA-Z0-9_\-]", "_", stem)
 
@@ -87,9 +87,75 @@ def probe_pdf(pdf_path: Path) -> tuple[int | None, bool]:
     return len(pages), result.returncode != 0
 
 
-def parse_document(pdf_path: Path, out_path: Path, ocr_server_url: str | None, ocr_language: str, logger: logging.Logger) -> bool:
+TABLE_SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
+def split_markdown_tables(markdown: str) -> list[list[str]]:
+    """Return each pipe-table in the document as its list of raw lines.
+
+    liteparse already renders tables into GitHub-style markdown, so tables are recovered
+    from the parsed text rather than re-derived from the PDF. A run of consecutive lines
+    starting with "|" is a table; a lone such line is prose containing a pipe, not a
+    table, so at least two lines are required."""
+    tables, current = [], []
+    for line in markdown.splitlines():
+        if line.lstrip().startswith("|"):
+            current.append(line.rstrip())
+            continue
+        if len(current) >= 2:
+            tables.append(current)
+        current = []
+    if len(current) >= 2:
+        tables.append(current)
+    return tables
+
+
+def table_to_rows(table_lines: list[str]) -> list[list[str]]:
+    """Split a markdown table into cells, dropping the |---|---| separator row."""
+    rows = []
+    for line in table_lines:
+        if TABLE_SEPARATOR_RE.match(line):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        rows.append(cells)
+    return rows
+
+
+def write_tables(markdown: str, tables_dir: Path) -> int:
+    """Write each table as verbatim markdown plus a CSV when it is rectangular.
+
+    The tables stay inline in the document too — this is an additional view for analysis,
+    not a removal, so the parsed paper still reads as a whole."""
+    tables = split_markdown_tables(markdown)
+    if not tables:
+        return 0
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    for index, table_lines in enumerate(tables, start=1):
+        (tables_dir / f"table-{index:02d}.md").write_text("\n".join(table_lines) + "\n", encoding="utf-8")
+        rows = table_to_rows(table_lines)
+        # Only emit CSV for a well-formed grid; a ragged table would silently misalign
+        # columns, and a wrong CSV is worse than none.
+        if rows and len({len(r) for r in rows}) == 1 and len(rows[0]) > 1:
+            with (tables_dir / f"table-{index:02d}.csv").open("w", encoding="utf-8", newline="") as f:
+                csv.writer(f).writerows(rows)
+    return len(tables)
+
+
+def rewrite_figure_refs(markdown_path: Path, figures_rel_prefix: str) -> None:
+    """liteparse emits bare filenames (![](img_p2_1.png)), which only resolve if the
+    images sit beside the markdown. Figures are grouped in their own directory instead,
+    so the references are rewritten to point there and stay clickable."""
+    text = markdown_path.read_text(encoding="utf-8")
+    rewritten = re.sub(r"!\[\]\((img_[^/)]+)\)", rf"![]({figures_rel_prefix}/\1)", text)
+    if rewritten != text:
+        markdown_path.write_text(rewritten, encoding="utf-8")
+
+
+def parse_document(pdf_path: Path, out_path: Path, ocr_server_url: str | None, ocr_language: str, logger: logging.Logger, figures_dir: Path | None = None) -> bool:
     """Parse one PDF to markdown. Returns True on success."""
     command = ["lit", "parse", str(pdf_path), "--format", "markdown", "-o", str(out_path), "-q"]
+    if figures_dir is not None:
+        command += ["--extract-images", "--image-mode", "embed", "--image-output-dir", str(figures_dir)]
     if ocr_server_url:
         # Routing OCR to a server (e.g. a served PaddleOCR-VL) — do not pass --no-ocr,
         # otherwise liteparse would never call it.
@@ -119,15 +185,32 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
     # Overview at the task root, notebook papers grouped under participants/ — keeps the
     # target output visibly separate from the inputs it is generated from.
     out_path = out_dir / "overview.md" if role == "overview" else out_dir / "participants" / f"{stem}.md"
+
+    # Assets are grouped by kind and keyed by document, so a task folder stays readable:
+    #   {task}/figures/{doc}/img_p2_1.png   {task}/tables/{doc}/table-01.md
+    doc_key = "overview" if role == "overview" else stem
+    figures_dir = out_dir / "figures" / doc_key
+    tables_dir = out_dir / "tables" / doc_key
+    # Relative prefix from the markdown file back to its figures directory.
+    figures_rel_prefix = f"figures/{doc_key}" if role == "overview" else f"../figures/{doc_key}"
+
     if out_path.exists():
         logger.info("fulltext cache hit: %s", out_path)
         text = out_path.read_text(encoding="utf-8")
     else:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        if not parse_document(pdf_path, out_path, ocr_server_url, ocr_language, logger):
+        figures_dir.mkdir(parents=True, exist_ok=True)
+        if not parse_document(pdf_path, out_path, ocr_server_url, ocr_language, logger, figures_dir):
             return None
+        rewrite_figure_refs(out_path, figures_rel_prefix)
         text = out_path.read_text(encoding="utf-8")
+        write_tables(text, tables_dir)
+        if not any(figures_dir.iterdir()):
+            figures_dir.rmdir()
         logger.info("parsed %s -> %s (%d chars)", pdf_path.name, out_path, len(text))
+
+    figures = sorted(p.name for p in figures_dir.glob("*")) if figures_dir.exists() else []
+    tables = sorted(p.name for p in tables_dir.glob("*.md")) if tables_dir.exists() else []
 
     pages, _ = probe_pdf(pdf_path)
     chars_per_page = round(len(text) / pages, 1) if pages else None
@@ -156,6 +239,10 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         "chars": len(text),
         "pages": pages,
         "chars_per_page": chars_per_page,
+        "figures_dir": str(figures_dir.relative_to(PROJECT_ROOT)) if figures else None,
+        "n_figures": len(figures),
+        "tables_dir": str(tables_dir.relative_to(PROJECT_ROOT)) if tables else None,
+        "n_tables": len(tables),
         "ocr_server_used": bool(ocr_server_url),
         "needs_ocr": bool(reasons) and not ocr_server_url,
         "quality_flags": reasons,
@@ -183,8 +270,20 @@ the published CEUR-WS PDFs to Markdown.
 
 ## Layout
 
-    {{task_id}}/overview.md                   the task's overview paper (the target output)
-    {{task_id}}/participants/{{paper_stem}}.md  one file per notebook paper (the inputs)
+    {{task_id}}/overview.md                    the task's overview paper (the target output)
+    {{task_id}}/participants/{{paper_stem}}.md   one file per notebook paper (the inputs)
+    {{task_id}}/figures/{{doc}}/img_p4_1.png     figures, grouped per document
+    {{task_id}}/tables/{{doc}}/table-01.md       tables, verbatim markdown
+    {{task_id}}/tables/{{doc}}/table-01.csv      same table as CSV, when rectangular
+
+`{{doc}}` is `overview` or the notebook paper's stem. Figures are raster images embedded
+in the PDF, and the markdown keeps an inline `![](...)` reference to each one, so a
+document still reads as a whole. Tables likewise stay inline in the markdown; the files
+under `tables/` are an extra view for analysis, not a removal. A table only gets a `.csv`
+when its rows are rectangular — a ragged table would silently misalign columns.
+
+Note that figures drawn as vector graphics (many plots and diagrams) are not raster
+images and are therefore not extracted as files; their captions remain in the text.
 
 `{{paper_stem}}` matches the source PDF filename on CEUR-WS, so a document can always be
 traced back to its origin. `manifest.jsonl` records, per document: `task_id`, `role`,

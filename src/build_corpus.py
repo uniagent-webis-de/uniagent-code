@@ -99,29 +99,38 @@ def join_fulltext_paths(task: dict, manifest: dict[str, str], logger: logging.Lo
     go from a corpus entry straight to its text without deriving filenames from URLs."""
     if not manifest:
         return
-    overview_path = manifest.get(task["overview"]["pdf_url"])
-    task["overview"]["fulltext_path"] = overview_path
-    if overview_path is None:
+
+    def apply(document: dict, record: dict | None) -> None:
+        document["fulltext_path"] = record["markdown_path"] if record else None
+        document["figures_dir"] = record.get("figures_dir") if record else None
+        document["n_figures"] = record.get("n_figures", 0) if record else 0
+        document["tables_dir"] = record.get("tables_dir") if record else None
+        document["n_tables"] = record.get("n_tables", 0) if record else 0
+
+    overview_record = manifest.get(task["overview"]["pdf_url"])
+    apply(task["overview"], overview_record)
+    if overview_record is None:
         logger.warning("%s: overview has no parsed full text", task["task_id"])
 
     missing = 0
     for participant in task["participants"]:
-        participant["fulltext_path"] = manifest.get(participant["pdf_url"])
-        if participant["fulltext_path"] is None:
+        record = manifest.get(participant["pdf_url"])
+        apply(participant, record)
+        if record is None:
             missing += 1
     if missing:
         logger.warning("%s: %d/%d participants have no parsed full text", task["task_id"], missing, len(task["participants"]))
 
 
-def load_fulltext_manifest(logger: logging.Logger) -> dict[str, str]:
-    """Map pdf_url -> markdown path from Stage 7's manifest, if that stage has run."""
+def load_fulltext_manifest(logger: logging.Logger) -> dict[str, dict]:
+    """Map pdf_url -> parsed-document record from Stage 7's manifest, if it has run."""
     if not FULLTEXT_MANIFEST_PATH.exists():
         logger.warning("no full-text manifest at %s — run parse_fulltext.py to add fulltext_path fields", FULLTEXT_MANIFEST_PATH)
         return {}
     manifest = {}
     for line in FULLTEXT_MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
         record = json.loads(line)
-        manifest[record["pdf_url"]] = record["markdown_path"]
+        manifest[record["pdf_url"]] = record
     logger.info("loaded full-text manifest with %d documents", len(manifest))
     return manifest
 
