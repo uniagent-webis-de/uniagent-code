@@ -14,7 +14,7 @@ tira_configs:
   resolve_truths_to: "."
   default_upload_name: "run.txt.gz"
   baseline:
-    link: ../../../baselines/retrieval-baseline/
+    link: ../../baselines/retrieval-baseline/
     command: /app/baseline.py --dataset $inputDataset --output $outputDir --wmodel BM25 
     format:
       name: ["run.txt"]
