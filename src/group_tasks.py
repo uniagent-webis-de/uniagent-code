@@ -31,6 +31,16 @@ BEST_OF_LABS_RE = re.compile(r"\bbest of (the )?labs?\b", re.IGNORECASE)
 STOPWORDS = {
     "a", "an", "the", "of", "in", "on", "at", "for", "to", "and", "or", "with",
     "overview", "task", "tasks", "lab", "labs", "extended", "abstract", "clef",
+    # Generic shared-task/ML vocabulary. Real bug found reviewing Vol-2936 PAN: a "Hate
+    # Speech Spreader Detection" paper (whose actual overview isn't published in this
+    # volume at all) got routed into "Style Change Detection" purely because "detection"
+    # was the only word it shared with any sibling overview, and — being section-locally
+    # unique by chance — was scored as fully discriminative. These words describe the
+    # shared-task *format*, not any specific task's topic, and recur across nearly every
+    # CLEF lab regardless of subject, so they carry no assignment signal within a section.
+    "detection", "classification", "identification", "prediction", "recognition",
+    "analysis", "approach", "using", "based", "model", "models", "system", "systems",
+    "method", "methods", "challenge", "evaluation", "text",
 }
 
 
@@ -55,7 +65,12 @@ def setup_logging() -> Path:
 
 
 def tokenize(title: str) -> set[str]:
-    words = re.findall(r"[a-z0-9]+", title.lower())
+    # Split camelCase compounds (e.g. "BirdCLEF", "GeoLifeCLEF", "MedProcNER") before
+    # lowercasing — otherwise "BirdCLEF" and "GeoLifeCLEF" collide as opaque single
+    # tokens and only their shared, non-discriminative "CLEF" suffix would ever be
+    # compared. "CLEF" itself still gets filtered out afterward via STOPWORDS.
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", title)
+    words = re.findall(r"[a-z0-9]+", spaced.lower())
     return {w for w in words if w not in STOPWORDS and len(w) > 1}
 
 
@@ -137,37 +152,55 @@ def assign_by_position(papers: list[dict], overview_indices: list[int]) -> list[
 
 def assign_by_title_match(papers: list[dict], overview_indices: list[int], logger: logging.Logger, lab_name: str) -> dict[int, list[dict]]:
     """Multi-overview case: assign each participant to the overview whose title shares
-    the most discriminative (section-locally unique) keywords with it."""
+    the most title-keyword weight with it. Each token is weighted 1/(number of overviews
+    in this section containing it) — a token unique to one overview counts fully, a token
+    shared by two related overviews (e.g. both GeoLifeCLEF and PlantCLEF mention "plant")
+    still counts partially instead of being discarded outright. A hard "must be
+    section-locally unique" cutoff was tried first and discarded real signal on any
+    genuinely related pair of overviews, letting an unrelated one-off token collision
+    (e.g. "Zero-Shot" vs "Few-Shot" both tokenizing to "shot") win by default."""
     overview_tokens = {i: tokenize(papers[i]["title"]) for i in overview_indices}
-    all_token_counts: dict[str, int] = {}
+    token_counts: dict[str, int] = {}
     for tokens in overview_tokens.values():
         for tok in tokens:
-            all_token_counts[tok] = all_token_counts.get(tok, 0) + 1
-    discriminative = {
-        i: {tok for tok in tokens if all_token_counts[tok] == 1}
-        for i, tokens in overview_tokens.items()
-    }
+            token_counts[tok] = token_counts.get(tok, 0) + 1
+    token_weight = {tok: 1.0 / count for tok, count in token_counts.items()}
 
     assignments: dict[int, list[dict]] = {i: [] for i in overview_indices}
     overview_set = set(overview_indices)
     unassigned = 0
 
+    tied = 0
     for i, paper in enumerate(papers):
         if i in overview_set:
             continue
         paper_tokens = tokenize(paper["title"])
-        scores = {ov_i: len(paper_tokens & keywords) for ov_i, keywords in discriminative.items()}
+        scores = {
+            ov_i: sum(token_weight[tok] for tok in (paper_tokens & tokens))
+            for ov_i, tokens in overview_tokens.items()
+        }
         best_score = max(scores.values(), default=0)
         if best_score == 0:
             unassigned += 1
             continue
-        best_overview = max(scores, key=scores.get)
-        assignments[best_overview].append(paper)
+        best_overviews = [ov_i for ov_i, score in scores.items() if score == best_score]
+        if len(best_overviews) > 1:
+            # A genuine tie is worse than a zero score — resolving it arbitrarily (e.g.
+            # via dict/max() iteration order) would silently invent an assignment with no
+            # actual evidence behind it. Drop it, same as an unmatched paper.
+            tied += 1
+            continue
+        assignments[best_overviews[0]].append(paper)
 
     if unassigned:
         logger.warning(
             "section %r: %d/%d participant papers could not be confidently matched to any overview by title keywords — dropped",
             lab_name, unassigned, len(papers) - len(overview_indices),
+        )
+    if tied:
+        logger.warning(
+            "section %r: %d/%d participant papers tied between 2+ overviews by title keyword score — dropped rather than guessed",
+            lab_name, tied, len(papers) - len(overview_indices),
         )
     return assignments
 

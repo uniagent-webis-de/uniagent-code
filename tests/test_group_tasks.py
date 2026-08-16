@@ -1,12 +1,14 @@
 import logging
 
 from src.group_tasks import (
+    assign_by_title_match,
     build_task_record,
     clean_task_name,
     extract_venue,
     group_section,
     slugify,
     split_best_of_labs,
+    tokenize,
     validate,
 )
 
@@ -72,6 +74,42 @@ def test_multi_overview_section_assigns_by_title_keyword_overlap():
         assert t["provenance"]["confidence"] == "medium"
 
 
+def test_shared_topic_words_between_related_overviews_dont_get_discarded():
+    # Real bug found reviewing Vol-4038 LifeCLEF: GeoLifeCLEF and PlantCLEF both mention
+    # "plant"/"species" in their titles, so a hard "must be unique to one overview"
+    # cutoff discarded that word entirely — leaving an accidental one-off collision
+    # ("Zero-Shot" vs "Few-Shot", both tokenizing to "shot") as the only nonzero score,
+    # wrongly routing a PlantCLEF paper into FungiCLEF. Weighted overlap must still favor
+    # PlantCLEF even though "plant"/"species" are shared with a sibling overview.
+    fungi_overview = make_paper("Overview of FungiCLEF 2025: Few-Shot Classification With Rare Fungi Species")
+    geo_overview = make_paper("Overview of GeoLifeCLEF 2025: Plant Species Presence Prediction with Remote Sensing Data")
+    plant_overview = make_paper("Overview of PlantCLEF 2025: Multi-Species Plant Identification in Vegetation Quadrat Images")
+    participant = make_paper("Zero-Shot Segmentation through Prototype-Guidance for Multi-Label Plant Species Identification")
+    papers = [fungi_overview, geo_overview, plant_overview, participant]
+
+    assignments = assign_by_title_match(papers, [0, 1, 2], LOGGER, "Species Challenges (LifeCLEF)")
+
+    assert assignments[0] == []  # FungiCLEF must not win on the accidental "shot" collision
+    assert [p["title"] for p in assignments[2]] == [participant["title"]]  # PlantCLEF wins
+
+
+def test_generic_method_words_dont_create_a_false_match():
+    # Real bug found reviewing Vol-2936 PAN: a "Hate Speech Spreader Detection" paper
+    # (whose actual overview isn't published in this volume) got routed into "Style
+    # Change Detection" purely because "detection" was section-locally unique to that
+    # overview by chance — even though "detection" is generic shared-task vocabulary,
+    # not a topic word. It must now score 0 and be dropped, not falsely matched.
+    verification_overview = make_paper("Overview of the Cross-Domain Authorship Verification Task at PAN 2021")
+    style_overview = make_paper("Overview of the Style Change Detection Task at PAN 2021")
+    orphan_participant = make_paper("HSSD: Hate Speech Spreader Detection using N-grams and Voting Classifier")
+    papers = [verification_overview, style_overview, orphan_participant]
+
+    assignments = assign_by_title_match(papers, [0, 1], LOGGER, "PAN Lab")
+
+    assert assignments[0] == []
+    assert assignments[1] == []
+
+
 def test_ambiguous_participant_is_dropped_not_guessed():
     section = {
         "lab_name": "MultiTask Lab (MTL)",
@@ -85,6 +123,23 @@ def test_ambiguous_participant_is_dropped_not_guessed():
     tasks = group_section(section, ENTRY, LOGGER, "2026-08-16")
     all_participant_titles = {p["title"] for t in tasks for p in t["participants"]}
     assert "Is ChatGPT an MTL Expert?" not in all_participant_titles
+
+
+def test_tied_participant_is_dropped_not_guessed():
+    # "Widget" and "Gadget" both appear nowhere in this title, but it shares one
+    # discriminative token ("Report") with each overview — a genuine tie, worse than a
+    # zero score, and must not be resolved by arbitrary max() iteration order.
+    section = {
+        "lab_name": "MultiTask Lab (MTL)",
+        "papers": [
+            make_paper("Overview of the Widget Report Task at MTL 2023"),
+            make_paper("Overview of the Gadget Report Task at MTL 2023"),
+            make_paper("TeamX at MTL: A Report on Systems"),
+        ],
+    }
+    tasks = group_section(section, ENTRY, LOGGER, "2026-08-16")
+    all_participant_titles = {p["title"] for t in tasks for p in t["participants"]}
+    assert "TeamX at MTL: A Report on Systems" not in all_participant_titles
 
 
 def test_zero_participant_task_is_rejected():
@@ -119,6 +174,13 @@ def test_no_overview_keyword_falls_back_to_first_paper():
     tasks = group_section(section, ENTRY, LOGGER, "2026-08-16")
     assert len(tasks) == 1
     assert tasks[0]["overview"]["title"] == "ODD 2023: A Technical Summary of the Shared Task"
+
+
+def test_tokenize_splits_camelcase_compounds():
+    # "BirdCLEF" and "GeoLifeCLEF" must not collide as opaque single tokens sharing only
+    # their non-discriminative "CLEF" suffix (which is itself filtered as a stopword).
+    assert tokenize("Overview of BirdCLEF 2023") == {"bird", "2023"}
+    assert tokenize("Overview of GeoLifeCLEF 2023") == {"geo", "life", "2023"}
 
 
 def test_extract_venue_handles_common_lab_name_shapes():
