@@ -244,9 +244,16 @@ solid = [t for t in tasks
 
 ## 7. Reproducing
 
-Requires `pyenv activate uniagent`, plus `lit` (`npm i -g @llamaindex/liteparse`). Every
-stage is independently re-runnable and caches to disk; nothing re-fetches what is already
-there. Run from the project root:
+Setup — note the parser is an npm package, so `pip install` alone is not enough:
+
+```bash
+pyenv activate uniagent
+pip install -r requirements.txt
+npm i -g @llamaindex/liteparse   # provides the `lit` command
+```
+
+Every stage is independently re-runnable and caches to disk; nothing re-fetches what is
+already there. Run from the project root:
 
 ```bash
 ./src/fetch_volumes.py     # CEUR + DBLP pages     -> data/raw/
