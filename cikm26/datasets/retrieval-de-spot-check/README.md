@@ -31,6 +31,6 @@ tira_configs:
 This uses the public crawl of the University of Kassel (only documents in german language) and some LLM-generated queries and qrels to verify that everything works. Attention: while the documents are from a valid crawl (the real test set will then only in addition also contain documents that are only available in the intranet), the queries and relevance judgments are fully synthetic. Hence, it is unclear how an evaluation on this dataset is meaningful or not.
 
 ```
-tira-cli dataset-submission --path retrieval-de-spot-check/ --task uniagent --split train --dry-run
+tira-cli dataset-submission --path retrieval-de-spot-check/ --task uniagent-2026 --split train --dry-run
 ```
 
