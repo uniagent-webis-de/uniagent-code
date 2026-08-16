@@ -6,6 +6,7 @@ from src.group_tasks import (
     clean_task_name,
     extract_venue,
     group_section,
+    has_hidden_second_task,
     slugify,
     split_best_of_labs,
     tokenize,
@@ -193,6 +194,48 @@ def test_extract_venue_handles_common_lab_name_shapes():
 def test_clean_task_name_strips_boilerplate():
     assert clean_task_name("Overview of the Authorship Verification Task at PAN 2023") == "Authorship Verification"
     assert clean_task_name("Overview of BioASQ Tasks 11b and Synergy11 in CLEF2023") == "BioASQ Tasks 11b and Synergy11"
+
+
+def test_hidden_second_task_detected_via_declared_task_number_mismatch():
+    # Real bug found reviewing CLEF eHealth 2021: a section had two real overview papers,
+    # but the second ("Consumer Health Search at CLEF eHealth 2021") never says
+    # "overview", so find_overview_indices() missed it — the section looked
+    # single-overview and got trusted as high confidence. The tell: the *detected*
+    # overview names its own task number ("Task 1"), so a "participant" naming a
+    # *different* task number ("Task 2") is real evidence of a second hidden task.
+    overview_title = "Overview of CLEF eHealth Task 1 - SpRadIE: A challenge on information extraction from Spanish Radiology Reports"
+    participants = [
+        make_paper("IMS-UNIPD @ CLEF eHealth Task 1: A Memory Based Reproducible Baseline"),
+        make_paper("IMS-UNIPD @ CLEF eHealth Task 2: Reciprocal Ranking Fusion in CHS"),
+    ]
+    assert has_hidden_second_task(overview_title, participants) is True
+
+
+def test_umbrella_overview_with_internal_subtasks_is_not_flagged():
+    # Contrast case: an overview covering the WHOLE lab (no task number of its own) is a
+    # legitimate umbrella for multiple internal subtasks — a participant referencing
+    # "Task 2" here is normal, not evidence of a missed second overview. Verified against
+    # 6 real CLEF labs (ChEMU, Touché, eRisk, MC2, QuantumCLEF) that all have this shape.
+    overview_title = "Overview of Touché 2021: Argument Retrieval"
+    participants = [
+        make_paper("Team A at Touché 2021: some approach"),
+        make_paper("Touché Task 2: Comparative Argument Retrieval, a document-based search engine"),
+    ]
+    assert has_hidden_second_task(overview_title, participants) is False
+
+
+def test_group_section_downgrades_confidence_on_hidden_second_task():
+    section = {
+        "lab_name": "eHealth: CLEFeHealth",
+        "papers": [
+            make_paper("Overview of CLEF eHealth Task 1 - SpRadIE: A challenge"),
+            make_paper("IMS-UNIPD @ CLEF eHealth Task 1: A Memory Based Reproducible Baseline"),
+            make_paper("IMS-UNIPD @ CLEF eHealth Task 2: Reciprocal Ranking Fusion in CHS"),
+        ],
+    }
+    tasks = group_section(section, ENTRY, LOGGER, "2026-08-16")
+    assert len(tasks) == 1
+    assert tasks[0]["provenance"]["confidence"] == "medium"
 
 
 def test_validate_flags_duplicate_task_id(caplog):

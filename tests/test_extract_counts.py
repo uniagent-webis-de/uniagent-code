@@ -3,6 +3,7 @@ from src.extract_counts import (
     extract_count,
     extract_run_count,
     is_plausible_count,
+    RUN_PATTERNS,
     TEAM_PATTERNS,
 )
 
@@ -56,3 +57,44 @@ def test_elliptical_two_task_sentence_is_not_silently_misread():
     # number is wrong, so it still returns 4 here.
     window = "Ultimately, 14 and 4 teams participated in Task 1 and Task 2, respectively."
     assert extract_count(window, TEAM_PATTERNS) == 4
+
+
+def test_per_team_submission_cap_is_not_read_as_the_total():
+    # Real bug found on eRisk 2018: "Each team could submit up to 5 runs or variants.
+    # We received 45 contributions from 11 different institutions." — "45 contributions"
+    # doesn't use the word "runs" at all, so the generic fallback matched the per-team
+    # cap (5) instead, silently reporting a wrong number rather than null.
+    window = "Each team could submit up to 5 runs or variants. We received 45 contributions from 11 different institutions."
+    assert extract_count(window, RUN_PATTERNS) is None
+
+
+ERISK_2025_INTRO = """
+This year, the eRisk lab had 128 different teams registered. We finally received results
+coming from 25 distinct teams: 67 runs for Task 1, 50 runs for Task 2, and 11 runs for
+the pilot task.
+
+2. Task 1: Search for Symptoms of Depression
+
+We received 67 runs from 17 participating teams (see Table 2).
+
+3. Task 2: Contextualized Early Detection
+"""
+
+
+def test_window_boundary_does_not_assume_a_numbered_intro_heading():
+    # Real bug found on eRisk 2025: the paper has no numbered "1." heading at all, so its
+    # first numbered heading is already "2. Task 1". Taking the *second* heading overall
+    # (the old logic) meant "3. Task 2", which let the whole wrong Task-1-only subsection
+    # ("17 participating teams") leak into the window. Must look for heading number >= 2
+    # specifically, not just "the second heading found".
+    window = abstract_and_intro_window(ERISK_2025_INTRO)
+    assert "17 participating teams" not in window
+    assert "25 distinct teams" in window
+
+
+def test_sums_per_task_run_breakdown_including_non_numbered_task_name():
+    # Same real eRisk 2025 case: "11 runs for the pilot task" has no task number, so the
+    # original per-task pattern (requiring "Task \d+") missed it, silently summing to 117
+    # instead of the true 128 (67 + 50 + 11).
+    window = abstract_and_intro_window(ERISK_2025_INTRO)
+    assert extract_run_count(window) == 128

@@ -205,6 +205,39 @@ def assign_by_title_match(papers: list[dict], overview_indices: list[int], logge
     return assignments
 
 
+TASK_NUMBER_RE = re.compile(r"\btask\s*(\d+)\b", re.IGNORECASE)
+
+
+def declared_task_number(title: str) -> str | None:
+    match = TASK_NUMBER_RE.search(title)
+    return match.group(1) if match else None
+
+
+def has_hidden_second_task(overview_title: str, participants: list[dict]) -> bool:
+    """Real bug found reviewing CLEF eHealth 2021: a section had two real overview
+    papers (SpRadIE Task 1 and Consumer Health Search Task 2), but the CHS one is titled
+    "Consumer Health Search at CLEF eHealth 2021" — no "overview" or "extended abstract"
+    anywhere — so find_overview_indices() missed it, leaving the section looking
+    single-overview and "high confidence" when it wasn't. Positional grouping then dumped
+    every CHS participant (and the CHS overview itself) under the SpRadIE task.
+
+    The generalizable signal: when the *lone detected* overview explicitly names its own
+    task number ("Overview of ... Task 1 - SpRadIE"), it is task-specific, not a lab-wide
+    umbrella — so a "participant" declaring a *different* task number is real evidence of
+    a second, undetected task, not just a subtask covered by this same overview. This does
+    NOT fire on umbrella overviews with no task number of their own (verified against 6
+    other CLEF labs — ChEMU, Touché, eRisk, MC2, QuantumCLEF — where participants
+    routinely reference "Task 2" etc. as a subtask of one single all-encompassing
+    overview; none of those overview titles declare their own task number)."""
+    own_task = declared_task_number(overview_title)
+    if own_task is None:
+        return False
+    return any(
+        (p_task := declared_task_number(p["title"])) is not None and p_task != own_task
+        for p in participants
+    )
+
+
 def group_section(section: dict, entry: dict, logger: logging.Logger, extracted_at: str) -> list[dict]:
     lab_name = section["lab_name"]
     papers, best_of_labs = split_best_of_labs(section["papers"], logger)
@@ -217,7 +250,15 @@ def group_section(section: dict, entry: dict, logger: logging.Logger, extracted_
     if len(overview_indices) == 1:
         overview = papers[overview_indices[0]]
         participants = assign_by_position(papers, overview_indices)
-        tasks.append(build_task_record(entry, lab_name, overview, participants, "section_grouping", "high", extracted_at))
+        if has_hidden_second_task(overview["title"], participants):
+            logger.warning(
+                "section %r: overview %r declares its own task number but a participant declares a different one — "
+                "likely a second, undetected overview in this section; downgrading to confidence=medium for review",
+                lab_name, overview["title"],
+            )
+            tasks.append(build_task_record(entry, lab_name, overview, participants, "section_grouping", "medium", extracted_at))
+        else:
+            tasks.append(build_task_record(entry, lab_name, overview, participants, "section_grouping", "high", extracted_at))
     else:
         assignments = assign_by_title_match(papers, overview_indices, logger, lab_name)
         for ov_idx in overview_indices:
@@ -328,7 +369,7 @@ def main() -> None:
         for task in all_tasks:
             f.write(json.dumps(task, ensure_ascii=False) + "\n")
 
-    review_tasks = [t for t in all_tasks if t["provenance"]["task_assignment_method"] == "title_heuristic"]
+    review_tasks = [t for t in all_tasks if t["provenance"]["confidence"] != "high"]
     with review_path.open("w", encoding="utf-8") as f:
         for task in review_tasks:
             f.write(json.dumps(task, ensure_ascii=False) + "\n")
