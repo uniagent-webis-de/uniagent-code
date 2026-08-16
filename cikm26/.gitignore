@@ -1,0 +1,8 @@
+text-processing/documents-de.jsonl.gz
+text-processing/documents-en.jsonl.gz
+text-processing/uni-kassel-v2.jsonl.gz
+text-processing/uni-kassel-v2.warc.gz
+text-processing/uniagent-queries.jsonl
+dataset-construction/qrels/
+datasets/in-progress/
+
