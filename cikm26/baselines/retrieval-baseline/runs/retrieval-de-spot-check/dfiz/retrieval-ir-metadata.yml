@@ -4,11 +4,11 @@ implementation:
     - python3
     - ./baseline.py
     - --dataset
-    - ../../datasets/retrieval-en-spot-check/
+    - ../../datasets/retrieval-de-spot-check/
     - --wmodel
-    - DFIC
+    - DFIZ
     - --output
-    - runs/retrieval-en-spot-check/dfic
+    - runs/retrieval-de-spot-check/dfiz
   python:
     interactive: false
     modules: 3.10.12
@@ -85,10 +85,10 @@ implementation:
   source:
     archive:
       notebook path: None
-    archive path: runs/retrieval-en-spot-check/dfic/.tirex-tracker/archive.zip
+    archive path: runs/retrieval-de-spot-check/dfiz/.tirex-tracker/archive.zip
     branch: main
     commit: 51f3999b3020ff2dc2fad2cd45280c8066d212e1
-    hash: 6386e0df973046fdf92e87aa1e782c0e183168c2
+    hash: 2f85db97d6afa8ed8df4b3a99f78446547521d71
     is repo: 1
     lang: null
     repository: git@github.com:uniagent-webis-de/uniagent-code.git
@@ -118,16 +118,22 @@ platform:
         min: 0
         timeseries:
           timestamps:
-          - 0ms
-          - 101ms
-          - 201ms
-          - 302ms
-          - 402ms
-          - 503ms
-          - 603ms
-          - 704ms
-          - 804ms
+          - 1ms
+          - 102ms
+          - 203ms
+          - 304ms
+          - 405ms
+          - 505ms
+          - 607ms
+          - 707ms
+          - 809ms
+          - 910ms
+          - 1010ms
+          - 1111ms
           values:
+          - 0
+          - 0
+          - 0
           - 0
           - 0
           - 0
@@ -155,138 +161,168 @@ resources:
   cpu:
     energy used system: null J
     temperature:
-      avg: 58
-      max: 59
-      min: 57
+      avg: 55
+      max: 57
+      min: 54
       timeseries:
         timestamps:
-        - 0ms
-        - 101ms
-        - 201ms
-        - 302ms
-        - 402ms
-        - 503ms
-        - 603ms
-        - 704ms
-        - 805ms
+        - 1ms
+        - 102ms
+        - 203ms
+        - 304ms
+        - 405ms
+        - 506ms
+        - 607ms
+        - 707ms
+        - 809ms
+        - 910ms
+        - 1011ms
+        - 1111ms
         values:
+        - 56
         - 57
-        - 59
-        - 58
-        - 58
-        - 59
-        - 59
-        - 58
-        - 58
-        - 58
+        - 56
+        - 56
+        - 56
+        - 56
+        - 56
+        - 56
+        - 56
+        - 55
+        - 56
+        - 54
     used process:
-      avg: 137
-      max: 220
+      avg: 102
+      max: 247
       min: 0
       timeseries:
         timestamps:
-        - 0ms
-        - 101ms
-        - 201ms
-        - 302ms
-        - 402ms
-        - 503ms
-        - 603ms
-        - 704ms
-        - 804ms
+        - 1ms
+        - 102ms
+        - 203ms
+        - 304ms
+        - 405ms
+        - 505ms
+        - 607ms
+        - 707ms
+        - 809ms
+        - 910ms
+        - 1010ms
+        - 1111ms
         values:
         - 0
-        - 90
+        - 247
+        - 12
         - 148
-        - 58
-        - 124
-        - 190
-        - 210
-        - 220
-        - 200
+        - 88
+        - 194
+        - 169
+        - 8
+        - 91
+        - 54
+        - 154
+        - 64
     used system:
-      avg: 44
+      avg: 71
       max: 100
-      min: 27
+      min: 36
       timeseries:
         timestamps:
-        - 0ms
-        - 101ms
-        - 201ms
-        - 302ms
-        - 402ms
-        - 503ms
-        - 603ms
-        - 704ms
-        - 804ms
+        - 1ms
+        - 102ms
+        - 203ms
+        - 304ms
+        - 405ms
+        - 505ms
+        - 607ms
+        - 707ms
+        - 809ms
+        - 910ms
+        - 1010ms
+        - 1111ms
         values:
         - 100
-        - 32
-        - 51
-        - 45
-        - 35
-        - 27
-        - 27
-        - 30
-        - 53
+        - 54
+        - 81
+        - 91
+        - 74
+        - 57
+        - 87
+        - 85
+        - 66
+        - 56
+        - 66
+        - 36
   gpu:
     energy used system: null J
   ram:
     energy used system: null J
     used process:
-      avg: 903029
-      max: 905887
-      min: 896299
+      avg: 903494
+      max: 911458
+      min: 891219
       timeseries:
         timestamps:
-        - 0ms
-        - 101ms
-        - 201ms
-        - 302ms
-        - 402ms
-        - 503ms
-        - 603ms
-        - 704ms
-        - 804ms
+        - 1ms
+        - 102ms
+        - 203ms
+        - 304ms
+        - 405ms
+        - 505ms
+        - 607ms
+        - 707ms
+        - 809ms
+        - 910ms
+        - 1010ms
+        - 1111ms
         values:
-        - 896299
-        - 898023
-        - 902336
-        - 904417
-        - 904511
-        - 904699
-        - 905216
-        - 905879
-        - 905887
+        - 891219
+        - 892379
+        - 894087
+        - 898011
+        - 900763
+        - 903876
+        - 906108
+        - 910127
+        - 911253
+        - 911314
+        - 911335
+        - 911458
     used system:
-      avg: 31171
-      max: 31173
-      min: 31170
+      avg: 30880
+      max: 30895
+      min: 30862
       timeseries:
         timestamps:
-        - 0ms
-        - 101ms
-        - 201ms
-        - 302ms
-        - 402ms
-        - 503ms
-        - 603ms
-        - 704ms
-        - 804ms
+        - 1ms
+        - 102ms
+        - 203ms
+        - 304ms
+        - 405ms
+        - 505ms
+        - 607ms
+        - 707ms
+        - 809ms
+        - 910ms
+        - 1010ms
+        - 1111ms
         values:
-        - 31170
-        - 31170
-        - 31170
-        - 31172
-        - 31172
-        - 31172
-        - 31172
-        - 31173
-        - 31172
+        - 30862
+        - 30862
+        - 30865
+        - 30871
+        - 30875
+        - 30875
+        - 30893
+        - 30888
+        - 30890
+        - 30893
+        - 30892
+        - 30895
   runtime:
-    start time: 2026-08-16T11:54:28.188468971+0000
-    stop time: 2026-08-16T11:54:29.054375583+0000
+    start time: 2026-08-16T11:53:56.334265440+0000
+    stop time: 2026-08-16T11:53:57.541469719+0000
     system: 50 ms
-    user: 2850 ms
-    wallclock: 865 ms
+    user: 5190 ms
+    wallclock: 1207 ms
 schema version: 0.2

@@ -87,8 +87,8 @@ implementation:
       notebook path: None
     archive path: runs/retrieval-de-spot-check/dph/.tirex-tracker/archive.zip
     branch: main
-    commit: c0e758c524c4e50ceed08027cae4f152482e6c72
-    hash: 66aa96b46fc039815056f5a75f8f0f4d0956aa8a
+    commit: 51f3999b3020ff2dc2fad2cd45280c8066d212e1
+    hash: 56f1422ccc9bfa03916f3db171f7f6f030401e56
     is repo: 1
     lang: null
     repository: git@github.com:uniagent-webis-de/uniagent-code.git
@@ -118,12 +118,18 @@ platform:
         min: 0
         timeseries:
           timestamps:
-          - 0ms
-          - 100ms
-          - 201ms
+          - 1ms
+          - 101ms
+          - 202ms
           - 302ms
-          - 402ms
+          - 403ms
+          - 503ms
+          - 604ms
+          - 704ms
           values:
+          - 0
+          - 0
+          - 0
           - 0
           - 0
           - 0
@@ -147,98 +153,128 @@ resources:
   cpu:
     energy used system: null J
     temperature:
-      avg: 55
-      max: 57
-      min: 53
+      avg: 57
+      max: 59
+      min: 56
       timeseries:
         timestamps:
-        - 0ms
+        - 1ms
         - 101ms
-        - 201ms
+        - 202ms
         - 302ms
-        - 402ms
+        - 403ms
+        - 503ms
+        - 604ms
+        - 704ms
         values:
+        - 56
         - 57
         - 57
-        - 54
-        - 54
-        - 53
+        - 57
+        - 59
+        - 58
+        - 57
+        - 57
     used process:
-      avg: 129
-      max: 230
+      avg: 93
+      max: 234
       min: 0
       timeseries:
         timestamps:
         - 0ms
-        - 100ms
-        - 201ms
-        - 301ms
-        - 402ms
+        - 101ms
+        - 202ms
+        - 302ms
+        - 403ms
+        - 503ms
+        - 604ms
+        - 704ms
         values:
         - 0
-        - 214
-        - 88
-        - 114
-        - 230
+        - 74
+        - 94
+        - 208
+        - 18
+        - 98
+        - 234
+        - 18
     used system:
-      avg: 48
+      avg: 67
       max: 100
-      min: 25
+      min: 47
       timeseries:
         timestamps:
         - 0ms
-        - 100ms
-        - 201ms
-        - 301ms
-        - 402ms
+        - 101ms
+        - 202ms
+        - 302ms
+        - 403ms
+        - 503ms
+        - 604ms
+        - 704ms
         values:
         - 100
-        - 45
-        - 46
-        - 28
-        - 25
+        - 57
+        - 47
+        - 72
+        - 66
+        - 70
+        - 60
+        - 66
   gpu:
     energy used system: null J
   ram:
     energy used system: null J
     used process:
-      avg: 926432
-      max: 930611
-      min: 920576
+      avg: 908603
+      max: 914513
+      min: 901603
       timeseries:
         timestamps:
         - 0ms
-        - 100ms
-        - 201ms
-        - 301ms
-        - 402ms
+        - 101ms
+        - 202ms
+        - 302ms
+        - 403ms
+        - 503ms
+        - 604ms
+        - 704ms
         values:
-        - 920576
-        - 925716
-        - 927518
-        - 927739
-        - 930611
+        - 901603
+        - 903225
+        - 904118
+        - 908832
+        - 910233
+        - 911867
+        - 914436
+        - 914513
     used system:
-      avg: 28917
-      max: 28921
-      min: 28914
+      avg: 30069
+      max: 30155
+      min: 29965
       timeseries:
         timestamps:
         - 0ms
-        - 100ms
-        - 201ms
-        - 301ms
-        - 402ms
+        - 101ms
+        - 202ms
+        - 302ms
+        - 403ms
+        - 503ms
+        - 604ms
+        - 704ms
         values:
-        - 28914
-        - 28916
-        - 28918
-        - 28919
-        - 28921
+        - 29965
+        - 29967
+        - 29993
+        - 30065
+        - 30143
+        - 30155
+        - 30149
+        - 30122
   runtime:
-    start time: 2026-08-16T07:25:26.096029252+0000
-    stop time: 2026-08-16T07:25:26.499160844+0000
-    system: 40 ms
-    user: 1630 ms
-    wallclock: 403 ms
+    start time: 2026-08-16T11:56:34.504256387+0000
+    stop time: 2026-08-16T11:56:35.264915544+0000
+    system: 10 ms
+    user: 3780 ms
+    wallclock: 760 ms
 schema version: 0.2

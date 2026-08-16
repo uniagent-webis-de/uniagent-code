@@ -87,8 +87,8 @@ implementation:
       notebook path: None
     archive path: runs/retrieval-de-spot-check/dfic/.tirex-tracker/archive.zip
     branch: main
-    commit: c0e758c524c4e50ceed08027cae4f152482e6c72
-    hash: 66aa96b46fc039815056f5a75f8f0f4d0956aa8a
+    commit: 51f3999b3020ff2dc2fad2cd45280c8066d212e1
+    hash: c586ea8cf8701784138ecda089d03507e4d63d2a
     is repo: 1
     lang: null
     repository: git@github.com:uniagent-webis-de/uniagent-code.git
@@ -120,9 +120,15 @@ platform:
           timestamps:
           - 0ms
           - 101ms
-          - 201ms
-          - 302ms
+          - 203ms
+          - 304ms
+          - 404ms
+          - 505ms
+          - 605ms
           values:
+          - 0
+          - 0
+          - 0
           - 0
           - 0
           - 0
@@ -145,88 +151,118 @@ resources:
   cpu:
     energy used system: null J
     temperature:
-      avg: 58
-      max: 61
-      min: 56
+      avg: 55
+      max: 56
+      min: 54
       timeseries:
         timestamps:
         - 0ms
         - 101ms
-        - 201ms
-        - 302ms
+        - 203ms
+        - 304ms
+        - 404ms
+        - 505ms
+        - 606ms
         values:
-        - 59
-        - 61
-        - 58
+        - 54
+        - 55
+        - 56
+        - 56
+        - 55
+        - 56
         - 56
     used process:
-      avg: 154
-      max: 238
+      avg: 116
+      max: 220
       min: 0
       timeseries:
         timestamps:
         - 0ms
         - 101ms
-        - 201ms
-        - 302ms
+        - 203ms
+        - 304ms
+        - 404ms
+        - 505ms
+        - 605ms
         values:
         - 0
-        - 144
-        - 238
-        - 234
+        - 1
+        - 105
+        - 158
+        - 204
+        - 124
+        - 220
     used system:
-      avg: 52
-      max: 100
-      min: 29
+      avg: 45
+      max: 92
+      min: 0
       timeseries:
         timestamps:
         - 0ms
         - 101ms
-        - 201ms
-        - 302ms
+        - 203ms
+        - 304ms
+        - 404ms
+        - 505ms
+        - 605ms
         values:
-        - 100
-        - 29
-        - 50
-        - 32
+        - 0
+        - 28
+        - 73
+        - 92
+        - 40
+        - 37
+        - 49
   gpu:
     energy used system: null J
   ram:
     energy used system: null J
     used process:
-      avg: 927169
-      max: 927981
-      min: 925446
+      avg: 893393
+      max: 894062
+      min: 891445
       timeseries:
         timestamps:
         - 0ms
         - 101ms
-        - 201ms
-        - 302ms
+        - 203ms
+        - 304ms
+        - 404ms
+        - 505ms
+        - 605ms
         values:
-        - 925446
-        - 927469
-        - 927780
-        - 927981
+        - 891445
+        - 892919
+        - 893628
+        - 893767
+        - 893911
+        - 894021
+        - 894062
     used system:
-      avg: 28648
-      max: 28649
-      min: 28647
+      avg: 31177
+      max: 31197
+      min: 31171
       timeseries:
         timestamps:
         - 0ms
         - 101ms
-        - 201ms
-        - 302ms
+        - 203ms
+        - 304ms
+        - 404ms
+        - 505ms
+        - 605ms
         values:
-        - 28647
-        - 28648
-        - 28648
-        - 28649
+        - 31171
+        - 31175
+        - 31176
+        - 31171
+        - 31171
+        - 31181
+        - 31197
   runtime:
-    start time: 2026-08-16T07:24:01.678360940+0000
-    stop time: 2026-08-16T07:24:02.076566706+0000
-    system: 10 ms
-    user: 1750 ms
-    wallclock: 398 ms
+    start time: 2026-08-16T11:53:00.338389920+0000
+    stop time: 2026-08-16T11:53:00.996097116+0000
+    system: 30 ms
+    user: 2710 ms
+    wallclock: 657 ms
 schema version: 0.2

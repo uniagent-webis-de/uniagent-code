@@ -87,8 +87,8 @@ implementation:
       notebook path: None
     archive path: runs/retrieval-de-spot-check/lgd/.tirex-tracker/archive.zip
     branch: main
-    commit: c0e758c524c4e50ceed08027cae4f152482e6c72
-    hash: 66aa96b46fc039815056f5a75f8f0f4d0956aa8a
+    commit: 51f3999b3020ff2dc2fad2cd45280c8066d212e1
+    hash: f6591ab005a9ff8f09fcd1b62ed6e59313282df8
     is repo: 1
     lang: null
     repository: git@github.com:uniagent-webis-de/uniagent-code.git
@@ -119,12 +119,10 @@ platform:
         timeseries:
           timestamps:
           - 0ms
-          - 101ms
+          - 100ms
           - 201ms
-          - 302ms
-          - 402ms
+          - 301ms
           values:
-          - 0
           - 0
           - 0
           - 0
@@ -147,98 +145,88 @@ resources:
   cpu:
     energy used system: null J
     temperature:
-      avg: 56
-      max: 60
-      min: 53
+      avg: 60
+      max: 62
+      min: 59
       timeseries:
         timestamps:
         - 0ms
-        - 101ms
+        - 100ms
         - 201ms
-        - 302ms
-        - 402ms
+        - 301ms
         values:
+        - 62
+        - 62
         - 60
-        - 58
-        - 55
-        - 53
-        - 54
+        - 59
     used process:
-      avg: 149
-      max: 234
+      avg: 94
+      max: 174
       min: 0
       timeseries:
         timestamps:
         - 0ms
-        - 101ms
+        - 100ms
         - 201ms
-        - 302ms
-        - 402ms
+        - 301ms
         values:
         - 0
-        - 78
-        - 234
-        - 234
-        - 200
+        - 174
+        - 68
+        - 134
     used system:
-      avg: 45
-      max: 100
-      min: 16
+      avg: 29
+      max: 47
+      min: 0
       timeseries:
         timestamps:
         - 0ms
-        - 101ms
+        - 100ms
         - 201ms
-        - 302ms
-        - 402ms
+        - 301ms
         values:
-        - 100
-        - 40
-        - 35
+        - 0
+        - 38
+        - 47
         - 34
-        - 16
   gpu:
     energy used system: null J
   ram:
     energy used system: null J
     used process:
-      avg: 911578
-      max: 914083
-      min: 906231
+      avg: 893125
+      max: 893931
+      min: 891297
       timeseries:
         timestamps:
         - 0ms
-        - 101ms
+        - 100ms
         - 201ms
-        - 302ms
-        - 402ms
+        - 301ms
         values:
-        - 906231
-        - 910688
-        - 912891
-        - 914001
-        - 914083
+        - 891297
+        - 893509
+        - 893763
+        - 893931
     used system:
-      avg: 28914
-      max: 28916
-      min: 28913
+      avg: 29602
+      max: 29605
+      min: 29600
       timeseries:
         timestamps:
         - 0ms
-        - 101ms
+        - 100ms
         - 201ms
-        - 302ms
-        - 402ms
+        - 301ms
         values:
-        - 28913
-        - 28913
-        - 28916
-        - 28916
-        - 28916
+        - 29605
+        - 29604
+        - 29600
+        - 29600
   runtime:
-    start time: 2026-08-16T07:26:25.943307601+0000
-    stop time: 2026-08-16T07:26:26.372185446+0000
-    system: 20 ms
-    user: 1780 ms
-    wallclock: 428 ms
+    start time: 2026-08-16T11:58:05.490599149+0000
+    stop time: 2026-08-16T11:58:05.830513493+0000
+    system: 0 ms
+    user: 1450 ms
+    wallclock: 339 ms
 schema version: 0.2
