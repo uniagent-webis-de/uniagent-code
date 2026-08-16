@@ -98,3 +98,21 @@ def test_sums_per_task_run_breakdown_including_non_numbered_task_name():
     # instead of the true 128 (67 + 50 + 11).
     window = abstract_and_intro_window(ERISK_2025_INTRO)
     assert extract_run_count(window) == 128
+
+
+def test_participation_phrasings_beyond_the_plain_received_from_form():
+    # eRisk 2025 reports actual participation as "received results coming from 25
+    # distinct teams"; the earlier pattern required the exact "results from N teams".
+    w = "This year the lab had 128 different teams registered. We finally received results coming from 25 distinct teams."
+    assert extract_count(w, TEAM_PATTERNS) == 25
+
+
+def test_registration_only_counts_are_still_refused():
+    # Registrations are not participation and would inflate coverage_ratio, so a paper
+    # that only ever reports registrations must yield null rather than the bigger number.
+    for w in [
+        "We had 76 teams registered for the lab.",
+        "The lab had 93 teams registered.",
+        "16 groups registered to participate at PIR-CLEF 2018.",
+    ]:
+        assert extract_count(w, TEAM_PATTERNS) is None, w
