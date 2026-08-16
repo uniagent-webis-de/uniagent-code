@@ -51,12 +51,16 @@ MAX_PLAUSIBLE_COUNT = 999
 
 def is_plausible_count(n: int) -> bool:
     return 0 < n <= MAX_PLAUSIBLE_COUNT
+# "(?<!up to )" excludes a real false-positive found on eRisk 2018: "Each team could
+# submit up to 5 runs ... We received 45 contributions from 11 different institutions."
+# is a per-team submission CAP, not the actual total — but was the only "N runs" text in
+# the window, so the generic fallback confidently returned the cap (5) instead of null.
 RUN_PATTERNS = [
     re.compile(r"total\s+of\s+(\d+)\s+(?:valid\s+)?runs", re.IGNORECASE),
     re.compile(r"(\d+)\s+valid\s+runs", re.IGNORECASE),
     re.compile(r"(\d+)\s+runs\s+(?:were\s+)?submitted", re.IGNORECASE),
-    re.compile(r"(\d+)\s+runs\b", re.IGNORECASE),
-    re.compile(r"(\d+)\s+approaches", re.IGNORECASE),
+    re.compile(r"(?<!up to )(\d+)\s+runs\b", re.IGNORECASE),
+    re.compile(r"(?<!up to )(\d+)\s+approaches", re.IGNORECASE),
 ]
 
 
@@ -122,18 +126,28 @@ NUMBERED_HEADING_RE = re.compile(r"\n(\d+)\.\s+\S")
 
 def abstract_and_intro_window(text: str) -> str:
     """Restrict extraction to the abstract + introduction, ending at the start of the
-    first numbered *task* subsection (typically "2. Task 1: ..."). Real bug found on
-    eRisk 2023: without this boundary, a per-task participation sentence buried inside
-    the Task 1 subsection ("37 runs from 10 participating teams") outscored the actual
-    lab-wide total in the introduction ("received results from 20 teams") because it
-    matched a higher-priority pattern — the section boundary must be checked first."""
-    headings = list(NUMBERED_HEADING_RE.finditer(text))
-    if len(headings) >= 2:
-        return text[:headings[1].start()]
+    first numbered *task* subsection (heading number >= 2 — typically "2. Task 1: ...").
+    Real bug found on eRisk 2023: without this boundary, a per-task participation
+    sentence buried inside the Task 1 subsection ("37 runs from 10 participating teams")
+    outscored the actual lab-wide total in the introduction ("received results from 20
+    teams") because it matched a higher-priority pattern.
+
+    A second real bug found on eRisk 2025: this cannot simply take the *second* numbered
+    heading found and assume the first is "1. Introduction" — that paper has no numbered
+    "1." heading at all, so its first numbered heading is already "2. Task 1", and taking
+    the second heading overall ("3. Task 2") let the entire wrong Task-1-only subsection
+    leak into the window. Must explicitly look for a heading number >= 2."""
+    for match in NUMBERED_HEADING_RE.finditer(text):
+        if int(match.group(1)) >= 2:
+            return text[:match.start()]
     return text[:SEARCH_WINDOW_CHARS]
 
 
-RUNS_PER_TASK_RE = re.compile(r"(\d+)\s+runs\s+for\s+task\s*\d+", re.IGNORECASE)
+# Matches both "N runs for Task 1" and "N runs for the pilot task" — real case found on
+# eRisk 2025: "67 runs for Task 1, 50 runs for Task 2, and 11 runs for the pilot task"
+# only summed to 117 (missing the non-numbered "pilot task" fragment) against a true
+# total of 128, because the original pattern required a task *number* on every fragment.
+RUNS_PER_TASK_RE = re.compile(r"(\d+)\s+runs\s+for\s+(?:the\s+)?(?:task\s*\d+|\w+\s+task)", re.IGNORECASE)
 
 
 def extract_run_count(window: str) -> int | None:
