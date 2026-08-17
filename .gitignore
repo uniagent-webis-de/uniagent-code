@@ -229,7 +229,5 @@ AGENT.md
 PLAN.md
 SKILL.md
 
-# Raw fetched sources are large and fully re-fetchable from the pipeline
-# (504 PDFs + CEUR/DBLP HTML). Kept out of git per AGENT.md; the deliverables in
-# data/final/ and the small joinable artifacts in data/intermediate/ stay tracked.
-/data/raw/
+# Generated and fetched data stays outside Git.
+/data/
