@@ -1,0 +1,5 @@
+click
+ir_datasets
+tira @ git+https://github.com/tira-io/tira.git@main#subdirectory=python-client
+trectools==0.0.50
+ir-datasets
