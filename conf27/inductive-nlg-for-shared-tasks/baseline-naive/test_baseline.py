@@ -61,7 +61,7 @@ def test_cli_writes_jsonl(tmp_path):
     input_directory = tmp_path / "papers"
     paper_directory = input_directory / "172"
     paper_directory.mkdir(parents=True)
-    (paper_directory / "paper.md").write_text(
+    (paper_directory / "paper.txt.md").write_text(
         "# Paper Title\n\n### Abstract Paper abstract.\n\n## Introduction\n",
         encoding="utf-8",
     )

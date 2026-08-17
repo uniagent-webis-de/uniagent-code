@@ -66,9 +66,9 @@ def create_summary(title: str, abstract: str, mode: SummaryMode) -> str:
 
 
 def find_papers(input_directory: Path) -> list[Path]:
-    papers = sorted(input_directory.rglob("paper.md"))
+    papers = sorted(input_directory.rglob("paper.txt.md"))
     if not papers:
-        raise ValueError(f"No paper.md files found in {input_directory}")
+        raise ValueError(f"No paper.txt.md files found in {input_directory}")
 
     ids = [paper.parent.name for paper in papers]
     if len(ids) != len(set(ids)):
@@ -100,7 +100,7 @@ def generate_summaries(
     "input_directory",
     required=True,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="Directory containing paper directories with paper.md files.",
+    help="Directory containing paper directories with paper.txt.md files.",
 )
 @click.option(
     "--output",

@@ -1,10 +1,10 @@
 # Naive Baseline
 
-This deterministic baseline extracts each paper's Markdown title and abstract.
+This deterministic baseline extracts each `paper.txt.md` title and abstract.
 
 ```bash
 python3 baseline.py \
-  --input ../corpora/touche-20-task-1-spot-check/papers \
+  --input ../corpora-in-progress/touche-20-task-1-spot-check/papers \
   --output predictions.jsonl \
   --summary title-and-abstract
 ```
