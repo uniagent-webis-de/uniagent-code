@@ -1,6 +1,8 @@
 # Project-specific: logs and data are gitignored except .gitkeep (see AGENT.md)
 /logs/*
 !/logs/.gitkeep
+corpora-in-progress
+conf27/inductive-nlg-for-shared-tasks/corpus-creation/raw-data/
 
 
 # Byte-compiled / optimized / DLL files

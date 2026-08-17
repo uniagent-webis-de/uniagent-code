@@ -1,3 +1,7 @@
+# To incorporate
+
+the data is moved to `/mnt/ceph/storage/data-in-progress/data-research/agentic-ai/INLG-27-corpus`
+
 # Shared-Task Corpus — Build, Layout, and Usage
 
 A corpus of CLEF shared tasks where each entry links one **overview paper** (written by the
