@@ -30,7 +30,7 @@ tira_configs:
     format:
       name: "*.jsonl"
   evaluator:
-    image: "mam10eks/uniagent-inlg:evaluator-0.0.1"
+    image: "ghcr.io/uniagent-webis-de/agent-in-the-loop-evaluator:0.0.1"
     command: "/evaluate.py --predictions ${inputRun}/predictions.jsonl --truths ${inputDataset}/manual-paper-summaries.jsonl --results ${outputDir}"
 ---
 
@@ -38,7 +38,7 @@ tira_configs:
 ```bash
 tira-cli dataset-submission \
   --path touche-20-task-1-spot-check \
-  --task uniagent-2026 \
+  --task inlg27-agent-in-the-loop \
   --split train \
   --dry-run
 ```
