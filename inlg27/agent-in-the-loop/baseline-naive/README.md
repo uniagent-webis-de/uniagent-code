@@ -15,3 +15,15 @@ contains one JSON object per line:
 ```json
 {"id": "172", "summary": "Argument Retrieval Using Deep Neural Ranking Models"}
 ```
+
+# Submit to TIRA:
+
+```
+tira-cli code-submission \
+    --path . \
+    --task inlg27-agent-in-the-loop \
+    --dataset touche-20-task-1-spot-check-20260830-training \
+    --command '/baseline.py --input $inputDataset --summary title-and-abstract --output ${outputDir}/predictions.jsonl' \
+    --dry-run
+```
+
