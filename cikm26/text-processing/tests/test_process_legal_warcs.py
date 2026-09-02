@@ -41,3 +41,9 @@ def test_metadata_example_03() -> None:
 
 def test_metadata_example_04() -> None:
     verify_as_json(extract_documents(RESOURCES_DIR / "example-04.warc.gz"))
+
+def test_metadata_example_05() -> None:
+    verify_as_json(extract_documents(RESOURCES_DIR / "example-05.warc.gz"))
+
+def test_metadata_example_06() -> None:
+    verify_as_json(extract_documents(RESOURCES_DIR / "example-06.warc.gz"))
