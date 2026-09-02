@@ -12,17 +12,10 @@ from fastwarc.warc import ArchiveIterator, WarcRecord, WarcRecordType
 from resiliparse.extract.html2text import extract_plain_text
 from resiliparse.parse.html import HTMLTree
 
-_SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
-
 # hessenrecht renders "Redaktionelle Hinweise" (editorial notes) and
 # "Permalink" boxes as trailing sections, always after the actual document
 # text; whichever of these headings comes first marks where to cut them off.
 _TRAILING_SECTION_PATTERN = re.compile(r"Redaktionelle Hinweise|Permalink")
-
-
-def slugify(value: str) -> str:
-    slug = _SLUG_PATTERN.sub("-", value.lower()).strip("-")
-    return slug or "unknown"
 
 
 def extract_head_fields(head_html: str) -> dict[str, str]:
@@ -63,6 +56,8 @@ def extract_metadata(warc_record: WarcRecord, record_json: dict) -> dict:
     doc_parts = record_json.get("docParts", {})
     part = doc_parts.get(record_json.get("defaultPart"), {})
     head_fields = extract_head_fields(part.get("head", ""))
+    title = (part.get("documentTitle") or {}).get("title", "")
+    content = extract_content(part.get("text", ""))
 
     return {
         "doc_id": record_json.get("requestedDocumentId"),
@@ -72,26 +67,37 @@ def extract_metadata(warc_record: WarcRecord, record_json: dict) -> dict:
         "decision_date": head_fields.get("Entscheidungsdatum"),
         "file_number": head_fields.get("Aktenzeichen"),
         "ecli": head_fields.get("ECLI"),
-        "title": (part.get("documentTitle") or {}).get("title", ""),
-        "content": extract_content(part.get("text", "")),
+        "title": title,
+        "content": content,
+        "text": f"{title} {content}",
     }
 
 
-def write_document(output_file: TextIO, document: dict) -> bool:
-    """Writes one already-extracted document as a JSON line. Returns True if
-    its title is empty."""
+def write_document(output_file: TextIO, document: dict) -> None:
+    """Writes one already-extracted document as a JSON line."""
     output_file.write(json.dumps(document, ensure_ascii=False) + "\n")
-    return not document["title"]
 
 
-def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], int, int]:
+def process_warc_files(input_paths: list[Path]) -> tuple[int, int, int]:
+    """Processes all input_paths, writing extracted documents to
+    legal-hessen-processed/documents.jsonl.gz, and the URL of every skipped
+    record (invalid JSON, or missing title/content) to
+    legal-hessen-processed/skipped-urls.txt, one per line.
+
+    Returns (processed, written, skipped) counts.
+    """
     processed = 0
-    written: dict[str, int] = {}
+    written = 0
     skipped = 0
-    empty = 0
-    outputs: dict[str, TextIO] = {}
 
-    try:
+    output_dir = Path("legal-hessen-processed")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    with gzip.open(
+        output_dir / "documents.jsonl.gz", "wt", encoding="utf-8"
+    ) as documents_file, (output_dir / "skipped-urls.txt").open(
+        "w", encoding="utf-8"
+    ) as skipped_urls_file:
         for input_path in input_paths:
             click.echo(f"Processing {input_path}", err=True)
             with input_path.open("rb") as warc_file:
@@ -107,41 +113,38 @@ def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], in
                         continue
 
                     processed += 1
+                    url = warc_record.headers.get("WARC-Target-URI")
                     try:
                         record_json = json.loads(warc_record.reader.read())
                         document = extract_metadata(warc_record, record_json)
                     except (json.JSONDecodeError, UnicodeError, ValueError) as error:
                         skipped += 1
+                        skipped_urls_file.write(f"{url}\n")
                         click.echo(
                             f"Skipping {warc_record.record_id}: {error}", err=True
                         )
                         continue
 
-                    slug = slugify(document["document_type"] or "unknown")
-                    if slug not in outputs:
-                        outputs[slug] = gzip.open(
-                            f"legal-hessen-processed/documents-{slug}.jsonl.gz", "wt", encoding="utf-8"
-                        )
-                        written[slug] = 0
+                    if not document["title"] or not document["content"]:
+                        skipped += 1
+                        skipped_urls_file.write(f"{url}\n")
+                        continue
 
-                    if write_document(outputs[slug], document):
-                        empty += 1
-                    written[slug] += 1
+                    write_document(documents_file, document)
+                    written += 1
 
                     if processed % 1000 == 0:
                         click.echo(f"Processed {processed:,} documents", err=True)
-    finally:
-        for output_file in outputs.values():
-            output_file.close()
 
-    return processed, written, skipped, empty
+    return processed, written, skipped
 
 
 @click.command()
 @click.argument("input_glob", default="legal-hessen/*.warc.gz")
 def main(input_glob: str) -> None:
     """Extract legal documents from hessenrecht WARC files matching INPUT_GLOB,
-    writing one documents-<type>.jsonl.gz file per document type.
+    writing all of them to legal-hessen-processed/documents.jsonl.gz and the
+    URLs of any skipped documents to legal-hessen-processed/skipped-urls.txt.
 
     Quote INPUT_GLOB to ensure it is expanded by this command instead of the shell.
     """
@@ -151,15 +154,14 @@ def main(input_glob: str) -> None:
     if not input_paths:
         raise click.ClickException(f"No files match input glob: {input_glob}")
 
-    processed, written, skipped, empty = process_warc_files(input_paths)
+    processed, written, skipped = process_warc_files(input_paths)
 
     click.echo(
         f"Done: processed {processed:,} JSON documents from {len(input_paths):,} "
-        f"files; skipped {skipped:,} invalid records; {empty:,} documents with empty title.",
+        f"files; wrote {written:,} documents; skipped {skipped:,} documents "
+        "(invalid or missing title/content).",
         err=True,
     )
-    for slug, count in sorted(written.items(), key=lambda item: -item[1]):
-        click.echo(f"{count:>6,}  documents-{slug}.jsonl.gz")
 
 
 if __name__ == "__main__":
