@@ -31,3 +31,13 @@ def extract_documents(warc_path: Path) -> list[dict]:
 
 def test_metadata_example_01() -> None:
     verify_as_json(extract_documents(RESOURCES_DIR / "example-01.warc.gz"))
+
+
+def test_metadata_example_02() -> None:
+    verify_as_json(extract_documents(RESOURCES_DIR / "example-02.warc.gz"))
+
+def test_metadata_example_03() -> None:
+    verify_as_json(extract_documents(RESOURCES_DIR / "example-03.warc.gz"))
+
+def test_metadata_example_04() -> None:
+    verify_as_json(extract_documents(RESOURCES_DIR / "example-04.warc.gz"))

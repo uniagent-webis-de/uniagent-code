@@ -14,6 +14,11 @@ from resiliparse.parse.html import HTMLTree
 
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
 
+# hessenrecht renders "Redaktionelle Hinweise" (editorial notes) and
+# "Permalink" boxes as trailing sections, always after the actual document
+# text; whichever of these headings comes first marks where to cut them off.
+_TRAILING_SECTION_PATTERN = re.compile(r"Redaktionelle Hinweise|Permalink")
+
 
 def slugify(value: str) -> str:
     slug = _SLUG_PATTERN.sub("-", value.lower()).strip("-")
@@ -40,6 +45,16 @@ def extract_head_fields(head_html: str) -> dict[str, str]:
     return fields
 
 
+def extract_content(text_html: str) -> str:
+    """Extracts the plain-text content of a docPart's "text" HTML, with the
+    trailing "Redaktionelle Hinweise"/"Permalink" boxes removed."""
+    plain_text = extract_plain_text(text_html or "")
+    match = _TRAILING_SECTION_PATTERN.search(plain_text)
+    if match:
+        plain_text = plain_text[: match.start()]
+    return plain_text.strip()
+
+
 def extract_metadata(warc_record: WarcRecord, record_json: dict) -> dict:
     """Extracts metadata, the raw title, and the plain-text content of one
     hessenrecht WARC record. The record's "defaultPart" -- the docPart
@@ -58,7 +73,7 @@ def extract_metadata(warc_record: WarcRecord, record_json: dict) -> dict:
         "file_number": head_fields.get("Aktenzeichen"),
         "ecli": head_fields.get("ECLI"),
         "title": (part.get("documentTitle") or {}).get("title", ""),
-        "content": extract_plain_text(part.get("text") or ""),
+        "content": extract_content(part.get("text", "")),
     }
 
 
