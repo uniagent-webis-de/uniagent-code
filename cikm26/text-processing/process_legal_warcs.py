@@ -126,7 +126,7 @@ def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], in
                     slug = slugify(document_type)
                     if slug not in outputs:
                         outputs[slug] = gzip.open(
-                            f"documents-{slug}.jsonl.gz", "wt", encoding="utf-8"
+                            f"legal-hessen-processed/documents-{slug}.jsonl.gz", "wt", encoding="utf-8"
                         )
                         written[slug] = 0
 
