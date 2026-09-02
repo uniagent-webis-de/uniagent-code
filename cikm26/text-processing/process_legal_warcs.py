@@ -40,57 +40,40 @@ def extract_head_fields(head_html: str) -> dict[str, str]:
     return fields
 
 
-def extract_part_text(part: dict) -> str:
-    tree = HTMLTree.parse(part.get("text", ""))
-    return extract_plain_text(
-        tree,
-        main_content=False,
-        preserve_formatting=True,
-        links=False,
-        comments=False,
-    ).strip()
-
-
-def write_document(output_file: TextIO, warc_record: WarcRecord, record_json: dict) -> None:
+def extract_metadata(warc_record: WarcRecord, record_json: dict) -> dict:
+    """Extracts metadata, the raw title, and the plain-text content of one
+    hessenrecht WARC record. The record's "defaultPart" -- the docPart
+    hessenrecht itself considers the primary view for the requested document
+    -- is used as the single source for all of these fields."""
     doc_parts = record_json.get("docParts", {})
-    long_part = doc_parts.get("L")
-    short_part = doc_parts.get("K") or doc_parts.get("S")
+    part = doc_parts.get(record_json.get("defaultPart"), {})
+    head_fields = extract_head_fields(part.get("head", ""))
 
-    head_fields = extract_head_fields(
-        (long_part or short_part or {}).get("head", "")
-    )
-    title = ((long_part or short_part or {}).get("documentTitle") or {}).get("title", "")
-    abstract = extract_part_text(short_part) if short_part else None
-    content = extract_part_text(long_part) if long_part else None
-
-    output_file.write(
-        json.dumps(
-            {
-                "doc_id": record_json.get("requestedDocumentId"),
-                "url": warc_record.headers.get("WARC-Target-URI"),
-                "language": "de",
-                "document_type": head_fields.get("Dokumenttyp"),
-                "court": head_fields.get("Gericht"),
-                "decision_date": head_fields.get("Entscheidungsdatum"),
-                "file_number": head_fields.get("Aktenzeichen"),
-                "ecli": head_fields.get("ECLI"),
-                "title": title,
-                "abstract": abstract,
-                "content": content,
-                "text": "\n\n".join(
-                    part for part in (title, abstract, content) if part
-                ),
-            },
-            ensure_ascii=False,
-        )
-        + "\n"
-    )
+    return {
+        "doc_id": record_json.get("requestedDocumentId"),
+        "url": warc_record.headers.get("WARC-Target-URI"),
+        "document_type": head_fields.get("Dokumenttyp"),
+        "court": head_fields.get("Gericht"),
+        "decision_date": head_fields.get("Entscheidungsdatum"),
+        "file_number": head_fields.get("Aktenzeichen"),
+        "ecli": head_fields.get("ECLI"),
+        "title": (part.get("documentTitle") or {}).get("title", ""),
+        "content": extract_plain_text(part.get("text") or ""),
+    }
 
 
-def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], int]:
+def write_document(output_file: TextIO, document: dict) -> bool:
+    """Writes one already-extracted document as a JSON line. Returns True if
+    its title is empty."""
+    output_file.write(json.dumps(document, ensure_ascii=False) + "\n")
+    return not document["title"]
+
+
+def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], int, int]:
     processed = 0
     written: dict[str, int] = {}
     skipped = 0
+    empty = 0
     outputs: dict[str, TextIO] = {}
 
     try:
@@ -111,11 +94,7 @@ def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], in
                     processed += 1
                     try:
                         record_json = json.loads(warc_record.reader.read())
-                        document_type = extract_head_fields(
-                            next(iter(record_json.get("docParts", {}).values()), {}).get(
-                                "head", ""
-                            )
-                        ).get("Dokumenttyp") or "unknown"
+                        document = extract_metadata(warc_record, record_json)
                     except (json.JSONDecodeError, UnicodeError, ValueError) as error:
                         skipped += 1
                         click.echo(
@@ -123,14 +102,15 @@ def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], in
                         )
                         continue
 
-                    slug = slugify(document_type)
+                    slug = slugify(document["document_type"] or "unknown")
                     if slug not in outputs:
                         outputs[slug] = gzip.open(
                             f"legal-hessen-processed/documents-{slug}.jsonl.gz", "wt", encoding="utf-8"
                         )
                         written[slug] = 0
 
-                    write_document(outputs[slug], warc_record, record_json)
+                    if write_document(outputs[slug], document):
+                        empty += 1
                     written[slug] += 1
 
                     if processed % 1000 == 0:
@@ -139,7 +119,7 @@ def process_warc_files(input_paths: list[Path]) -> tuple[int, dict[str, int], in
         for output_file in outputs.values():
             output_file.close()
 
-    return processed, written, skipped
+    return processed, written, skipped, empty
 
 
 @click.command()
@@ -156,11 +136,11 @@ def main(input_glob: str) -> None:
     if not input_paths:
         raise click.ClickException(f"No files match input glob: {input_glob}")
 
-    processed, written, skipped = process_warc_files(input_paths)
+    processed, written, skipped, empty = process_warc_files(input_paths)
 
     click.echo(
         f"Done: processed {processed:,} JSON documents from {len(input_paths):,} "
-        f"files; skipped {skipped:,} invalid records.",
+        f"files; skipped {skipped:,} invalid records; {empty:,} documents with empty title.",
         err=True,
     )
     for slug, count in sorted(written.items(), key=lambda item: -item[1]):
@@ -169,3 +149,4 @@ def main(input_glob: str) -> None:
 
 if __name__ == "__main__":
     main()
+

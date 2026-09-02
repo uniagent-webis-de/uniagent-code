@@ -1,5 +1,7 @@
+approvaltests
 click
 fastwarc
 langdetect
 nltk
+pytest
 resiliparse
