@@ -131,7 +131,7 @@ class RequestTest(unittest.TestCase):
         )
 
         self.assertEqual("1", request["query"]["qid"])
-        self.assertIn("Description: A detailed question", request["query"]["text"])
+        self.assertEqual("query title", request["query"]["text"])
         self.assertEqual(["a", "b"], [item["docid"] for item in request["candidates"]])
         self.assertEqual(
             "Document A",

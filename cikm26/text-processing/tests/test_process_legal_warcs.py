@@ -61,6 +61,11 @@ def test_metadata_example_04() -> None:
 def test_metadata_example_05() -> None:
     verify_documents(RESOURCES_DIR / "example-05.warc.gz")
 
-
 def test_metadata_example_06() -> None:
     verify_documents(RESOURCES_DIR / "example-06.warc.gz")
+
+def test_metadata_example_07() -> None:
+    verify_documents(RESOURCES_DIR / "example-07.warc.gz")
+
+def test_metadata_example_08() -> None:
+    verify_documents(RESOURCES_DIR / "example-08.warc.gz")
