@@ -1,0 +1,14 @@
+{
+  "image": "ghcr.io/uniagent-webis-de/uniagent-pyserini-baseline:dev-0.0.1",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.datawrangler",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}

@@ -1,0 +1,28 @@
+# docker build -f .devcontainer/Dockerfile.dev -t ghcr.io/uniagent-webis-de/uniagent-pyserini-baseline:dev-0.0.1 .
+FROM ubuntu:noble
+
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-21-jdk python3 python3-pip python3-venv git \
+	&& rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+ADD requirements.txt /
+
+# Pyserini only performs sparse (BM25/QLD) retrieval here, but unconditionally
+# imports its dense-retrieval encoders (torch, transformers, ...) at package
+# import time. Installing the CPU-only torch build first (satisfying
+# pyserini's "torch>=2.9" requirement) avoids pulling in the CUDA/triton
+# wheels, which otherwise add several GB to the image for no benefit since we
+# never run on a GPU.
+RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install dependencies and ensure pyserini's JVM bridge is usable
+RUN pip3 install --no-cache-dir -r /requirements.txt \
+	&& rm /requirements.txt \
+	&& python3 -c 'from pyserini.pyclass import autoclass; autoclass("io.anserini.index.SimpleIndexer")'
+
+RUN pip3 install --no-cache-dir --force-reinstall --no-deps \
+	"tira @ git+https://github.com/tira-io/tira.git@main#subdirectory=python-client"
+
+RUN pip3 install --no-cache-dir pytest

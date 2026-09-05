@@ -1,0 +1,8 @@
+click
+ir_datasets
+# Pinned: pyserini>=2.4.0 eagerly resolves prebuilt-index aliases at import time
+# (pyserini/prebuilt_index_info.py), which requires internet access and breaks
+# in TIRA's offline sandbox even though this baseline never uses prebuilt indexes.
+pyserini==2.3.0
+tira>=0.0.203
+tirex-tracker>=0.2.23
