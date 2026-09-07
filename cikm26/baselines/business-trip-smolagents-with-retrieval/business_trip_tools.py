@@ -9,6 +9,8 @@ from typing import Any
 
 from smolagents import Tool
 
+from tool_logging import log_tool_calls
+
 
 POLICIES = {
     "advance_approval": (
@@ -306,9 +308,9 @@ class CheckFactsTool(Tool):
 
 def build_tools(input_root: Path, case_id: str) -> list[Tool]:
     return [
-        ListCaseDocumentsTool(input_root, case_id),
-        ReadPdfTool(input_root, case_id),
-        SearchCaseTool(input_root, case_id),
-        LookupPolicyTool(),
-        CheckFactsTool(),
+        log_tool_calls(ListCaseDocumentsTool(input_root, case_id)),
+        log_tool_calls(ReadPdfTool(input_root, case_id)),
+        log_tool_calls(SearchCaseTool(input_root, case_id)),
+        log_tool_calls(LookupPolicyTool()),
+        log_tool_calls(CheckFactsTool()),
     ]

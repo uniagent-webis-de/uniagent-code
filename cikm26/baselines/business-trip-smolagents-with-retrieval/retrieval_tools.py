@@ -2,12 +2,15 @@ import gzip
 import json
 import re
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pyterrier as pt
 from smolagents import Tool
+
+from tool_logging import log_tool_calls
 
 # Same indexing configuration as ../retrieval-baseline-pyterrier/baseline.py: a
 # language-specific stemmer, stopword list, and tokeniser per corpus language.
@@ -200,13 +203,33 @@ def build_retrieval_tools(input_root: Path) -> list[CorpusRetrievalTool]:
     corpus gets its own Tool subclass with a corpus-specific name/description,
     so the model sees one distinct tool per corpus (for instance
     retrieve_hessian_law_de) instead of one generic tool with a corpus parameter.
+
+    Progress is reported to stdout per corpus, since indexing a single corpus
+    can take from seconds to a few minutes depending on its size.
     """
+    corpora = discover_corpora(input_root)
+    if not corpora:
+        print("No retrieval-corpora found; continuing without retrieval tools.", flush=True)
+        return []
+
+    print(f"Building {len(corpora)} retrieval tool(s): {', '.join(corpora)}", flush=True)
     tools = []
-    for corpus_name, documents_path in discover_corpora(input_root).items():
+    for corpus_index, (corpus_name, documents_path) in enumerate(corpora.items(), start=1):
+        started = time.monotonic()
+        print(
+            f"[{corpus_index}/{len(corpora)}] Building retrieval tool for '{corpus_name}'...",
+            flush=True,
+        )
         documents = read_documents(documents_path)
         language = infer_language(corpus_name, documents[0])
         index = build_index(documents, language)
         documents_by_id = {str(document["doc_id"]): document for document in documents}
+        elapsed = time.monotonic() - started
+        print(
+            f"[{corpus_index}/{len(corpora)}] Indexed {len(documents)} document(s) from "
+            f"'{corpus_name}' ({language}) in {elapsed:.1f}s.",
+            flush=True,
+        )
 
         tool_class = type(
             _tool_class_name(corpus_name),
@@ -233,5 +256,12 @@ def build_retrieval_tools(input_root: Path) -> list[CorpusRetrievalTool]:
             },
         )
         tools.append(tool_class(corpus_name, documents_by_id, index, language))
+        log_tool_calls(tools[-1])
+
+    print(
+        f"Finished building all {len(tools)} retrieval tool(s): "
+        + ", ".join(tool.name for tool in tools),
+        flush=True,
+    )
     return tools
 
