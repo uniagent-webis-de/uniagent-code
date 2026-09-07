@@ -41,100 +41,131 @@ tira_configs:
     measures: ["accuracy"]
 ---
 
-# Dienstreiseantrag — Beispiel-Set (Solving)
+# Business Trip Application — Example Set (Solving)
 
-**Alle Personen, Fachgebiete, Reisen, Firmen, Beträge, Aktenzeichen, Bank- und
-Kontaktdaten in diesem Ordner sind frei erfunden.** Aufbau, Dokumenttypen und
-Regelwerk orientieren sich an echten (im UNIAGENT-Projekt pseudonymisierten)
-Dienstreisevorgängen der Universität Kassel; es sind aber keine realen Personen-
-oder Falldaten enthalten. Die Fachbereichs- und Institutsangaben (FB 16,
-Wilhelmshöher Allee 71-73) sind reale, öffentliche Adressdaten der Hochschule —
-die darin auftretenden Personen und Fachgebiete nicht. Die IBAN-Prüfsummen sind
-bewusst ungültig, können also keinem realen Konto entsprechen. Das Set ist zur
-Veröffentlichung freigegeben.
+**All people, departments, trips, companies, amounts, reference numbers, bank
+and contact details in this folder are fictitious.** Structure, document types,
+and the rule set are modeled on real (pseudonymized within the UNIAGENT
+project) business-trip cases from the University of Kassel; however, no real
+person or case data is contained. The department/institute details (FB 16,
+Wilhelmshöher Allee 71-73) are real, public address data of the university —
+the people and departments appearing alongside them are not. The IBAN check
+digits are deliberately invalid, so they cannot correspond to any real
+account. The set is cleared for publication.
 
-## Aufgabe
+## Task
 
-Für jeden Fall unter `inputs/dienstreiseantrag-XX/` liegt ein eingereichter
-"Antrag auf Dienstreisegenehmigung" mit den zugehörigen Unterlagen vor
-(Tickets, Rechnungen, Buchungsbestätigungen, E-Mail-Korrespondenz). Aufgabe ist
-es, den Antrag auf **Vollständigkeit und Regelkonformität** zu prüfen und zu
-entscheiden: **angenommen** oder **abgelehnt**. Bei Ablehnung soll benannt
-werden können, was fehlt oder nicht den Regeln entspricht.
+For each case under `inputs/dienstreiseantrag-XX/` there is a submitted
+"Antrag auf Dienstreisegenehmigung" (business trip approval request) along
+with its supporting documents (tickets, invoices, booking confirmations,
+email correspondence). The task is to check the application for
+**completeness and rule compliance** and decide: **angenommen** (accepted) or
+**abgelehnt** (rejected). If rejected, it should be possible to state what is
+missing or does not comply with the rules.
 
-## Struktur
+## Structure
 
 ```
 dienstreiseantrag-solving/
   README.md
-  make_examples.py            # erzeugt alle PDFs reproduzierbar neu
-  ground-truth.jsonl          # Gold-Antwort pro Fall
+  make_examples.py            # regenerates all PDFs reproducibly
+  ground-truth.jsonl          # gold answer per case
   inputs/
-    dienstreiseantrag-01/     # 4 PDF — was der Agent sieht
-    dienstreiseantrag-02/     # 4 PDF
-    dienstreiseantrag-03/     # 3 PDF
-    dienstreiseantrag-04/     # 4 PDF
-    dienstreiseantrag-05/     # 4 PDF
-  decision-trail/             # NICHT an den Agenten geben
-    dienstreiseantrag-01/     # Entscheidungsdokument (Beleg für das Gold-Label)
+    dienstreiseantrag-01/     # 4 PDFs — what the agent sees
+    dienstreiseantrag-02/     # 4 PDFs
+    dienstreiseantrag-03/     # 3 PDFs
+    dienstreiseantrag-04/     # 4 PDFs
+    dienstreiseantrag-05/     # 4 PDFs
+    retrieval-corpora/        # background corpora for looking up rules
+      hessian-law-de/documents.jsonl.gz
+      university-kassel-public-de/documents.jsonl.gz
+      university-kassel-public-en/documents.jsonl.gz
+  decision-trail/             # NOT given to the agent
+    dienstreiseantrag-01/     # decision document (evidence for the gold label)
     ...
 ```
 
-`inputs/` enthält ausschließlich Unterlagen, die **vor** der Entscheidung
-vorliegen — es verrät die Antwort also nicht. Die Genehmigungs- bzw.
-Korrektur-/Ablehnungsmails liegen getrennt in `decision-trail/`; sie belegen das
-Gold-Label und dienen der Nachvollziehbarkeit (analog zu
-`gold_status: evidenced_in_corpus` in `working/tira-dataset/`).
+`inputs/` contains exclusively documents that are available **before** the
+decision — so it does not reveal the answer. The approval, correction, or
+rejection emails live separately in `decision-trail/`; they evidence the gold
+label and support traceability (analogous to `gold_status:
+evidenced_in_corpus` in `working/tira-dataset/`).
 
-Alle 24 PDFs haben einen Textlayer (`pdftotext -layout` liefert Text), es gibt
-keine Bild-Only-Dokumente.
+All 24 PDFs have a text layer (`pdftotext -layout` returns text); there are
+no image-only documents.
 
-## Fälle
+## Retrieval Corpora
 
-| # | Fall | Ergebnis | Ablehnungs-/Prüfmuster |
+`inputs/retrieval-corpora/` does not provide case material, but background
+corpora that an agent can use to look up individual rules (e.g., overnight
+allowance limits, A1 certificate, responsibilities) via retrieval instead of
+from the prompt. Each corpus is a `documents.jsonl.gz` with one JSON object
+per line (fields include `doc_id`, `url`, `title`, `content`/`text`):
+
+| Folder | Content | Documents | Fields |
 |---|---|---|---|
-| 1 | `dienstreiseantrag-01` | abgelehnt | Antrag erst nach durchgeführter Reise eingereicht — keine Vorab-Genehmigung |
-| 2 | `dienstreiseantrag-02` | angenommen | Reguläre Konferenzreise, vollständig, rechtzeitig, Vortrag belegt |
-| 3 | `dienstreiseantrag-03` | abgelehnt | Rückreise nicht dokumentiert, Auslands-Pflichtfeld leer, Datum vor Reisebeginn |
-| 4 | `dienstreiseantrag-04` | angenommen | Privater Anschlussaufenthalt > 5 Arbeitstage, Kosten aber korrekt getrennt |
-| 5 | `dienstreiseantrag-05` | abgelehnt | Doppelte Kostenübernahme — Stipendium deckt dieselben Positionen |
+| `hessian-law-de/` | Public crawl of hessenrecht.hessen.de (rulings, decisions, etc.), German | 2,829 | additionally `document_type`, `court`, `decision_date`, `file_number`, `ecli` |
+| `university-kassel-public-de/` | Public web crawl of the University of Kassel, German-language pages | 30,983 | additionally `language` |
+| `university-kassel-public-en/` | Public web crawl of the University of Kassel, English-language pages | 24,171 | additionally `language` |
 
-Die Prüfmuster in Spalte 4 sowie die im Set verwendeten Regeln
-(6-Monats-Ausschlussfrist, 80 €-Übernachtungsgrenze Inland,
-Auslandsübernachtungsgeld, 5-Arbeitstage-Regel bei privaten Aufenthalten,
-A1-Bescheinigung mit 8 Wochen Vorlauf, Preisvergleich Bahn/Flug,
-Rechnungsadressat Universität, Nichterstattung von Abendprogrammen) stammen aus
-der anonymisierten Auswertung von `annotation_dienstreisen_combined_260528.xlsx`
-und der Dienstreisegenehmigung im pseudonymisierten Korpus. Die Fälle selbst sind
-neu geschrieben.
+These are the same corpora as in the separate retrieval datasets
+`../retrieval-hessian-law-de-spot-check/`, `../retrieval-de-spot-check/`, and
+`../retrieval-en-spot-check/` (identical `documents.jsonl.gz`); here they
+serve as a reference for the business trip check rather than as a retrieval
+benchmark in their own right (no queries/qrels included).
 
-Fälle 3 und 5 verlangen, zwei Dokumente gegeneinander zu lesen (Antrag vs.
-Anlage) bzw. einen Widerspruch innerhalb des Formulars zu erkennen; Fall 4 ist
-bewusst ein *Trap*: das auffällige Merkmal (langer Privataufenthalt) ist regel-
-konform behandelt, der Antrag also zu genehmigen.
+The final test set may include additional or larger corpora that are not yet
+included here (as of the spot-check) — in particular a crawl of the
+University of Kassel **intranet** (e.g., internal travel-expense/business-trip
+policies that are not publicly accessible). Agents should therefore not assume
+that the set of `retrieval-corpora/` subfolders listed above is exhaustive.
 
-## Neu erzeugen
+## Cases
+
+| # | Case | Result | Rejection/check pattern |
+|---|---|---|---|
+| 1 | `dienstreiseantrag-01` | abgelehnt | Application submitted only after the trip took place — no prior approval |
+| 2 | `dienstreiseantrag-02` | angenommen | Regular conference trip, complete, on time, talk documented |
+| 3 | `dienstreiseantrag-03` | abgelehnt | Return trip not documented, mandatory abroad field empty, date before trip start |
+| 4 | `dienstreiseantrag-04` | angenommen | Private follow-on stay > 5 working days, but costs correctly separated |
+| 5 | `dienstreiseantrag-05` | abgelehnt | Double cost coverage — scholarship covers the same items |
+
+The check patterns in column 4, as well as the rules used in the set
+(6-month exclusion period, €80 domestic overnight allowance limit, foreign
+overnight allowance, 5-working-day rule for private stays, A1 certificate
+with 8 weeks' lead time, train/flight price comparison, invoice addressee
+must be the university, non-reimbursement of evening programs) are derived
+from the anonymized analysis of
+`annotation_dienstreisen_combined_260528.xlsx` and the business trip approval
+in the pseudonymized corpus. The cases themselves are newly written.
+
+Cases 3 and 5 require reading two documents against each other (application
+vs. attachment) or recognizing a contradiction within the form itself; case 4
+is deliberately a *trap*: the conspicuous feature (long private stay) is
+handled in compliance with the rules, so the application should be approved.
+
+## Regenerating
 
 ```bash
 python make_examples.py
 ```
 
-Benötigt `reportlab`. Der Aufruf überschreibt `inputs/` und `decision-trail/`.
+Requires `reportlab`. Running it overwrites `inputs/` and `decision-trail/`.
 
-## TIRA-Konfiguration
+## TIRA Configuration
 
-Die TIRA-Konfiguration veröffentlicht ausschließlich den Inhalt von `inputs/`
-als Systemeingabe. `decision-trail/` und `ground-truth.jsonl` werden gemeinsam
-als private Ground Truth verpackt und nur dem Evaluator bereitgestellt.
+The TIRA configuration publishes exclusively the content of `inputs/` as the
+system input. `decision-trail/` and `ground-truth.jsonl` are packaged together
+as private ground truth and provided only to the evaluator.
 
-Systeme schreiben `predictions.jsonl` mit genau einer Zeile pro Antrag:
+Systems write `predictions.jsonl` with exactly one line per application:
 
 ```json
 {"antrag": "dienstreiseantrag-01", "result": "abgelehnt"}
 ```
 
-Zulässige Werte für `result` sind `angenommen` und `abgelehnt`. Bewertet wird
-die Accuracy über den Hugging-Face-Evaluator von TIRA.
+Valid values for `result` are `angenommen` and `abgelehnt`. Accuracy is
+evaluated via TIRA's Hugging Face evaluator.
 
 The preliminary baseline in `../../baselines/business-trip-always-rejected/`
 predicts `abgelehnt` for every application.
@@ -147,7 +178,7 @@ because it requires an OpenAI-compatible endpoint and forwarded credentials;
 the credential-free preliminary baseline therefore remains the dataset-card
 default.
 
-Die lokale Paketierung lässt sich ohne Upload und ohne Baseline prüfen:
+The local packaging can be checked without upload and without a baseline:
 
 ```bash
 tira-cli dataset-submission \
@@ -157,6 +188,6 @@ tira-cli dataset-submission \
   --dry-run
 ```
 
-Sobald die Baseline auf dem konfigurierten GitHub-Pfad verfügbar ist, prüft
-derselbe Befehl ohne `--skip-baseline` zusätzlich Build, Ausführung,
-Ausgabeformat und Evaluation.
+Once the baseline is available at the configured GitHub path, the same
+command without `--skip-baseline` additionally checks build, execution,
+output format, and evaluation.
