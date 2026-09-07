@@ -25,7 +25,7 @@ tira_configs:
       required_fields: ["antrag", "result"]
       minimum_lines: 5
   baseline:
-    link: "https://github.com/uniagent-webis-de/uniagent-code/tree/main/cikm26/baselines/business-trip-always-rejected"
+    link: "../../baselines/business-trip-always-rejected"
     command: "/predict.py --input $inputDataset --output $outputDir"
     format:
       name: "*.jsonl"
