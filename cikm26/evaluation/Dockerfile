@@ -1,3 +1,4 @@
+# docker build -t ghcr.io/uniagent-webis-de/uniagent-cikm-evaluator:0.0.1 .
 FROM python:3.13-slim
 
 # click: this script's CLI.
@@ -8,7 +9,13 @@ FROM python:3.13-slim
 #   uses scikit-learn under the hood).
 RUN pip install --no-cache-dir click 'tira[ir]' evaluate scikit-learn
 
-COPY evaluate_submission.py /evaluate_submission.py
+COPY evaluate_submission.py test_evaluate_submission.py /
 RUN chmod +x /evaluate_submission.py
+
+# Run the unit tests as part of the build; fail the build if they don't pass.
+# They mock out tira.evaluators.evaluate() and RestClient, so no network
+# access to TIRA is needed here.
+RUN cd / && python3 -m unittest discover -s / -p 'test_*.py' \
+    && rm /test_evaluate_submission.py
 
 ENTRYPOINT ["/evaluate_submission.py"]

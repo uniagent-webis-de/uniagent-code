@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from evaluate_submission import _is_valid_event, analyze_run_trace, main, run_tira_evaluate
+from evaluate_submission import TASK_CONFIGS, _is_valid_event, analyze_run_trace, main, run_tira_evaluate
 
 
 def _write_run_trace(directory: Path, lines: list[str], filename: str = "run-trace.jsonl.log.gz") -> Path:
@@ -103,45 +103,47 @@ class AnalyzeRunTraceTest(unittest.TestCase):
 
 
 class RunTiraEvaluateTest(unittest.TestCase):
-    def test_calls_client_evaluate_with_predictions_dataset_and_truths(self):
-        with TemporaryDirectory() as tmp:
-            predictions = Path(tmp)
-            with patch("evaluate_submission.RestClient") as rest_client_cls:
-                rest_client_cls.return_value.evaluate.return_value = {"accuracy": 0.8}
-                measures = run_tira_evaluate(predictions, "business-trip-spot-check-20260907-training", None)
-
-        self.assertEqual({"accuracy": 0.8}, measures)
-        rest_client_cls.return_value.evaluate.assert_called_once_with(
-            predictions, None, "business-trip-spot-check-20260907-training"
-        )
-
-    def test_forwards_truths_when_given(self):
+    def test_calls_tira_evaluate_with_predictions_truths_and_the_solving_task_config(self):
         with TemporaryDirectory() as tmp:
             predictions = Path(tmp) / "predictions"
             truths = Path(tmp) / "truths"
             predictions.mkdir()
             truths.mkdir()
-            with patch("evaluate_submission.RestClient") as rest_client_cls:
-                rest_client_cls.return_value.evaluate.return_value = {"nDCG@10": 0.5}
-                run_tira_evaluate(predictions, "retrieval-de-spot-check-20260816-training", truths)
+            with patch("evaluate_submission.tira_evaluate") as tira_evaluate_fn:
+                tira_evaluate_fn.return_value = {"accuracy": 0.8}
+                measures = run_tira_evaluate(predictions, truths, "solving")
 
-        rest_client_cls.return_value.evaluate.assert_called_once_with(
-            predictions, truths, "retrieval-de-spot-check-20260816-training"
-        )
+        self.assertEqual({"accuracy": 0.8}, measures)
+        tira_evaluate_fn.assert_called_once_with(predictions, truths, TASK_CONFIGS["solving"])
 
-    def test_raises_a_click_exception_when_the_tira_client_fails(self):
+    def test_calls_tira_evaluate_with_the_retrieval_task_config(self):
         with TemporaryDirectory() as tmp:
-            with patch("evaluate_submission.RestClient") as rest_client_cls:
-                rest_client_cls.return_value.evaluate.side_effect = ValueError("dataset not found")
+            predictions = Path(tmp) / "predictions"
+            truths = Path(tmp) / "truths"
+            predictions.mkdir()
+            truths.mkdir()
+            with patch("evaluate_submission.tira_evaluate") as tira_evaluate_fn:
+                tira_evaluate_fn.return_value = {"nDCG@10": 0.5}
+                run_tira_evaluate(predictions, truths, "retrieval")
+
+        tira_evaluate_fn.assert_called_once_with(predictions, truths, TASK_CONFIGS["retrieval"])
+
+    def test_raises_a_click_exception_when_the_tira_evaluator_fails(self):
+        with TemporaryDirectory() as tmp:
+            with patch("evaluate_submission.tira_evaluate") as tira_evaluate_fn:
+                tira_evaluate_fn.side_effect = ValueError("format is invalid")
                 with self.assertRaises(Exception):
-                    run_tira_evaluate(Path(tmp), "unknown-dataset", None)
+                    run_tira_evaluate(Path(tmp), Path(tmp), "solving")
 
 
 
 class MainCommandTest(unittest.TestCase):
     def test_combines_measures_with_model_and_log_line_counts(self):
         with TemporaryDirectory() as tmp:
-            predictions = Path(tmp)
+            predictions = Path(tmp) / "predictions"
+            truths = Path(tmp) / "truths"
+            predictions.mkdir()
+            truths.mkdir()
             (predictions / "predictions.jsonl").write_text(
                 json.dumps({"antrag": "dienstreiseantrag-01", "result": "abgelehnt"}) + "\n"
             )
@@ -156,13 +158,15 @@ class MainCommandTest(unittest.TestCase):
                     [
                         "--predictions",
                         str(predictions),
-                        "--dataset",
-                        "business-trip-spot-check-20260907-training",
+                        "--task",
+                        "solving",
+                        "--truths",
+                        str(truths),
                     ],
                 )
 
         self.assertEqual(0, result.exit_code, result.output)
-        evaluate.assert_called_once_with(predictions, "business-trip-spot-check-20260907-training", None)
+        evaluate.assert_called_once_with(predictions, truths, "solving")
         report = json.loads(result.output)
         self.assertEqual(1.0, report["accuracy"])
         self.assertEqual("gpt-oss-20b", report["model"])
@@ -171,7 +175,10 @@ class MainCommandTest(unittest.TestCase):
 
     def test_reports_placeholder_model_and_zero_counts_without_a_run_trace_log(self):
         with TemporaryDirectory() as tmp:
-            predictions = Path(tmp)
+            predictions = Path(tmp) / "predictions"
+            truths = Path(tmp) / "truths"
+            predictions.mkdir()
+            truths.mkdir()
             (predictions / "run.txt.gz").write_bytes(b"")
             with patch("evaluate_submission.run_tira_evaluate", return_value={"nDCG@10": 0.42}):
                 runner = CliRunner()
@@ -180,8 +187,10 @@ class MainCommandTest(unittest.TestCase):
                     [
                         "--predictions",
                         str(predictions),
-                        "--dataset",
-                        "retrieval-de-spot-check-20260816-training",
+                        "--task",
+                        "retrieval",
+                        "--truths",
+                        str(truths),
                     ],
                 )
 
@@ -192,7 +201,7 @@ class MainCommandTest(unittest.TestCase):
         self.assertEqual(0, report["valid_log_lines"])
         self.assertEqual(0, report["invalid_log_lines"])
 
-    def test_forwards_truths_and_a_custom_run_trace_path(self):
+    def test_forwards_a_custom_run_trace_path(self):
         with TemporaryDirectory() as tmp:
             predictions = Path(tmp) / "predictions"
             truths = Path(tmp) / "truths"
@@ -208,8 +217,8 @@ class MainCommandTest(unittest.TestCase):
                     [
                         "--predictions",
                         str(predictions),
-                        "--dataset",
-                        "business-trip-spot-check-20260907-training",
+                        "--task",
+                        "solving",
                         "--truths",
                         str(truths),
                         "--run-trace",
@@ -218,9 +227,44 @@ class MainCommandTest(unittest.TestCase):
                 )
 
         self.assertEqual(0, result.exit_code, result.output)
-        evaluate.assert_called_once_with(predictions, "business-trip-spot-check-20260907-training", truths)
+        evaluate.assert_called_once_with(predictions, truths, "solving")
         report = json.loads(result.output)
         self.assertEqual(1, report["valid_log_lines"])
+
+    def test_downloads_truths_from_tira_when_truths_is_omitted(self):
+        with TemporaryDirectory() as tmp:
+            predictions = Path(tmp) / "predictions"
+            downloaded_truths = Path(tmp) / "downloaded-truths"
+            predictions.mkdir()
+            downloaded_truths.mkdir()
+            with (
+                patch("evaluate_submission.download_truths", return_value=downloaded_truths) as download,
+                patch("evaluate_submission.run_tira_evaluate", return_value={"accuracy": 0.9}) as evaluate,
+            ):
+                runner = CliRunner()
+                result = runner.invoke(
+                    main,
+                    [
+                        "--predictions",
+                        str(predictions),
+                        "--task",
+                        "solving",
+                        "--dataset",
+                        "business-trip-spot-check-20260907-training",
+                    ],
+                )
+
+        self.assertEqual(0, result.exit_code, result.output)
+        download.assert_called_once_with("business-trip-spot-check-20260907-training")
+        evaluate.assert_called_once_with(predictions, downloaded_truths, "solving")
+
+    def test_fails_when_both_truths_and_dataset_are_omitted(self):
+        with TemporaryDirectory() as tmp:
+            predictions = Path(tmp)
+            runner = CliRunner()
+            result = runner.invoke(main, ["--predictions", str(predictions), "--task", "solving"])
+
+        self.assertNotEqual(0, result.exit_code)
 
 
 if __name__ == "__main__":

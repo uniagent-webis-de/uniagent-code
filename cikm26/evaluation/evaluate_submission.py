@@ -1,30 +1,36 @@
 #!/usr/bin/env python3
 """Dockerized evaluation for UniAgent'26 cikm26 submissions.
 
-Uses the `tira` Python package's `Client.evaluate()`
-(https://github.com/tira-io/tira, the same method `tira-cli evaluate` calls
-internally) to compute the task-specific measure(s) for a submission's
-predictions, compatible with both kinds of spot-check datasets in this
-repository:
+Uses the `tira` Python package's `tira.evaluators.evaluate()` (the
+unsandboxed evaluator that `Client.evaluate()` itself delegates to once it
+has resolved an evaluator configuration, see `tira_client.py`) to compute the
+task-specific measure(s) for a submission's predictions, compatible with
+both kinds of spot-check datasets in this repository:
 
-- Task 2 "Solving" datasets such as `../datasets/business-trip-spot-check/`
+- "solving" datasets such as `../datasets/business-trip-spot-check/`
   (`predictions.jsonl`, evaluated by `accuracy`, see that dataset's README's
-  `tira_configs.evaluator`), and
-- Task 1 "Retrieval" datasets such as `../datasets/retrieval-de-spot-check/`
-  (`run.txt.gz`, evaluated by `nDCG@10`, see that dataset's README's
-  `tira_configs.evaluator`).
+  `tira_configs`), and
+- "retrieval" datasets such as `../datasets/retrieval-de-spot-check/`
+  (`run.txt`/`run.txt.gz`, evaluated by `nDCG@10`, see that dataset's
+  README's `tira_configs`).
 
-`Client.evaluate()` itself decides which measure(s) to compute from the
-dataset's own trusted-evaluator configuration on TIRA, so this script has no
-task-specific logic beyond that single call.
+Rather than asking TIRA over the network which measure(s)/format(s) to use
+for a given `--dataset` (which requires the dataset to have a trusted
+evaluator configured on TIRA, and requires network access even when it
+does), this script hardcodes the evaluator configuration for each task
+directly from the corresponding dataset README's `tira_configs` (see
+`TASK_CONFIGS` below), and the caller picks the right one with `--task`.
+This mirrors exactly what the dataset READMEs document; adjust
+`TASK_CONFIGS` if a README's `tira_configs` ever changes.
 
-In addition to the measure(s) `Client.evaluate()` reports, this script always
-reports the LLM model used for the run (per the required `model` field in
-`../event-logging-contract/README.md`, or `-` for model-free submissions such
-as `business-trip-always-rejected` or the retrieval baselines) and how many
-lines of the submission's `run-trace.jsonl.log.gz` are contract-valid versus
-invalid, so a submission's compliance with the event-logging contract is
-visible alongside its task measure(s).
+In addition to the measure(s) `tira.evaluators.evaluate()` reports, this
+script always reports the LLM model used for the run (per the required
+`model` field in `../event-logging-contract/README.md`, or `-` for
+model-free submissions such as `business-trip-always-rejected` or the
+retrieval baselines) and how many lines of the submission's
+`run-trace.jsonl.log.gz` are contract-valid versus invalid, so a
+submission's compliance with the event-logging contract is visible
+alongside its task measure(s).
 """
 import gzip
 import json
@@ -32,9 +38,47 @@ from pathlib import Path
 from typing import Any, Optional
 
 import click
+from tira.evaluators import evaluate as tira_evaluate
 from tira.rest_api_client import Client as RestClient
 
 RUN_TRACE_FILENAME = "run-trace.jsonl.log.gz"
+
+# Evaluator configurations for `tira.evaluators.evaluate()`, copied verbatim
+# from the `tira_configs` of the corresponding dataset READMEs (merging
+# `tira_configs.evaluator` with the run/truth `format`/`config` blocks
+# `tira.evaluators.load_evaluator_config()` expects). `format_configuration`
+# (not `run_format_configuration`) is required here because
+# `HuggingFaceEvaluator.throw_if_conf_invalid()` only reads `re_map` from
+# `config["format_configuration"]`.
+TASK_CONFIGS: dict[str, dict[str, Any]] = {
+    # ../datasets/business-trip-spot-check/README.md `tira_configs`.
+    "solving": {
+        "measures": ["accuracy"],
+        "run_format": "*.jsonl",
+        "format_configuration": {
+            "id_field": "antrag",
+            "value_field": "result",
+            "required_fields": ["antrag", "result"],
+            "minimum_lines": 5,
+            "re_map": {"abgelehnt": 0, "angenommen": 1},
+        },
+        "truth_format": "*.jsonl",
+        "truth_format_configuration": {
+            "id_field": "antrag",
+            "value_field": "result",
+            "required_fields": ["antrag", "result"],
+            "minimum_lines": 5,
+        },
+    },
+    # ../datasets/retrieval-{de,en,hessian-law-de}-spot-check/README.md
+    # `tira_configs` (identical across all three retrieval spot-check
+    # datasets).
+    "retrieval": {
+        "measures": ["nDCG@10"],
+        "run_format": ["run.txt"],
+        "truth_format": "qrels.txt",
+    },
+}
 
 # Every event must have exactly these fields per the event-logging contract
 # (../event-logging-contract/README.md, requirement 3); values may be null,
@@ -109,23 +153,33 @@ def analyze_run_trace(path: Path) -> tuple[str, int, int]:
     return model, valid, invalid
 
 
-def run_tira_evaluate(predictions: Path, dataset: str, truths: Optional[Path]) -> dict[str, Any]:
-    """Compute the measures for `predictions` via `tira`'s `Client.evaluate()`.
+def run_tira_evaluate(predictions: Path, truths: Path, task: str) -> dict[str, Any]:
+    """Compute `task`'s measure(s) for `predictions` against `truths`.
 
-    This is the one place that talks to TIRA: `Client.evaluate()` (the same
-    method the `tira-cli evaluate` subcommand calls internally, see
-    `RestClient.evaluate()` in tira's `tira_client.py`) looks up `dataset`'s
-    trusted-evaluator configuration on TIRA (e.g.
-    `business-trip-spot-check-20260907-training` or
-    `retrieval-de-spot-check-20260816-training`, see the "Submit to TIRA"
-    sections of the baselines' READMEs under `../baselines/`) and evaluates
-    `predictions` locally against either `truths` (if given) or the
-    dataset's own published truths.
+    Calls `tira.evaluators.evaluate()` directly with the hardcoded
+    `TASK_CONFIGS[task]` evaluator configuration (copied from the relevant
+    dataset README's `tira_configs`), instead of asking TIRA over the
+    network which format/measure(s) to use for a `--dataset` id. This needs
+    no network access and works for any dataset of the given `task`,
+    matching what that task's baseline(s) are evaluated with on TIRA.
     """
     try:
-        return RestClient().evaluate(predictions, truths, dataset)
+        return tira_evaluate(predictions, truths, TASK_CONFIGS[task])
     except Exception as error:
         raise click.ClickException(f"tira evaluation failed: {error}") from error
+
+
+def download_truths(dataset: str) -> Path:
+    """Download `dataset`'s published truths from TIRA (used only when `--truths` is omitted)."""
+    client = RestClient()
+    try:
+        dataset_handle = client.get_dataset(dataset)
+        task_id = dataset_handle.get("task_id") or dataset_handle.get("default_task")
+        if not task_id:
+            raise ValueError("Task configuration is invalid: no task_id/default_task for dataset " + dataset)
+        return Path(client.download_dataset(task_id, dataset_handle["dataset_id"], truth_dataset=True))
+    except Exception as error:
+        raise click.ClickException(f"could not download truths for dataset '{dataset}' from TIRA: {error}") from error
 
 
 @click.command()
@@ -137,16 +191,24 @@ def run_tira_evaluate(predictions: Path, dataset: str, truths: Optional[Path]) -
     f"and optionally its {RUN_TRACE_FILENAME} event trace.",
 )
 @click.option(
-    "--dataset",
+    "--task",
     required=True,
-    help="The TIRA dataset ID to evaluate against, e.g. "
-    "business-trip-spot-check-20260907-training or retrieval-de-spot-check-20260816-training.",
+    type=click.Choice(sorted(TASK_CONFIGS)),
+    help="Which task's evaluator configuration to use: 'solving' (e.g. business-trip-spot-check, "
+    "evaluated by accuracy) or 'retrieval' (e.g. retrieval-de-spot-check, evaluated by nDCG@10).",
+)
+@click.option(
+    "--dataset",
+    default=None,
+    help="The TIRA dataset ID to download published truths from, e.g. "
+    "business-trip-spot-check-20260907-training or retrieval-de-spot-check-20260816-training. "
+    "Only used (and then required) when --truths is omitted.",
 )
 @click.option(
     "--truths",
     default=None,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="Optional local truths directory; tira downloads the dataset's published truths if omitted.",
+    help="Local truths directory. If omitted, --dataset's published truths are downloaded from TIRA.",
 )
 @click.option(
     "--run-trace",
@@ -157,19 +219,25 @@ def run_tira_evaluate(predictions: Path, dataset: str, truths: Optional[Path]) -
 )
 def main(
     predictions: Path,
-    dataset: str,
+    task: str,
+    dataset: Optional[str],
     truths: Optional[Path],
     run_trace_path: Optional[Path],
 ) -> None:
-    """Evaluate a cikm26 submission with tira's `Client.evaluate()`, plus event-log stats.
+    """Evaluate a cikm26 submission's `task` measure(s), plus event-log stats.
 
-    Works for both Task 2 "Solving" datasets (e.g. business-trip-spot-check,
-    evaluated by accuracy) and Task 1 "Retrieval" datasets (e.g.
+    Works for both "solving" datasets (e.g. business-trip-spot-check,
+    evaluated by accuracy) and "retrieval" datasets (e.g.
     retrieval-de-spot-check, evaluated by nDCG@10) -- see
     ../datasets/business-trip-spot-check/README.md and
     ../datasets/retrieval-de-spot-check/README.md.
     """
-    measures = run_tira_evaluate(predictions, dataset, truths)
+    if truths is None:
+        if not dataset:
+            raise click.ClickException("--dataset is required when --truths is omitted.")
+        truths = download_truths(dataset)
+
+    measures = run_tira_evaluate(predictions, truths, task)
 
     trace_path = run_trace_path if run_trace_path is not None else predictions / RUN_TRACE_FILENAME
     model, valid_lines, invalid_lines = analyze_run_trace(trace_path)
