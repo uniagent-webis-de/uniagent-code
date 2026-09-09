@@ -17,7 +17,7 @@ accuracy (e.g. whether a decision was reached for the right reasons).
 ## Requirements
 
 1. **Output file.** The executed software must produce a gzip-compressed
-   JSON Lines file named `run_trace.jsonl.gz` (one JSON object per line,
+   JSON Lines file named `run-trace.jsonl.log.gz` (one JSON object per line,
    the file itself gzip-compressed). Logging can be skipped entirely only
    if the submission uses no tools **and** no model calls worth tracing;
    in practice, Task 2 submissions that call a model must log at least

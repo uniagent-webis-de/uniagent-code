@@ -396,7 +396,7 @@ def main() -> None:
 
     input_root = args.input.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
-    run_trace_log = args.output / "run_trace.jsonl.gz"
+    run_trace_log = args.output / "run-trace.jsonl.log.gz"
 
     with log_to_file(run_trace_log), model_context(model_id):
         # Phase 1: scan all tasks (cases) that need to be resolved.

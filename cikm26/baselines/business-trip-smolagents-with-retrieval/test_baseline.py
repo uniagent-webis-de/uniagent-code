@@ -520,7 +520,7 @@ class EventLoggingTest(unittest.TestCase):
 
         tool = log_tool_calls(EchoTool())
         with tempfile.TemporaryDirectory() as tmp:
-            log_path = Path(tmp) / "run_trace.jsonl.gz"
+            log_path = Path(tmp) / "run-trace.jsonl.log.gz"
             with self._capture_stdout() as output:
                 with log_to_file(log_path):
                     tool.forward(message="hi")

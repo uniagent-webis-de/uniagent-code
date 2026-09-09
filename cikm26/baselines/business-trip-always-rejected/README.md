@@ -18,7 +18,7 @@ The output is `/tmp/business-trip-predictions/predictions.jsonl`.
 This baseline uses no tools and calls no model — it always predicts
 `abgelehnt`. Per requirement 1 of
 [`../../event-logging-contract/README.md`](../../event-logging-contract/README.md),
-event-trace logging (`run_trace.jsonl.gz`) is therefore skipped entirely;
+event-trace logging (`run-trace.jsonl.log.gz`) is therefore skipped entirely;
 there are no tool calls or model calls worth tracing.
 
 ## Submit to TIRA

@@ -1,7 +1,7 @@
 """Event-logging for the UniAgent'26 event-logging contract.
 
 See ../event-logging-contract/README.md for the full contract. This module
-writes one gzip-compressed JSON-Lines event per line to `run_trace.jsonl.gz`,
+writes one gzip-compressed JSON-Lines event per line to `run-trace.jsonl.log.gz`,
 and gives every event the required `case_id`, `event_id`, `parent_event_id`,
 `timestamp`, `event_type`, `model`, `tool`, `input`, `output`, `status`, and
 `error` fields.
@@ -124,7 +124,7 @@ def parent_event(event_id: Optional[str]) -> Iterator[None]:
 def log_to_file(path: Any) -> Iterator[None]:
     """Write every event as one gzip-compressed JSONL line to `path`.
 
-    Usage: `with log_to_file(output_dir / "run_trace.jsonl.gz"): ...` around
+    Usage: `with log_to_file(output_dir / "run-trace.jsonl.log.gz"): ...` around
     the code whose events should be captured; the file is opened once
     (truncating any previous contents) and closed on exit.
     """

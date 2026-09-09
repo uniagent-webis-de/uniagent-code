@@ -65,7 +65,7 @@ as one contract-compliant event, per
 via `event_logging.py`.
 
 `predict.py` writes these events as one gzip-compressed JSON object per line
-to `run_trace.jsonl.gz` next to `predictions.jsonl` under `--output` (opened
+to `run-trace.jsonl.log.gz` next to `predictions.jsonl` under `--output` (opened
 once via `log_to_file()` at the start of the run, so it captures events from
 retrieval-tool building onward, and tagged with the configured
 `OPENAI_MODEL` via `model_context()` for the whole run). The plain-text
@@ -73,7 +73,7 @@ progress messages `predict.py` prints (phase headers, per-case summaries) go
 to stdout as before and are not part of this file. Tests and other callers
 that don't use `log_to_file()` get the JSONL lines on stdout instead (the
 default destination), e.g. pulled out of a combined stdout stream with
-`zcat run_trace.jsonl.gz | jq` or `grep '"tool":' | jq`.
+`zcat run-trace.jsonl.log.gz | jq` or `grep '"tool":' | jq`.
 
 Each case's events are chained via `parent_event_id` from its first tool
 call through retrieval, the aspect-analysis model call(s), the final

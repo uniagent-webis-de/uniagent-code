@@ -232,7 +232,7 @@ def main() -> None:
     )
 
     args.output.mkdir(parents=True, exist_ok=True)
-    run_trace_log = args.output / "run_trace.jsonl.gz"
+    run_trace_log = args.output / "run-trace.jsonl.log.gz"
     output_file = args.output / "predictions.jsonl"
     with log_to_file(run_trace_log), model_context(model_id):
         with output_file.open("w", encoding="utf-8") as predictions:
