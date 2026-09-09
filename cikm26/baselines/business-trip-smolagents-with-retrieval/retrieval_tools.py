@@ -10,7 +10,7 @@ import pandas as pd
 import pyterrier as pt
 from smolagents import Tool
 
-from tool_logging import log_tool_calls
+from event_logging import log_tool_calls
 
 # Same indexing configuration as ../retrieval-baseline-pyterrier/baseline.py: a
 # language-specific stemmer, stopword list, and tokeniser per corpus language.

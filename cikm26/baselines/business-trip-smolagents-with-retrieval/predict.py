@@ -8,8 +8,8 @@ from typing import Any
 from smolagents import OpenAIModel
 
 from business_trip_tools import build_tools
+from event_logging import case_context, log_event, log_to_file, model_context
 from retrieval_tools import CorpusRetrievalTool, build_retrieval_tools
-from tool_logging import case_context, log_to_file
 
 
 SYSTEM_PROMPT = """
@@ -273,17 +273,14 @@ def identify_key_aspects(
             if key not in seen_hits:
                 seen_hits.add(key)
                 knowledge.append(hit)
+        prompt = aspect_analysis_prompt(
+            case_id, application_text, knowledge, iteration, max_iterations
+        )
         messages = [
             {"role": "system", "content": ASPECT_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": aspect_analysis_prompt(
-                    case_id, application_text, knowledge, iteration, max_iterations
-                ),
-            },
+            {"role": "user", "content": prompt},
         ]
-        response = model.generate(messages)
-        analysis = parse_aspect_response(response_content(response))
+        analysis = parse_aspect_response(call_model(model, messages, prompt))
         aspects = analysis["aspects"]
         if analysis["sufficient"] or not analysis["follow_up_query"]:
             break
@@ -322,6 +319,37 @@ def response_content(response: Any) -> str:
     )
 
 
+def call_model(model: OpenAIModel, messages: list[dict[str, str]], prompt: str) -> str:
+    """Call model.generate(), logging one `model_call` event per the
+    event-logging contract (../../event-logging-contract/README.md).
+
+    Logs the call as `status: "error"` (with the exception message, without
+    swallowing it) if either the request fails or the response has no usable
+    content, else as `status: "ok"` with the model's response text as
+    `output`.
+    """
+    try:
+        response = model.generate(messages)
+        content = response_content(response)
+    except Exception as error:
+        log_event(
+            "model_call",
+            input={"prompt": prompt},
+            output=None,
+            status="error",
+            error=str(error),
+        )
+        raise
+    log_event(
+        "model_call",
+        input={"prompt": prompt},
+        output={"response": content},
+        status="ok",
+        error=None,
+    )
+    return content
+
+
 def decide_case(
     case_id: str,
     evidence: dict[str, Any],
@@ -330,12 +358,14 @@ def decide_case(
     model: OpenAIModel,
 ) -> dict[str, str]:
     evidence = dict(evidence, external_knowledge=knowledge, key_aspects=key_aspects)
+    prompt = decision_prompt(evidence)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": decision_prompt(evidence)},
+        {"role": "user", "content": prompt},
     ]
-    response = model.generate(messages)
-    return parse_decision(response_content(response), case_id)
+    decision = parse_decision(call_model(model, messages, prompt), case_id)
+    log_event("decision", output=decision, status="ok", error=None)
+    return decision
 
 
 def main() -> None:
@@ -366,9 +396,9 @@ def main() -> None:
 
     input_root = args.input.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
-    tool_call_log = args.output / "tool-calls.log"
+    run_trace_log = args.output / "run_trace.jsonl.gz"
 
-    with log_to_file(tool_call_log):
+    with log_to_file(run_trace_log), model_context(model_id):
         # Phase 1: scan all tasks (cases) that need to be resolved.
         cases = input_cases(input_root)
         print(f"Found {len(cases)} case(s) to resolve: {', '.join(cases)}", flush=True)
@@ -414,17 +444,18 @@ def main() -> None:
         output_file = args.output / "predictions.jsonl"
         with output_file.open("w", encoding="utf-8") as predictions:
             for case_id in cases:
-                decision = decide_case(
-                    case_id,
-                    case_evidence[case_id],
-                    case_knowledge[case_id],
-                    case_aspects[case_id],
-                    model,
-                )
+                with case_context(case_id):
+                    decision = decide_case(
+                        case_id,
+                        case_evidence[case_id],
+                        case_knowledge[case_id],
+                        case_aspects[case_id],
+                        model,
+                    )
                 predictions.write(json.dumps(decision, ensure_ascii=False) + "\n")
                 predictions.flush()
                 print(f"  {case_id}: {decision['result']}", flush=True)
-    print(f"Wrote tool-call log to {tool_call_log}.", flush=True)
+    print(f"Wrote event trace to {run_trace_log}.", flush=True)
     print(f"Finished deciding all {len(cases)} case(s).", flush=True)
 
 

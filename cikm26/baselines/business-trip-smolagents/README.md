@@ -52,6 +52,42 @@ docker run --rm \
   --output /output
 ```
 
+## Event-trace logging
+
+Every tool call (`list_case_documents`, `read_pdf`, `search_case`,
+`lookup_policy`, `check_facts`) and every model call (the final decision) is
+logged as one contract-compliant event, per
+[`../../event-logging-contract/README.md`](../../event-logging-contract/README.md),
+via `event_logging.py`.
+
+`predict.py` writes these events as one gzip-compressed JSON object per line
+to `run_trace.jsonl.gz` next to `predictions.jsonl` under `--output` (opened
+once via `log_to_file()` at the start of the run, tagged with the configured
+`OPENAI_MODEL` via `model_context()` for the whole run). The plain-text
+progress messages `predict.py` prints go to stdout as before and are not
+part of this file. Tests and other callers that don't use `log_to_file()`
+get the JSONL lines on stdout instead (the default destination), e.g. pulled
+out of a combined stdout stream with `zcat run_trace.jsonl.gz | jq` or
+`grep '"tool":' | jq`.
+
+Each case's events are chained via `parent_event_id` from its first tool
+call through the final decision model call, and end in one `decision`
+event — reconstructable as a per-`case_id` trace, as the contract requires.
+
+Example lines (pretty-printed here; actually emitted as single lines):
+
+```json
+{"case_id": "dienstreiseantrag-01", "event_id": "evt-0002", "parent_event_id": "evt-0001", "timestamp": "2026-09-07T17:30:12.345+00:00", "event_type": "tool_call", "model": "gpt-oss-20b", "tool": "read_pdf", "input": {"case_id": "dienstreiseantrag-01", "filename": "antrag-dienstreisegenehmigung.pdf"}, "output": "Jonas Ahlgrim Universitaet Kassel ...", "status": "ok", "error": null}
+{"case_id": "dienstreiseantrag-01", "event_id": "evt-0007", "parent_event_id": "evt-0006", "timestamp": "2026-09-07T17:30:14.201+00:00", "event_type": "model_call", "model": "gpt-oss-20b", "tool": null, "input": {"prompt": "..."}, "output": {"response": "{\"antrag\": \"dienstreiseantrag-01\", \"result\": \"genehmigt\", ...}"}, "status": "ok", "error": null}
+{"case_id": "dienstreiseantrag-01", "event_id": "evt-0008", "parent_event_id": "evt-0007", "timestamp": "2026-09-07T17:30:14.987+00:00", "event_type": "decision", "model": "gpt-oss-20b", "tool": null, "input": null, "output": {"antrag": "dienstreiseantrag-01", "result": "genehmigt", "begruendung": "..."}, "status": "ok", "error": null}
+```
+
+Field-by-field details (`case_id`, `event_id`, `parent_event_id`,
+`timestamp`, `event_type`, `model`, `tool`, `input`, `output`, `status`,
+`error`) are specified in the contract; `model` is always the run's
+configured `OPENAI_MODEL`, on every event, not only `model_call`/`decision`
+events.
+
 ## Submit to TIRA
 
 After the dataset has been uploaded, replace `DATASET-ID` with its TIRA ID:

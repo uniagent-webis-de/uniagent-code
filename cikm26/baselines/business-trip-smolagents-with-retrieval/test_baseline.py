@@ -20,7 +20,7 @@ from retrieval_tools import (
     infer_language,
     read_documents,
 )
-from tool_logging import case_context, log_tool_calls, log_to_file
+from event_logging import case_context, log_event, log_tool_calls, log_to_file, model_context, reset_state
 
 
 DATASET = (
@@ -163,11 +163,26 @@ class DecisionPipelineTest(unittest.TestCase):
         knowledge = [{"corpus": "hessian-law-de", "doc_id": "x", "score": 1.0}]
         aspects = [{"aspect": "Frist", "finding": "...", "corpus": "hessian-law-de", "doc_id": "x"}]
         model = FakeModel()
-        decision = decide_case("dienstreiseantrag-01", evidence, knowledge, aspects, model)
+        import contextlib
+        import io
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
+                decision = decide_case("dienstreiseantrag-01", evidence, knowledge, aspects, model)
         self.assertEqual("abgelehnt", decision["result"])
         self.assertIn("external_knowledge", model.messages[1]["content"])
         self.assertIn("key_aspects", model.messages[1]["content"])
         self.assertIn("bahn-rechnung-kassel-leipzig.pdf", model.messages[1]["content"])
+
+        entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+        self.assertEqual(["model_call", "decision"], [entry["event_type"] for entry in entries])
+        for entry in entries:
+            self.assertEqual("dienstreiseantrag-01", entry["case_id"])
+            self.assertEqual("gpt-oss-20b", entry["model"])
+            self.assertEqual("ok", entry["status"])
+        self.assertEqual(entries[0]["event_id"], entries[1]["parent_event_id"])
+        self.assertEqual(decision, entries[1]["output"])
 
 
 class AspectAnalysisTest(unittest.TestCase):
@@ -242,6 +257,40 @@ class AspectAnalysisTest(unittest.TestCase):
         self.assertEqual(1, tool.calls)
         self.assertEqual(1, len(knowledge))
         self.assertEqual(1, len(aspects))
+
+    def test_logs_a_model_call_event_per_retrieval_iteration(self):
+        import contextlib
+        import io
+
+        class FakeTool:
+            def __init__(self, name):
+                self.name = name
+
+            def __call__(self, query, max_results):
+                return json.dumps([{"corpus": "hessian-law-de", "doc_id": "x", "score": 1.0}])
+
+        class FakeModel:
+            def generate(self, messages, **_kwargs):
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {"aspects": [], "sufficient": True, "follow_up_query": ""}
+                    ),
+                    raw=None,
+                )
+
+        tool = FakeTool("retrieve_hessian_law_de")
+        evidence = {"case_id": "dienstreiseantrag-01", "documents": {}}
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
+                identify_key_aspects("dienstreiseantrag-01", evidence, [tool], FakeModel())
+
+        entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+        model_calls = [entry for entry in entries if entry["event_type"] == "model_call"]
+        self.assertEqual(1, len(model_calls))
+        self.assertEqual("gpt-oss-20b", model_calls[0]["model"])
+        self.assertEqual("ok", model_calls[0]["status"])
+        self.assertIn("prompt", model_calls[0]["input"])
 
     def test_runs_a_follow_up_iteration_when_model_reports_insufficient(self):
         class FakeTool:
@@ -329,7 +378,7 @@ class AspectAnalysisTest(unittest.TestCase):
         self.assertEqual(2, tool.calls)
 
 
-class ToolLoggingTest(unittest.TestCase):
+class EventLoggingTest(unittest.TestCase):
     def test_logs_one_json_object_per_call_with_the_documented_fields(self):
         class EchoTool:
             name = "echo"
@@ -339,7 +388,7 @@ class ToolLoggingTest(unittest.TestCase):
 
         tool = log_tool_calls(EchoTool())
         with self._capture_stdout() as output:
-            with case_context("dienstreiseantrag-07"):
+            with case_context("dienstreiseantrag-07"), model_context("gpt-oss-20b"):
                 result = tool.forward(message="hi")
 
         self.assertEqual("hihi", result)
@@ -347,19 +396,29 @@ class ToolLoggingTest(unittest.TestCase):
         self.assertEqual(
             {
                 "case_id",
+                "event_id",
+                "parent_event_id",
+                "timestamp",
+                "event_type",
+                "model",
                 "tool",
-                "arguments",
+                "input",
+                "output",
                 "status",
                 "error",
-                "timestamp",
             },
             set(entry),
         )
         self.assertEqual("dienstreiseantrag-07", entry["case_id"])
+        self.assertEqual("tool_call", entry["event_type"])
+        self.assertEqual("gpt-oss-20b", entry["model"])
         self.assertEqual("echo", entry["tool"])
-        self.assertEqual({"message": "hi"}, entry["arguments"])
+        self.assertEqual({"message": "hi"}, entry["input"])
+        self.assertEqual("hihi", entry["output"])
         self.assertEqual("ok", entry["status"])
         self.assertIsNone(entry["error"])
+        self.assertIsNone(entry["parent_event_id"])
+        self.assertTrue(entry["event_id"])
 
     def test_logs_errors_without_swallowing_them(self):
         class FailingTool:
@@ -376,8 +435,9 @@ class ToolLoggingTest(unittest.TestCase):
         entry = self._single_json_line(output)
         self.assertEqual("error", entry["status"])
         self.assertEqual("boom", entry["error"])
+        self.assertIsNone(entry["output"])
 
-    def test_defaults_to_placeholder_context_outside_case_context(self):
+    def test_defaults_to_placeholder_context_and_model_outside_any_context(self):
         class EchoTool:
             name = "echo"
 
@@ -388,9 +448,34 @@ class ToolLoggingTest(unittest.TestCase):
         with self._capture_stdout() as output:
             tool.forward(message="hi")
 
-        self.assertEqual("-", self._single_json_line(output)["case_id"])
+        entry = self._single_json_line(output)
+        self.assertEqual("-", entry["case_id"])
+        self.assertEqual("-", entry["model"])
 
-    def test_truncates_long_string_arguments_and_results(self):
+    def test_chains_successive_events_in_the_same_case_via_parent_event_id(self):
+        with self._capture_stdout() as output:
+            with case_context("dienstreiseantrag-09"):
+                first = log_event("tool_call", tool="a", input={}, output={})
+                second = log_event("tool_call", tool="b", input={}, output={})
+
+        entries = self._json_lines(output)
+        self.assertIsNone(entries[0]["parent_event_id"])
+        self.assertEqual(first, entries[0]["event_id"])
+        self.assertEqual(first, entries[1]["parent_event_id"])
+        self.assertEqual(second, entries[1]["event_id"])
+
+    def test_resumes_the_chain_across_separate_case_context_entries(self):
+        with self._capture_stdout() as output:
+            with case_context("dienstreiseantrag-10"):
+                first = log_event("tool_call", tool="a")
+            with case_context("dienstreiseantrag-10"):
+                second = log_event("model_call")
+
+        entries = self._json_lines(output)
+        self.assertEqual(first, entries[1]["parent_event_id"])
+        self.assertEqual(second, entries[1]["event_id"])
+
+    def test_truncates_long_string_inputs_and_outputs(self):
         class EchoTool:
             name = "echo"
 
@@ -403,10 +488,11 @@ class ToolLoggingTest(unittest.TestCase):
             tool.forward(message=long_text)
 
         entry = self._single_json_line(output)
-        self.assertLessEqual(len(entry["arguments"]["message"]), 200)
-        self.assertTrue(entry["arguments"]["message"].endswith("…"))
+        self.assertLessEqual(len(entry["input"]["message"]), 200)
+        self.assertTrue(entry["input"]["message"].endswith("…"))
+        self.assertLessEqual(len(entry["output"]), 200)
 
-    def test_keeps_small_structured_arguments_as_native_json(self):
+    def test_keeps_small_structured_inputs_as_native_json(self):
         class ChecksTool:
             name = "check_facts"
 
@@ -419,10 +505,11 @@ class ToolLoggingTest(unittest.TestCase):
 
         entry = self._single_json_line(output)
         self.assertEqual(
-            {"kind": "overlap", "left": ["a"], "right": ["a"]}, entry["arguments"]["facts"]
+            {"kind": "overlap", "left": ["a"], "right": ["a"]}, entry["input"]["facts"]
         )
 
-    def test_log_to_file_writes_jsonl_lines_to_the_given_path_instead_of_stdout(self):
+    def test_log_to_file_writes_gzip_compressed_jsonl_lines_instead_of_stdout(self):
+        import gzip
         import tempfile
 
         class EchoTool:
@@ -433,7 +520,7 @@ class ToolLoggingTest(unittest.TestCase):
 
         tool = log_tool_calls(EchoTool())
         with tempfile.TemporaryDirectory() as tmp:
-            log_path = Path(tmp) / "tool-calls.log"
+            log_path = Path(tmp) / "run_trace.jsonl.gz"
             with self._capture_stdout() as output:
                 with log_to_file(log_path):
                     tool.forward(message="hi")
@@ -441,13 +528,10 @@ class ToolLoggingTest(unittest.TestCase):
                 tool.forward(message="outside")
 
             stdout_lines = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
-            self.assertEqual(["outside"], [line["arguments"]["message"] for line in stdout_lines])
-            lines = [
-                json.loads(line)
-                for line in log_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-            self.assertEqual(["hi", "ho"], [line["arguments"]["message"] for line in lines])
+            self.assertEqual(["outside"], [line["input"]["message"] for line in stdout_lines])
+            with gzip.open(log_path, "rt", encoding="utf-8") as handle:
+                lines = [json.loads(line) for line in handle if line.strip()]
+            self.assertEqual(["hi", "ho"], [line["input"]["message"] for line in lines])
 
     @staticmethod
     def _capture_stdout():
@@ -456,20 +540,24 @@ class ToolLoggingTest(unittest.TestCase):
 
         return contextlib.redirect_stdout(io.StringIO())
 
+    def _json_lines(self, output) -> list[dict]:
+        return [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+
     def _single_json_line(self, output) -> dict:
-        lines = [line for line in output.getvalue().splitlines() if line.strip()]
+        lines = self._json_lines(output)
         self.assertEqual(1, len(lines))
-        return json.loads(lines[0])
+        return lines[0]
 
 
-class CaseToolLoggingIntegrationTest(unittest.TestCase):
-    def test_build_case_evidence_logs_one_jsonl_line_per_tool_call(self):
+class CaseEventLoggingIntegrationTest(unittest.TestCase):
+    def test_build_case_evidence_logs_one_jsonl_line_per_tool_call_with_a_causal_chain(self):
         import contextlib
         import io
 
+        reset_state()
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            with case_context("dienstreiseantrag-01"):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
                 build_case_evidence(DATASET, "dienstreiseantrag-01")
 
         entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
@@ -477,11 +565,19 @@ class CaseToolLoggingIntegrationTest(unittest.TestCase):
         for entry in entries:
             self.assertEqual("dienstreiseantrag-01", entry["case_id"])
             self.assertEqual("ok", entry["status"])
+            self.assertEqual("tool_call", entry["event_type"])
+            self.assertEqual("gpt-oss-20b", entry["model"])
         logged_tools = {entry["tool"] for entry in entries}
         self.assertEqual(
             {"list_case_documents", "read_pdf", "search_case", "lookup_policy", "check_facts"},
             logged_tools,
         )
+        # The chain must be unbroken: every event but the first has a parent
+        # among the previously logged events.
+        self.assertIsNone(entries[0]["parent_event_id"])
+        logged_ids = {entry["event_id"] for entry in entries}
+        for entry in entries[1:]:
+            self.assertIn(entry["parent_event_id"], logged_ids)
 
 
 if __name__ == "__main__":

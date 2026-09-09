@@ -9,7 +9,7 @@ from typing import Any
 
 from smolagents import Tool
 
-from tool_logging import log_tool_calls
+from event_logging import log_tool_calls
 
 
 POLICIES = {

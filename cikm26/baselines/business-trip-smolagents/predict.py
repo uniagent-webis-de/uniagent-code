@@ -8,6 +8,7 @@ from typing import Any
 from smolagents import OpenAIModel
 
 from business_trip_tools import build_tools
+from event_logging import case_context, log_event, log_to_file, model_context
 
 
 SYSTEM_PROMPT = """
@@ -159,18 +160,51 @@ def response_content(response: Any) -> str:
     )
 
 
+def call_model(model: OpenAIModel, messages: list[dict[str, str]], prompt: str) -> str:
+    """Call model.generate(), logging one `model_call` event per the
+    event-logging contract (../../event-logging-contract/README.md).
+
+    Logs the call as `status: "error"` (with the exception message, without
+    swallowing it) if either the request fails or the response has no usable
+    content, else as `status: "ok"` with the model's response text as
+    `output`.
+    """
+    try:
+        response = model.generate(messages)
+        content = response_content(response)
+    except Exception as error:
+        log_event(
+            "model_call",
+            input={"prompt": prompt},
+            output=None,
+            status="error",
+            error=str(error),
+        )
+        raise
+    log_event(
+        "model_call",
+        input={"prompt": prompt},
+        output={"response": content},
+        status="ok",
+        error=None,
+    )
+    return content
+
+
 def decide_case(
     input_directory: Path,
     case_id: str,
     model: OpenAIModel,
 ) -> dict[str, str]:
     evidence = build_case_evidence(input_directory, case_id)
+    prompt = decision_prompt(evidence)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": decision_prompt(evidence)},
+        {"role": "user", "content": prompt},
     ]
-    response = model.generate(messages)
-    return parse_decision(response_content(response), case_id)
+    decision = parse_decision(call_model(model, messages, prompt), case_id)
+    log_event("decision", output=decision, status="ok", error=None)
+    return decision
 
 
 def main() -> None:
@@ -198,12 +232,15 @@ def main() -> None:
     )
 
     args.output.mkdir(parents=True, exist_ok=True)
+    run_trace_log = args.output / "run_trace.jsonl.gz"
     output_file = args.output / "predictions.jsonl"
-    with output_file.open("w", encoding="utf-8") as predictions:
-        for case_id in input_cases(args.input):
-            decision = decide_case(args.input.resolve(), case_id, model)
-            predictions.write(json.dumps(decision, ensure_ascii=False) + "\n")
-            predictions.flush()
+    with log_to_file(run_trace_log), model_context(model_id):
+        with output_file.open("w", encoding="utf-8") as predictions:
+            for case_id in input_cases(args.input):
+                with case_context(case_id):
+                    decision = decide_case(args.input.resolve(), case_id, model)
+                predictions.write(json.dumps(decision, ensure_ascii=False) + "\n")
+                predictions.flush()
 
 
 if __name__ == "__main__":

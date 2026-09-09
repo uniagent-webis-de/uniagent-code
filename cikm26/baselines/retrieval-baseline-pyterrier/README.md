@@ -15,6 +15,16 @@ retrieval task. It currently:
 ./baseline.py --dataset ../../datasets/retrieval-de-spot-check/ --wmodel BM25 --output runs/retrieval-de-spot-check/bm25
 ```
 
+## Event-logging contract
+
+This baseline is a classic statistical retrieval pipeline (PyTerrier
+indexing + weighting model) — it uses no agentic tools and calls no LLM.
+Per requirement 1 of
+[`../../event-logging-contract/README.md`](../../event-logging-contract/README.md),
+event-trace logging (`run_trace.jsonl.gz`) is therefore skipped entirely;
+there are no tool calls or model calls worth tracing. Resource-consumption
+metadata is already tracked separately via `tirex_tracker` into
+`index-ir-metadata.yml`/`retrieval-ir-metadata.yml`.
 
 ## Submit to TIRA
 

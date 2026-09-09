@@ -7,7 +7,7 @@ RUN apt-get update \
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --requirement /requirements.txt
 
-COPY business_trip_tools.py predict.py /
+COPY event_logging.py business_trip_tools.py predict.py /
 RUN chmod +x /predict.py
 
 ENTRYPOINT ["/predict.py"]

@@ -55,54 +55,55 @@ hard-coding the three known folders, so it also builds a tool for any future
 corpus automatically; only the corpus language must be inferable from a
 `-de`/`-en` folder suffix or a `language` document field.
 
-## Tool-call logging
+## Event-trace logging
 
 Every tool call (case-scoped `list_case_documents`/`read_pdf`/`search_case`,
-the global `lookup_policy`/`check_facts`, and every `retrieve_<corpus>`) is
-logged as one **JSON object per line** (JSON Lines / NDJSON) via
-`tool_logging.py`, independent of how the tool is used.
+the global `lookup_policy`/`check_facts`, and every `retrieve_<corpus>`) and
+every model call (the aspect-analysis pass and the final decision) is logged
+as one contract-compliant event, per
+[`../../event-logging-contract/README.md`](../../event-logging-contract/README.md),
+via `event_logging.py`.
 
-`predict.py` writes these lines to `tool-calls.log` next to
-`predictions.jsonl` under `--output` (opened once via `log_to_file()` at the
-start of the run, so it captures tool calls from retrieval-tool building
-onward). The plain-text progress messages `predict.py` prints (phase headers,
-per-case summaries) go to stdout as before and are not part of this file.
-Tests and other callers that don't use `log_to_file()` get the JSONL lines on
-stdout instead (the default destination), e.g. pulled out of a combined
-stdout stream with `grep '"tool":' | jq`.
+`predict.py` writes these events as one gzip-compressed JSON object per line
+to `run_trace.jsonl.gz` next to `predictions.jsonl` under `--output` (opened
+once via `log_to_file()` at the start of the run, so it captures events from
+retrieval-tool building onward, and tagged with the configured
+`OPENAI_MODEL` via `model_context()` for the whole run). The plain-text
+progress messages `predict.py` prints (phase headers, per-case summaries) go
+to stdout as before and are not part of this file. Tests and other callers
+that don't use `log_to_file()` get the JSONL lines on stdout instead (the
+default destination), e.g. pulled out of a combined stdout stream with
+`zcat run_trace.jsonl.gz | jq` or `grep '"tool":' | jq`.
+
+Each case's events are chained via `parent_event_id` from its first tool
+call through retrieval, the aspect-analysis model call(s), the final
+decision model call, and end in one `decision` event — reconstructable as a
+per-`case_id` trace, as the contract requires.
 
 Example lines (pretty-printed here; actually emitted as single lines):
 
 ```json
-{"case_id": "dienstreiseantrag-01", "tool": "read_pdf", "arguments": {"case_id": "dienstreiseantrag-01", "filename": "antrag-dienstreisegenehmigung.pdf"}, "status": "ok", "error": null, "timestamp": "2026-09-07T17:30:12.345+00:00"}
-{"case_id": "dienstreiseantrag-01", "tool": "retrieve_hessian_law_de", "arguments": {"query": "Lyon, FRANKREICH ...", "max_results": 5}, "status": "ok", "error": null, "timestamp": "2026-09-07T17:30:14.201+00:00"}
-{"case_id": "dienstreiseantrag-03", "tool": "check_facts", "arguments": {"facts": {"kind": "compare_dates", "comparisons": [...]}}, "status": "error", "error": "Unsupported date operator: !=", "timestamp": "2026-09-07T17:30:15.009+00:00"}
+{"case_id": "dienstreiseantrag-01", "event_id": "evt-0002", "parent_event_id": "evt-0001", "timestamp": "2026-09-07T17:30:12.345+00:00", "event_type": "tool_call", "model": "gpt-oss-20b", "tool": "read_pdf", "input": {"case_id": "dienstreiseantrag-01", "filename": "antrag-dienstreisegenehmigung.pdf"}, "output": "Jonas Ahlgrim Universitaet Kassel ...", "status": "ok", "error": null}
+{"case_id": "dienstreiseantrag-01", "event_id": "evt-0009", "parent_event_id": "evt-0008", "timestamp": "2026-09-07T17:30:14.201+00:00", "event_type": "tool_call", "model": "gpt-oss-20b", "tool": "retrieve_hessian_law_de", "input": {"query": "Lyon, FRANKREICH ...", "max_results": 5}, "output": "[{\"corpus\": \"hessian-law-de\", ...}]", "status": "ok", "error": null}
+{"case_id": "dienstreiseantrag-01", "event_id": "evt-0015", "parent_event_id": "evt-0014", "timestamp": "2026-09-07T17:30:20.512+00:00", "event_type": "model_call", "model": "gpt-oss-20b", "tool": null, "input": {"prompt": "..."}, "output": {"response": "{\"aspects\": [...], \"sufficient\": true, ...}"}, "status": "ok", "error": null}
+{"case_id": "dienstreiseantrag-03", "event_id": "evt-0022", "parent_event_id": "evt-0021", "timestamp": "2026-09-07T17:30:25.009+00:00", "event_type": "tool_call", "model": "gpt-oss-20b", "tool": "check_facts", "input": {"facts": {"kind": "compare_dates", "comparisons": [...]}}, "output": null, "status": "error", "error": "Unsupported date operator: !="}
+{"case_id": "dienstreiseantrag-01", "event_id": "evt-0030", "parent_event_id": "evt-0029", "timestamp": "2026-09-07T17:30:31.777+00:00", "event_type": "decision", "model": "gpt-oss-20b", "tool": null, "input": null, "output": {"antrag": "dienstreiseantrag-01", "result": "abgelehnt", "begruendung": "..."}, "status": "ok", "error": null}
 ```
 
-### Line contract
+Field-by-field details (`case_id`, `event_id`, `parent_event_id`,
+`timestamp`, `event_type`, `model`, `tool`, `input`, `output`, `status`,
+`error`) are specified in the contract; `model` is always the run's
+configured `OPENAI_MODEL`, on every event, not only `model_call`/`decision`
+events.
 
-Each line is a self-contained JSON object with the following fields:
-
-| Field | Type | Description |
-|---|---|---|
-| `case_id` | string | The case active via `case_context()` when the call happened, or `"-"` if none was active. |
-| `tool` | string | The tool's `name`, e.g. `read_pdf`, `retrieve_hessian_law_de`. |
-| `arguments` | object | `forward()`'s parameters bound by name (see truncation rule below). |
-| `status` | string | `"ok"` or `"error"`. |
-| `error` | string \| null | `str(exception)` if `status == "error"`, else `null`. |
-| `timestamp` | string | ISO-8601 UTC timestamp (millisecond precision) when the call finished. |
-
-The log intentionally does not record return values: it is a transcript of
-*which tool was called with what arguments, in which case, and whether it
-succeeded*, not a cache of tool outputs.
-
-**Truncation rule** (applied to each argument value): string values are
-whitespace-normalised and cut to 200 characters with a trailing `…`. Other
-JSON values (numbers, booleans, `null`, lists, dicts) are kept as native JSON
-when their JSON encoding is at most 200 characters (so small structured
-arguments like `check_facts`' `facts` object stay queryable, e.g.
-`jq 'select(.arguments.facts.kind == "compare_dates")'`); larger ones fall
-back to a truncated string preview of their JSON encoding. Errors are always
+**Truncation rule** (applied to each `input`/`output` value, mirroring the
+prior tool-call-only convention): string values are whitespace-normalised
+and cut to 200 characters with a trailing `…`. Other JSON values (numbers,
+booleans, `null`, lists, dicts) are kept as native JSON when their JSON
+encoding is at most 200 characters (so small structured inputs like
+`check_facts`' `facts` object stay queryable, e.g.
+`jq 'select(.input.facts.kind == "compare_dates")'`); larger ones fall back
+to a truncated string preview of their JSON encoding. Errors are always
 logged in full (not swallowed) so a failing call is never silently missing
 from the log.
 
