@@ -38,7 +38,6 @@ tira_configs:
           abgelehnt: 0
           angenommen: 1
   evaluator:
-    measures: ["accuracy"]
     image: "ghcr.io/uniagent-webis-de/uniagent-cikm-evaluator:0.0.1"
     command: "/evaluate_submission.py --predictions $inputRun --truths $inputDataset --task solving --output $outputDir"
 ---
