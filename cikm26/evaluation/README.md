@@ -95,8 +95,30 @@ Both print a single JSON object, e.g.:
 | `--truths` | no* | Local truths directory (e.g. the dataset folder under `../datasets/`, which already contains `ground-truth.jsonl`/`decision-trail/` or `qrels.txt`). |
 | `--dataset` | no* | The TIRA dataset ID to download published truths from, e.g. `business-trip-spot-check-20260907-training` or `retrieval-de-spot-check-20260816-training`, used only when `--truths` is omitted. Dataset IDs are date-versioned; check the baselines' READMEs under [`../baselines/`](../baselines/) for the current ID. |
 | `--run-trace` | no | Override the run-trace log path. Defaults to `<predictions>/run-trace.jsonl.log.gz`. |
+| `--output` | no | Directory to additionally write an `evaluation.prototext` to (TIRA's expected evaluator output format). Only needed when this image is invoked as a dataset's `tira_configs.evaluator` (see below); created if it doesn't exist. |
 
 \* Exactly one of `--truths` or `--dataset` must be given.
+
+## Using this image as a dataset's TIRA evaluator
+
+Every cikm26 spot-check dataset's `tira_configs.evaluator` (see the dataset
+READMEs under [`../datasets/`](../datasets/)) points at this image,
+published as `ghcr.io/uniagent-webis-de/uniagent-cikm-evaluator:0.0.1`
+(kept in sync with the version tag in the `Dockerfile`'s header comment),
+with a task-specific command such as:
+
+```yaml
+evaluator:
+  measures: ["accuracy"]
+  image: "ghcr.io/uniagent-webis-de/uniagent-cikm-evaluator:0.0.1"
+  command: "/evaluate_submission.py --predictions $inputRun --truths $inputDataset --task solving --output $outputDir"
+```
+
+`tira`'s command normalization maps `$inputRun`/`$inputDataset`/`$outputDir`
+to the submission's predictions, the dataset's truths, and the directory
+the evaluator must write its `evaluation.prototext` to, respectively (see
+`__normalize_command()` in tira's `local_execution_integration.py`); this is
+exactly what `--output` (together with `--predictions`/`--truths`) supports.
 
 ## Requirements and network access
 

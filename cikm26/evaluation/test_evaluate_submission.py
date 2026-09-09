@@ -266,6 +266,34 @@ class MainCommandTest(unittest.TestCase):
 
         self.assertNotEqual(0, result.exit_code)
 
+    def test_writes_an_evaluation_prototext_when_output_is_given(self):
+        with TemporaryDirectory() as tmp:
+            predictions = Path(tmp) / "predictions"
+            truths = Path(tmp) / "truths"
+            output = Path(tmp) / "output"
+            predictions.mkdir()
+            truths.mkdir()
+            with patch("evaluate_submission.run_tira_evaluate", return_value={"accuracy": 0.75}):
+                runner = CliRunner()
+                result = runner.invoke(
+                    main,
+                    [
+                        "--predictions",
+                        str(predictions),
+                        "--task",
+                        "solving",
+                        "--truths",
+                        str(truths),
+                        "--output",
+                        str(output),
+                    ],
+                )
+
+            self.assertEqual(0, result.exit_code, result.output)
+            prototext = (output / "evaluation.prototext").read_text()
+            self.assertIn('key: "Accuracy"', prototext)
+            self.assertIn('value: "0.75"', prototext)
+
 
 if __name__ == "__main__":
     unittest.main()

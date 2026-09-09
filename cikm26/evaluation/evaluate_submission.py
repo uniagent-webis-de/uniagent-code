@@ -39,6 +39,7 @@ from typing import Any, Optional
 
 import click
 from tira.evaluators import evaluate as tira_evaluate
+from tira.io_utils import to_prototext
 from tira.rest_api_client import Client as RestClient
 
 RUN_TRACE_FILENAME = "run-trace.jsonl.log.gz"
@@ -217,12 +218,22 @@ def download_truths(dataset: str) -> Path:
     type=click.Path(path_type=Path),
     help=f"Override the run-trace log path (default: <predictions>/{RUN_TRACE_FILENAME}).",
 )
+@click.option(
+    "--output",
+    "output_dir",
+    default=None,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Optional directory to additionally write an evaluation.prototext to (TIRA's expected "
+    "evaluator output format, e.g. when this image is wired up as a dataset's tira_configs "
+    "evaluator and TIRA runs it with $outputDir). Created if it doesn't exist yet.",
+)
 def main(
     predictions: Path,
     task: str,
     dataset: Optional[str],
     truths: Optional[Path],
     run_trace_path: Optional[Path],
+    output_dir: Optional[Path],
 ) -> None:
     """Evaluate a cikm26 submission's `task` measure(s), plus event-log stats.
 
@@ -248,6 +259,10 @@ def main(
     report["invalid_log_lines"] = invalid_lines
 
     click.echo(json.dumps(report, ensure_ascii=False, indent=2))
+
+    if output_dir is not None:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "evaluation.prototext").write_text(to_prototext([report]))
 
 
 if __name__ == "__main__":
