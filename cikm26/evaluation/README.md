@@ -126,12 +126,13 @@ With `--truths` given, this script needs no network access to TIRA at all,
 since `--task`'s evaluator configuration is hardcoded (see `TASK_CONFIGS` in
 `evaluate_submission.py`); with `--dataset` instead, network access to TIRA
 is needed to download the dataset's published truths. The underlying
-evaluators may need further network access on first use:
+evaluators need no further network access at runtime:
 
 - The business-trip datasets' `accuracy` measure uses HuggingFace's
-  `evaluate` package, which downloads its metric script from the HuggingFace
-  Hub unless it is already cached or the `OFFLINE=1` environment variable is
-  set.
+  `evaluate` package, which would otherwise download its metric script from
+  the HuggingFace Hub on first use; the Dockerfile pre-fetches it at build
+  time (`evaluate.load("accuracy")`) and sets `OFFLINE=1`, so the image
+  never needs to reach the Hub at runtime.
 - The retrieval datasets' `nDCG@10` measure uses `trectools` (installed via
   the `tira[ir]` extra), which needs no extra network access beyond loading
   the (`qrels.txt`/`run.txt`) files themselves.

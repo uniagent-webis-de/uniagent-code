@@ -9,6 +9,13 @@ FROM python:3.13-slim
 #   uses scikit-learn under the hood).
 RUN pip install --no-cache-dir click 'tira[ir]' evaluate scikit-learn
 
+# Pre-fetch the HuggingFace `evaluate` "accuracy" metric script at build
+# time, so the business-trip datasets' accuracy measure works fully offline
+# at runtime (evaluate.load("accuracy") would otherwise hit the HuggingFace
+# Hub on first use and fail without network access, per OFFLINE=1 below).
+RUN python3 -c "import evaluate; evaluate.load('accuracy')"
+ENV OFFLINE=1
+
 COPY evaluate_submission.py test_evaluate_submission.py /
 RUN chmod +x /evaluate_submission.py
 
