@@ -143,8 +143,76 @@ class BaselineTest(unittest.TestCase):
         for entry in entries:
             self.assertEqual("dienstreiseantrag-01", entry["case_id"])
             self.assertEqual("gpt-oss-20b", entry["model"])
-            self.assertEqual("ok", entry["status"])
+
+    def test_retries_and_recovers_from_one_invalid_json_response(self):
+        class FlakyModel:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, messages, **_kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    return SimpleNamespace(content="Das ist keine gueltige Antwort.", raw=None)
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "antrag": "dienstreiseantrag-01",
+                            "result": "angenommen",
+                            "begruendung": "Alle Belege sind vollstaendig und plausibel.",
+                        }
+                    ),
+                    raw=None,
+                )
+
+        import contextlib
+        import io
+
+        model = FlakyModel()
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
+                decision = decide_case(DATASET, "dienstreiseantrag-01", model)
+        self.assertEqual(2, model.calls)
+        self.assertEqual("angenommen", decision["result"])
+
+        entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+        relevant = [
+            entry["event_type"]
+            for entry in entries
+            if entry["event_type"] in {"model_call", "error", "decision"}
+        ]
+        self.assertEqual(["model_call", "error", "model_call", "decision"], relevant)
+        error_entry = next(entry for entry in entries if entry["event_type"] == "error")
+        self.assertEqual("error", error_entry["status"])
+        self.assertIsNotNone(error_entry["error"])
+        self.assertEqual("ok", entries[-1]["status"])
+
+    def test_falls_back_to_a_valid_decision_when_the_model_never_returns_json(self):
+        class AlwaysInvalidModel:
+            def generate(self, messages, **_kwargs):
+                return SimpleNamespace(content="Ich kann keine Entscheidung liefern.", raw=None)
+
+        import contextlib
+        import io
+
+        model = AlwaysInvalidModel()
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
+                decision = decide_case(DATASET, "dienstreiseantrag-01", model)
+        self.assertEqual("dienstreiseantrag-01", decision["antrag"])
+        self.assertEqual("abgelehnt", decision["result"])
+        self.assertTrue(decision["begruendung"])
+
+        entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+        self.assertEqual("decision", entries[-1]["event_type"])
+        self.assertEqual("error", entries[-1]["status"])
+        self.assertIsNotNone(entries[-1]["error"])
         self.assertEqual(decision, entries[-1]["output"])
+        # Even the fallback prediction must still be well-formed JSON.
+        json.dumps(decision, ensure_ascii=False)
         # Chain is unbroken: every event but the first has a parent among
         # the previously logged events.
         self.assertIsNone(entries[0]["parent_event_id"])

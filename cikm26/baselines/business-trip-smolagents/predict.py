@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from smolagents import OpenAIModel
 
@@ -191,19 +191,75 @@ def call_model(model: OpenAIModel, messages: list[dict[str, str]], prompt: str) 
     return content
 
 
+MAX_DECISION_ATTEMPTS = 2
+
+
+def _fallback_decision(case_id: str, reason: str) -> dict[str, str]:
+    """A safe, contract-valid decision used when the model never returns
+    parseable JSON, so a run never crashes without producing a prediction."""
+    return {
+        "antrag": case_id,
+        "result": "abgelehnt",
+        "begruendung": (
+            "Automatisch abgelehnt: Das Modell hat kein gueltiges Entscheidungs-JSON "
+            f"geliefert ({reason})."
+        ),
+    }
+
+
 def decide_case(
     input_directory: Path,
     case_id: str,
     model: OpenAIModel,
 ) -> dict[str, str]:
+    """Ask the model for a decision, retrying once on invalid JSON and
+    falling back to `_fallback_decision()` if it still cannot be parsed.
+
+    Every attempt's content is still passed through `call_model()`, so
+    `model_call` events are always logged; a parse failure additionally
+    logs an `error` event (contract requirement 7) instead of letting the
+    exception crash the whole run, and the case's trace still ends in
+    exactly one `decision` event (contract requirement 6) either way.
+    """
     evidence = build_case_evidence(input_directory, case_id)
     prompt = decision_prompt(evidence)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": prompt},
     ]
-    decision = parse_decision(call_model(model, messages, prompt), case_id)
-    log_event("decision", output=decision, status="ok", error=None)
+    last_error: Optional[str] = None
+    for attempt in range(1, MAX_DECISION_ATTEMPTS + 1):
+        content = call_model(model, messages, prompt)
+        try:
+            decision = parse_decision(content, case_id)
+        except ValueError as error:
+            last_error = str(error)
+            log_event(
+                "error",
+                input={"prompt": prompt},
+                output={"response": content},
+                status="error",
+                error=last_error,
+            )
+            if attempt < MAX_DECISION_ATTEMPTS:
+                messages.append({"role": "assistant", "content": content})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Deine letzte Antwort war kein gueltiges JSON-Objekt im "
+                            "geforderten Format. Antworte jetzt ausschliesslich mit "
+                            '{"antrag":"' + case_id
+                            + '","result":"angenommen|abgelehnt","begruendung":"..."}.'
+                        ),
+                    }
+                )
+            continue
+        log_event("decision", output=decision, status="ok", error=None)
+        return decision
+
+    decision = _fallback_decision(case_id, last_error or "unknown parse error")
+    log_event("decision", output=decision, status="error", error=last_error)
     return decision
 
 
@@ -238,7 +294,24 @@ def main() -> None:
         with output_file.open("w", encoding="utf-8") as predictions:
             for case_id in input_cases(args.input):
                 with case_context(case_id):
-                    decision = decide_case(args.input.resolve(), case_id, model)
+                    try:
+                        decision = decide_case(args.input.resolve(), case_id, model)
+                    except Exception as error:
+                        # decide_case() already retries and falls back on
+                        # invalid model JSON; this only catches unrelated
+                        # failures (e.g. a tool call raising), so one bad
+                        # case still logs an `error` + closing `decision`
+                        # event and still yields a valid predictions.jsonl
+                        # line instead of aborting the whole run.
+                        log_event(
+                            "error",
+                            input={"case_id": case_id},
+                            output=None,
+                            status="error",
+                            error=str(error),
+                        )
+                        decision = _fallback_decision(case_id, str(error))
+                        log_event("decision", output=decision, status="error", error=str(error))
                 predictions.write(json.dumps(decision, ensure_ascii=False) + "\n")
                 predictions.flush()
 

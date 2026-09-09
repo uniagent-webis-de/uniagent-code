@@ -88,6 +88,21 @@ Field-by-field details (`case_id`, `event_id`, `parent_event_id`,
 configured `OPENAI_MODEL`, on every event, not only `model_call`/`decision`
 events.
 
+### Handling invalid model output
+
+Models occasionally answer with text that is not the required strict JSON
+object (extra prose, markdown fences, or truncated output). `decide_case()`
+handles this without crashing the run or leaving `predictions.jsonl`
+incomplete:
+
+- a response that fails to parse logs an `error` event and is retried once
+  with a corrective follow-up message;
+- if the retry still fails (or any other unexpected error occurs while
+  processing the case), a safe fallback `decision` (`abgelehnt`, with the
+  parse error as `begruendung`) is logged with `status: "error"` and
+  written to `predictions.jsonl`, so every case still gets exactly one
+  valid prediction line and every trace still ends in a `decision` event.
+
 ## Submit to TIRA
 
 After the dataset has been uploaded, replace `DATASET-ID` with its TIRA ID:
