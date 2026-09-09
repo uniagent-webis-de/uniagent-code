@@ -184,6 +184,78 @@ class DecisionPipelineTest(unittest.TestCase):
         self.assertEqual(entries[0]["event_id"], entries[1]["parent_event_id"])
         self.assertEqual(decision, entries[1]["output"])
 
+    def test_retries_and_recovers_from_one_invalid_json_response(self):
+        class FlakyModel:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, messages, **_kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    return SimpleNamespace(content="Das ist keine gueltige Antwort.", raw=None)
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "antrag": "dienstreiseantrag-01",
+                            "result": "angenommen",
+                            "begruendung": "Alle Belege sind vollstaendig und plausibel.",
+                        }
+                    ),
+                    raw=None,
+                )
+
+        evidence = build_case_evidence(DATASET, "dienstreiseantrag-01")
+        model = FlakyModel()
+        import contextlib
+        import io
+
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
+                decision = decide_case("dienstreiseantrag-01", evidence, [], [], model)
+        self.assertEqual(2, model.calls)
+        self.assertEqual("angenommen", decision["result"])
+
+        entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+        relevant = [
+            entry["event_type"]
+            for entry in entries
+            if entry["event_type"] in {"model_call", "error", "decision"}
+        ]
+        self.assertEqual(["model_call", "error", "model_call", "decision"], relevant)
+        error_entry = next(entry for entry in entries if entry["event_type"] == "error")
+        self.assertEqual("error", error_entry["status"])
+        self.assertIsNotNone(error_entry["error"])
+        self.assertEqual("ok", entries[-1]["status"])
+
+    def test_falls_back_to_a_valid_decision_when_the_model_never_returns_json(self):
+        class AlwaysInvalidModel:
+            def generate(self, messages, **_kwargs):
+                return SimpleNamespace(content="Ich kann keine Entscheidung liefern.", raw=None)
+
+        evidence = build_case_evidence(DATASET, "dienstreiseantrag-01")
+        model = AlwaysInvalidModel()
+        import contextlib
+        import io
+
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
+                decision = decide_case("dienstreiseantrag-01", evidence, [], [], model)
+        self.assertEqual("dienstreiseantrag-01", decision["antrag"])
+        self.assertEqual("abgelehnt", decision["result"])
+        self.assertTrue(decision["begruendung"])
+
+        entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+        self.assertEqual("decision", entries[-1]["event_type"])
+        self.assertEqual("error", entries[-1]["status"])
+        self.assertIsNotNone(entries[-1]["error"])
+        self.assertEqual(decision, entries[-1]["output"])
+        # Even the fallback prediction must still be well-formed JSON.
+        json.dumps(decision, ensure_ascii=False)
+
 
 class AspectAnalysisTest(unittest.TestCase):
     def test_parses_valid_aspect_response(self):
@@ -376,6 +448,52 @@ class AspectAnalysisTest(unittest.TestCase):
         )
         self.assertEqual(2, iterations)
         self.assertEqual(2, tool.calls)
+
+    def test_stops_gracefully_when_the_model_never_returns_valid_json(self):
+        class FakeTool:
+            def __init__(self, name):
+                self.name = name
+                self.calls = 0
+
+            def __call__(self, query, max_results):
+                self.calls += 1
+                return json.dumps([{"corpus": "hessian-law-de", "doc_id": "x", "score": 1.0}])
+
+        class AlwaysInvalidModel:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, messages, **_kwargs):
+                self.calls += 1
+                return SimpleNamespace(content="Keine JSON-Antwort.", raw=None)
+
+        tool = FakeTool("retrieve_hessian_law_de")
+        evidence = {"case_id": "dienstreiseantrag-01", "documents": {}}
+        model = AlwaysInvalidModel()
+        import contextlib
+        import io
+
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("dienstreiseantrag-01"), model_context("gpt-oss-20b"):
+                knowledge, aspects, iterations = identify_key_aspects(
+                    "dienstreiseantrag-01", evidence, [tool], model, max_iterations=3
+                )
+        # Never crashes; stops after the first iteration's retries are
+        # exhausted, keeping whatever knowledge was already retrieved and
+        # reporting no aspects rather than raising.
+        self.assertEqual(1, iterations)
+        self.assertEqual([], aspects)
+        self.assertEqual(1, len(knowledge))
+        self.assertEqual(2, model.calls)
+
+        entries = [json.loads(line) for line in output.getvalue().splitlines() if line.strip()]
+        error_entries = [entry for entry in entries if entry["event_type"] == "error"]
+        self.assertEqual(2, len(error_entries))
+        for entry in error_entries:
+            self.assertEqual("error", entry["status"])
+            self.assertIsNotNone(entry["error"])
 
 
 class EventLoggingTest(unittest.TestCase):

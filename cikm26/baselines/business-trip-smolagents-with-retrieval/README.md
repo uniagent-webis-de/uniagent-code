@@ -113,6 +113,26 @@ built once and reused across all cases (the retrieval tools) — the shared
 retrieval tools are simply tagged with whichever case is currently active
 when they are called.
 
+### Handling invalid model output
+
+Models occasionally answer with text that is not the required strict JSON
+object (extra prose, markdown fences, or truncated output), both during
+aspect analysis and the final decision. `_call_model_expecting_json()`
+handles this without crashing the run or leaving `predictions.jsonl`
+incomplete:
+
+- a response that fails to parse logs an `error` event and is retried once
+  with a corrective follow-up message;
+- in `identify_key_aspects()`, if the retry still fails, retrieval for that
+  case stops with whatever aspects/knowledge were already gathered instead
+  of raising;
+- in `decide_case()`, if the retry still fails (or any other unexpected
+  error occurs while processing the case, e.g. a tool call raising), a safe
+  fallback `decision` (`abgelehnt`, with the parse error as `begruendung`)
+  is logged with `status: "error"` and written to `predictions.jsonl`, so
+  every case still gets exactly one valid prediction line and every trace
+  still ends in a `decision` event.
+
 ## Configuration
 
 Set an OpenAI-compatible proxy or endpoint:

@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional, TypeVar
 
 from smolagents import OpenAIModel
 
@@ -280,7 +280,21 @@ def identify_key_aspects(
             {"role": "system", "content": ASPECT_SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ]
-        analysis = parse_aspect_response(call_model(model, messages, prompt))
+        analysis, error = _call_model_expecting_json(
+            model,
+            messages,
+            prompt,
+            parse_aspect_response,
+            "Deine letzte Antwort war kein gueltiges JSON-Objekt im geforderten Format. "
+            'Antworte jetzt ausschliesslich mit {"aspects":[...],"sufficient":true|false,'
+            '"follow_up_query":"..."}.',
+        )
+        if analysis is None:
+            # Neither attempt produced parseable JSON: stop retrieval with
+            # whatever aspects/knowledge were already gathered instead of
+            # crashing the whole case; the failed attempts are still logged
+            # as `error` events by `_call_model_expecting_json()`.
+            break
         aspects = analysis["aspects"]
         if analysis["sufficient"] or not analysis["follow_up_query"]:
             break
@@ -350,6 +364,60 @@ def call_model(model: OpenAIModel, messages: list[dict[str, str]], prompt: str) 
     return content
 
 
+T = TypeVar("T")
+
+MAX_MODEL_JSON_ATTEMPTS = 2
+
+
+def _call_model_expecting_json(
+    model: OpenAIModel,
+    messages: list[dict[str, str]],
+    prompt: str,
+    parse: Callable[[str], T],
+    retry_prompt: str,
+) -> tuple[Optional[T], Optional[str]]:
+    """Call the model and parse its answer via `parse`, tolerating one
+    invalid-JSON response by retrying once with `retry_prompt` appended.
+
+    Every attempt still goes through `call_model()` (so `model_call` events
+    are always logged); a parse failure additionally logs an `error` event
+    per attempt (contract requirement 7) instead of letting the exception
+    crash the whole run. Returns `(parsed, None)` on success, or
+    `(None, last_error_message)` if every attempt failed to parse.
+    """
+    last_error: Optional[str] = None
+    for attempt in range(1, MAX_MODEL_JSON_ATTEMPTS + 1):
+        content = call_model(model, messages, prompt)
+        try:
+            return parse(content), None
+        except ValueError as error:
+            last_error = str(error)
+            log_event(
+                "error",
+                input={"prompt": prompt},
+                output={"response": content},
+                status="error",
+                error=last_error,
+            )
+            if attempt < MAX_MODEL_JSON_ATTEMPTS:
+                messages.append({"role": "assistant", "content": content})
+                messages.append({"role": "user", "content": retry_prompt})
+    return None, last_error
+
+
+def _fallback_decision(case_id: str, reason: str) -> dict[str, str]:
+    """A safe, contract-valid decision used when the model never returns
+    parseable JSON, so a run never crashes without producing a prediction."""
+    return {
+        "antrag": case_id,
+        "result": "abgelehnt",
+        "begruendung": (
+            "Automatisch abgelehnt: Das Modell hat kein gueltiges Entscheidungs-JSON "
+            f"geliefert ({reason})."
+        ),
+    }
+
+
 def decide_case(
     case_id: str,
     evidence: dict[str, Any],
@@ -357,13 +425,31 @@ def decide_case(
     key_aspects: list[dict[str, Any]],
     model: OpenAIModel,
 ) -> dict[str, str]:
+    """Ask the model for a decision, retrying once on invalid JSON and
+    falling back to `_fallback_decision()` if it still cannot be parsed, so
+    the case's trace always ends in exactly one `decision` event (contract
+    requirement 6) and the run never crashes without producing a
+    prediction for this case.
+    """
     evidence = dict(evidence, external_knowledge=knowledge, key_aspects=key_aspects)
     prompt = decision_prompt(evidence)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": prompt},
     ]
-    decision = parse_decision(call_model(model, messages, prompt), case_id)
+    decision, error = _call_model_expecting_json(
+        model,
+        messages,
+        prompt,
+        lambda content: parse_decision(content, case_id),
+        "Deine letzte Antwort war kein gueltiges JSON-Objekt im geforderten Format. "
+        'Antworte jetzt ausschliesslich mit {"antrag":"' + case_id
+        + '","result":"angenommen|abgelehnt","begruendung":"..."}.',
+    )
+    if decision is None:
+        decision = _fallback_decision(case_id, error or "unknown parse error")
+        log_event("decision", output=decision, status="error", error=error)
+        return decision
     log_event("decision", output=decision, status="ok", error=None)
     return decision
 
@@ -409,17 +495,43 @@ def main() -> None:
         # documents for every case.
         retrieval_tools = build_retrieval_tools(input_root)
         print("Retrieving relevant documents for every case...", flush=True)
-        case_evidence = {}
+        case_evidence: dict[str, Any] = {}
+        case_errors: dict[str, str] = {}
         for case_id in cases:
             with case_context(case_id):
-                case_evidence[case_id] = build_case_evidence(input_root, case_id)
-        case_knowledge = {}
-        case_aspects = {}
+                try:
+                    case_evidence[case_id] = build_case_evidence(input_root, case_id)
+                except Exception as error:
+                    # A tool failure here must not abort the whole run; note
+                    # the error (already logged with `status: "error"` by the
+                    # failing tool_call itself) and fall back to a `decision`
+                    # for this case in phase 3 below.
+                    case_errors[case_id] = str(error)
+                    log_event(
+                        "error",
+                        input={"case_id": case_id},
+                        output=None,
+                        status="error",
+                        error=str(error),
+                    )
+        case_knowledge: dict[str, Any] = {}
+        case_aspects: dict[str, Any] = {}
         for case_id, evidence in case_evidence.items():
             with case_context(case_id):
-                knowledge, aspects, iterations = identify_key_aspects(
-                    case_id, evidence, retrieval_tools, model
-                )
+                try:
+                    knowledge, aspects, iterations = identify_key_aspects(
+                        case_id, evidence, retrieval_tools, model
+                    )
+                except Exception as error:
+                    case_errors[case_id] = str(error)
+                    log_event(
+                        "error",
+                        input={"case_id": case_id},
+                        output=None,
+                        status="error",
+                        error=str(error),
+                    )
+                    knowledge, aspects, iterations = [], [], 0
             case_knowledge[case_id] = knowledge
             case_aspects[case_id] = aspects
             print(
@@ -440,18 +552,39 @@ def main() -> None:
 
         # Phase 3: decide every case, folding the retrieved knowledge and the
         # key aspects identified via retrieval into the evidence package
-        # handed to the model.
+        # handed to the model. `decide_case()` already retries/falls back on
+        # invalid model JSON; a case whose evidence collection failed above,
+        # or that fails here for any other reason, still gets exactly one
+        # valid fallback prediction instead of aborting the whole batch.
         output_file = args.output / "predictions.jsonl"
         with output_file.open("w", encoding="utf-8") as predictions:
             for case_id in cases:
                 with case_context(case_id):
-                    decision = decide_case(
-                        case_id,
-                        case_evidence[case_id],
-                        case_knowledge[case_id],
-                        case_aspects[case_id],
-                        model,
-                    )
+                    if case_id in case_evidence:
+                        try:
+                            decision = decide_case(
+                                case_id,
+                                case_evidence[case_id],
+                                case_knowledge.get(case_id, []),
+                                case_aspects.get(case_id, []),
+                                model,
+                            )
+                        except Exception as error:
+                            log_event(
+                                "error",
+                                input={"case_id": case_id},
+                                output=None,
+                                status="error",
+                                error=str(error),
+                            )
+                            decision = _fallback_decision(case_id, str(error))
+                            log_event(
+                                "decision", output=decision, status="error", error=str(error)
+                            )
+                    else:
+                        reason = case_errors.get(case_id, "evidence collection failed")
+                        decision = _fallback_decision(case_id, reason)
+                        log_event("decision", output=decision, status="error", error=reason)
                 predictions.write(json.dumps(decision, ensure_ascii=False) + "\n")
                 predictions.flush()
                 print(f"  {case_id}: {decision['result']}", flush=True)
