@@ -24,6 +24,8 @@ tira_configs:
     name: "qrels.txt"
   evaluator:
     measures: ["nDCG@10"]
+    image: "ghcr.io/uniagent-webis-de/uniagent-cikm-evaluator:0.0.1"
+    command: "/evaluate_submission.py --predictions $inputRun --truths $inputDataset --task retrieval --output $outputDir"
 ---
 
 # UniAgent 2026 Retrieval: Spot-Check Dataset for Retrieval in German
