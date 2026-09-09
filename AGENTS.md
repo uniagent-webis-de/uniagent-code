@@ -31,7 +31,7 @@ directory using its own tooling.
 
 ## Workflow for developing a submission
 
-1. **Ask the participant which task/track they want to submit to** before
+1. **Ask the participant which task/track they want to submit to. Also ask if Docker should be used (which is recommended, see step 5)** before
    writing any code. Do not assume — the tasks have different input
    formats, tools, and evaluation criteria. Current options:
    - `cikm26` business-trip review (accept/reject applications)
@@ -68,7 +68,17 @@ directory using its own tooling.
    for the exact command). Match this convention for new submissions in
    the same task.
 
-5. **Verify locally before submission**: run the baseline's own example
+5. **Run and test everything inside Docker, never in an ad-hoc venv.**
+   Baselines pin heavy, sometimes native (e.g. JVM-based PyTerrier)
+   dependencies in their `Dockerfile`/`requirements.txt`; do not `pip
+   install` them into a local virtualenv to "just run the tests". Build and
+   run the baseline's own `Dockerfile` as shown in its README (most
+   baselines document a `docker build` + `docker run --entrypoint python -m
+   unittest ...` invocation), or use an existing `.devcontainer/` where one
+   is already provided (e.g. the retrieval baselines), instead of creating a
+   new environment.
+
+6. **Verify locally before submission**: run the baseline's own example
    command from its README against the task's spot-check dataset under
    `<task>/datasets/` (or `corpora/` for inlg27), confirm the output format
    matches, then use the `tira-cli code-submission ... --dry-run` command
