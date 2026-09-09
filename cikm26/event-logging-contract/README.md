@@ -37,11 +37,19 @@ accuracy (e.g. whether a decision was reached for the right reasons).
    | `parent_event_id` | string \| null | The `event_id` of the event that caused/preceded this one, forming a causal trace tree (e.g. a `tool_call` caused by a preceding `model_call`). `null` for root events. |
    | `timestamp` | string | ISO-8601 UTC timestamp when the event occurred/finished. |
    | `event_type` | string | One of `input`, `model_call`, `tool_call`, `observation`, `decision`, `error`, or an additional type if needed. |
+   | `model` | string | The identifier of the LLM model backing this run (e.g. the value of `OPENAI_MODEL`/equivalent). Required on **every** event, not only `model_call`/`decision`, so the model behind a trace is never ambiguous. Submissions that call no model at all (e.g. a purely deterministic baseline) use `"-"`. |
    | `tool` | string \| null | The tool's name if `event_type == "tool_call"`, else `null`. |
    | `input` | object \| null | The prompt/arguments/documents given to the model or tool. |
    | `output` | object \| null | The model/tool response, including cited sources where applicable. |
    | `status` | string | `"ok"` or `"error"`. |
    | `error` | string \| null | The error message if `status == "error"`, else `null`. |
+
+   `model` is the one field that is never optional/`null`, even for events
+   unrelated to a specific model call (e.g. `tool_call`, `observation`):
+   every event must be attributable to the model configured for the run
+   that produced it, so traces from multi-model experiments or model
+   changes between runs stay unambiguous without cross-referencing a
+   separate run manifest.
 
 4. **Log more than tool calls.** Beyond `tool_call` events, log important
    prompts and model responses (`model_call`), retrieved document
@@ -54,7 +62,7 @@ accuracy (e.g. whether a decision was reached for the right reasons).
    sources) in `output`. Example:
 
    ```json
-   {"case_id": "dienstreiseantrag-03", "event_id": "evt-0007", "parent_event_id": "evt-0006", "timestamp": "2026-10-15T12:35:14.230Z", "event_type": "model_call", "tool": null, "input": {"prompt": "Check the travel request for completeness and rule compliance.", "documents": ["antrag.pdf", "bahn-ticket.pdf"]}, "output": {"response": "The request is incomplete because the return trip is missing...", "cited_sources": [{"source_id": "antrag.pdf", "page": 1, "quote": "Ende Dienstgeschäft: 11.02.2026"}]}, "status": "ok", "error": null}
+   {"case_id": "dienstreiseantrag-03", "event_id": "evt-0007", "parent_event_id": "evt-0006", "timestamp": "2026-10-15T12:35:14.230Z", "event_type": "model_call", "model": "gpt-oss-20b", "tool": null, "input": {"prompt": "Check the travel request for completeness and rule compliance.", "documents": ["antrag.pdf", "bahn-ticket.pdf"]}, "output": {"response": "The request is incomplete because the return trip is missing...", "cited_sources": [{"source_id": "antrag.pdf", "page": 1, "quote": "Ende Dienstgeschäft: 11.02.2026"}]}, "status": "ok", "error": null}
    ```
 
 6. **Every trace must end with a `decision` event.** The final event for
@@ -63,13 +71,13 @@ accuracy (e.g. whether a decision was reached for the right reasons).
    evidence used to reach it. Example:
 
    ```json
-   {"case_id": "dienstreiseantrag-03", "event_id": "evt-0012", "parent_event_id": "evt-0011", "timestamp": "2026-10-15T12:36:02.018Z", "event_type": "decision", "output": {"decision": "deny", "answer": "The request must be returned for correction...", "evidence": [{"source_id": "antrag.pdf", "page": 1, "relevance": "The end date of the business activity is before the travel date."}, {"source_id": "bahn-ticket.pdf", "page": 1, "relevance": "Only the outbound trip is documented."}]}, "status": "ok", "error": null}
+   {"case_id": "dienstreiseantrag-03", "event_id": "evt-0012", "parent_event_id": "evt-0011", "timestamp": "2026-10-15T12:36:02.018Z", "event_type": "decision", "model": "gpt-oss-20b", "output": {"decision": "deny", "answer": "The request must be returned for correction...", "evidence": [{"source_id": "antrag.pdf", "page": 1, "relevance": "The end date of the business activity is before the travel date."}, {"source_id": "bahn-ticket.pdf", "page": 1, "relevance": "Only the outbound trip is documented."}]}, "status": "ok", "error": null}
    ```
 
 7. **Errors must be logged, not swallowed.** A failing model/tool call must
    still produce an event with `status: "error"` and a non-null `error`
-   message, with `parent_event_id` linking it back into the trace, before
-   any exception propagates.
+   message, with `parent_event_id` linking it back into the trace and
+   `model` still populated, before any exception propagates.
 
 8. **Token-usage metadata, if available, should be included** (e.g. inside
    `output` of the corresponding `model_call` event), since the hosted
