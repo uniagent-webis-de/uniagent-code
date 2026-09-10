@@ -229,6 +229,8 @@ __marimo__/
 AGENT.md
 PLAN.md
 SKILL.md
+INSTRUCTIONS.md
 
 # Generated and fetched data stays outside Git.
 /data/
+
