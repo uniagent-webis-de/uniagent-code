@@ -251,13 +251,24 @@ def relative_project_path(path: Path) -> str:
 
 
 def remove_previous_outputs(figures_dir: Path, tables_dir: Path) -> None:
-    """Remove only files owned by this extractor; preserve Liteparse assets."""
+    """Remove extractor outputs and legacy table assets.
+
+    The first version of the pipeline wrote ``table-NN.md`` and
+    ``pageNNN-tableNN.png`` files from Liteparse. PDFFigures2 is now the single
+    table extractor, so those files must be removed even on a cache hit.
+    Embedded Liteparse figures are preserved.
+    """
     for directory in (figures_dir, tables_dir):
         if not directory.is_dir():
             continue
         for path in directory.glob(f"{OUTPUT_PREFIX}*"):
             if path.is_file():
                 path.unlink()
+    if tables_dir.is_dir():
+        for pattern in ("table-*.md", "page*-table*.png"):
+            for path in tables_dir.glob(pattern):
+                if path.is_file():
+                    path.unlink()
 
 
 def cached_extraction(record: dict | None) -> bool:
@@ -271,16 +282,16 @@ def cached_extraction(record: dict | None) -> bool:
 
 
 def refresh_asset_counts(record: dict, figures_dir: Path, tables_dir: Path) -> dict:
-    """Refresh aggregate asset counts after Liteparse and PDFFigures2 share directories."""
+    """Refresh aggregate asset counts for the final document-local assets."""
     figure_files = sorted(path for path in figures_dir.glob("*") if path.is_file()) if figures_dir.is_dir() else []
     table_files = sorted(path for path in tables_dir.glob("*") if path.is_file()) if tables_dir.is_dir() else []
-    table_markdown = [path for path in table_files if path.suffix == ".md"]
-    cropped_table_images = [path for path in table_files if re.fullmatch(r"page\d+-table\d+\.png", path.name)]
     record["figures_dir"] = relative_project_path(figures_dir) if figure_files else None
     record["n_figures"] = len(figure_files)
     record["tables_dir"] = relative_project_path(tables_dir) if table_files else None
-    record["n_tables"] = len(table_markdown)
-    record["n_table_images"] = len(cropped_table_images)
+    # PDFFigures2 table images are the only table representation in the final
+    # corpus. Keep the legacy aggregate fields aligned for existing consumers.
+    record["n_tables"] = len(table_files)
+    record["n_table_images"] = len(table_files)
     return record
 
 
@@ -469,6 +480,7 @@ def process_document(
     tables_dir = document_tables_dir(task_id, role, pdf_url)
     if cached_extraction(record):
         logger.info("PDFFigures2 cache hit: %s", pdf_path)
+        remove_previous_outputs(figures_dir, tables_dir)
         return refresh_asset_counts(record, figures_dir, tables_dir)
 
     with tempfile.TemporaryDirectory(prefix="pdffigures2-") as temp_dir:
@@ -580,6 +592,7 @@ def main() -> None:
             tables_dir = document_tables_dir(task_id, role, pdf_url)
             if not pdf_path.is_file():
                 raise FileNotFoundError(f"missing PDF: {pdf_path} — run download_papers.py first")
+            remove_previous_outputs(figures_dir, tables_dir)
             if cached_extraction(previous):
                 logger.info("PDFFigures2 cache hit: %s", pdf_path)
                 manifest_by_url[pdf_url] = refresh_asset_counts(dict(previous), figures_dir, tables_dir)
