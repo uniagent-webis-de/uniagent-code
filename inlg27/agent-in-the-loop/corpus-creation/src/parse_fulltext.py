@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""Stage 7 — parse the full text of every overview and notebook PDF in the final corpus,
-so participants receive pre-parsed documents rather than just links.
+"""Stage 5 — parse every downloaded overview and notebook PDF.
 
 PLAN.md section 7 originally listed text parsing as out of scope for the corpus builder;
 it was added later by request, and lives here as its own re-runnable stage rather than
-being folded into Stage 4/5 (which parse opportunistically for counts and code links).
+being folded into the enrichment stages. The Markdown produced here is the canonical
+text input for count and code-link extraction.
 
 OCR: liteparse cannot load a HuggingFace model directly — it delegates OCR to an HTTP
 server via --ocr-server-url. To use PaddleOCR-VL, serve it and pass --ocr-server-url.
@@ -21,15 +21,25 @@ import tempfile
 import re
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.corpus_paths import (
+    FINAL_DIR,
+    MANIFEST_PATH,
+    document_figures_dir,
+    document_markdown_path,
+    document_pdf_path,
+    document_tables_dir,
+    paper_id_for,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Reads the candidate list rather than the assembled corpus: build_corpus.py joins this
 # stage's manifest to publish fulltext paths, so depending on its output would be circular.
 CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
-PDF_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "pdf"
-FULLTEXT_DIR = PROJECT_ROOT / "data" / "final" / "fulltext"
-MANIFEST_PATH = FULLTEXT_DIR / "manifest.jsonl"
+FULLTEXT_DIR = FINAL_DIR
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 # A born-digital CEUR page carries roughly 2000-4000 characters. A document averaging
@@ -63,9 +73,8 @@ def setup_logging() -> Path:
 
 
 def pdf_stem_for(pdf_url: str) -> str:
-    """Local filename stem for a paper, matching the layout Stage 4/5 already cached."""
-    stem = Path(urlparse(pdf_url).path).stem
-    return re.sub(r"[^a-zA-Z0-9_\-]", "_", stem)
+    """Backward-compatible name for the canonical task-local paper id helper."""
+    return paper_id_for(pdf_url)
 
 
 def probe_pdf(pdf_path: Path) -> tuple[int | None, bool]:
@@ -301,28 +310,16 @@ def parse_document(pdf_path: Path, out_path: Path, ocr_server_url: str | None, o
 
 
 def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_server_url: str | None, ocr_language: str, logger: logging.Logger) -> dict | None:
-    stem = pdf_stem_for(pdf_url)
-    # Stage 4 caches the overview as "overview.pdf" while Stage 5 caches participants
-    # under their URL-derived stem, so an overview must be looked up both ways.
-    candidates = [PDF_RAW_DIR / task_id / f"{stem}.pdf"]
-    if role == "overview":
-        candidates.insert(0, PDF_RAW_DIR / task_id / "overview.pdf")
-    pdf_path = next((c for c in candidates if c.exists()), None)
-    if pdf_path is None:
-        logger.warning("%s: missing cached PDF for %s — run extract_counts.py/find_code.py first", task_id, pdf_url)
+    pdf_path = document_pdf_path(task_id, role, pdf_url)
+    if not pdf_path.exists():
+        logger.warning("%s: missing cached PDF for %s — run download_papers.py first", task_id, pdf_url)
         return None
 
-    # Overview at the task root, notebook papers grouped under participants/ — keeps the
-    # target output visibly separate from the inputs it is generated from.
-    out_path = out_dir / "overview.md" if role == "overview" else out_dir / "participants" / f"{stem}.md"
-
-    # Assets are grouped by kind and keyed by document, so a task folder stays readable:
-    #   {task}/figures/{doc}/img_p2_1.png   {task}/tables/{doc}/table-01.md
-    doc_key = "overview" if role == "overview" else stem
-    figures_dir = out_dir / "figures" / doc_key
-    tables_dir = out_dir / "tables" / doc_key
-    # Relative prefix from the markdown file back to its figures directory.
-    figures_rel_prefix = f"figures/{doc_key}" if role == "overview" else f"../figures/{doc_key}"
+    out_path = document_markdown_path(task_id, role, pdf_url)
+    figures_dir = document_figures_dir(task_id, role, pdf_url)
+    tables_dir = document_tables_dir(task_id, role, pdf_url)
+    # Figures and tables are now beside the corresponding Markdown file.
+    figures_rel_prefix = "figures"
 
     if out_path.exists():
         logger.info("fulltext cache hit: %s", out_path)
@@ -366,6 +363,7 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         "task_id": task_id,
         "role": role,
         "pdf_url": pdf_url,
+        "pdf_path": str(pdf_path.relative_to(PROJECT_ROOT)),
         "markdown_path": str(out_path.relative_to(PROJECT_ROOT)),
         "chars": len(text),
         "pages": pages,
@@ -398,18 +396,20 @@ def write_readme(records: list[dict], path: Path) -> None:
         f"""# Shared-task corpus — parsed full text
 
 {overviews} overview papers and {participants} participant (notebook) papers, parsed from
-the published CEUR-WS PDFs to Markdown.
+the downloaded PDFs to Markdown.
 
 ## Layout
 
-    {{task_id}}/overview.md                    the task's overview paper (the target output)
-    {{task_id}}/participants/{{paper_stem}}.md   one file per notebook paper (the inputs)
-    {{task_id}}/figures/{{doc}}/img_p4_1.png     figures, grouped per document
-    {{task_id}}/tables/{{doc}}/table-01.md            table as parsed markdown text
-    {{task_id}}/tables/{{doc}}/page011-table01.png    table cropped from that page
+    {{task_id}}/overview/overview.pdf          the overview source PDF
+    {{task_id}}/overview/overview.txt.md       the overview target text
+    {{task_id}}/overview/figures/              overview figures
+    {{task_id}}/overview/tables/               overview tables
+    {{task_id}}/papers/{{paper_id}}/paper.pdf  one notebook source PDF
+    {{task_id}}/papers/{{paper_id}}/paper.txt.md notebook input text
+    {{task_id}}/papers/{{paper_id}}/figures/   notebook figures
+    {{task_id}}/papers/{{paper_id}}/tables/    notebook tables
 
-`{{doc}}` is `overview` or the notebook paper's stem. Figures are raster images embedded
-in the PDF, and the markdown keeps an inline `![](...)` reference to each one, so a
+Figures are raster images embedded in the PDF, and the markdown keeps an inline `![](...)` reference to each one, so a
 document still reads as a whole. Tables are handled the same way: markdown for the text,
 plus an image of the table exactly as it appears in the paper, which preserves the
 column layout, spanning headers and alignment that a flattened text version loses.
@@ -432,9 +432,9 @@ For any table where the two disagree, trust the image.
 Note that figures drawn as vector graphics (many plots and diagrams) are not raster
 images and are therefore not extracted as files; their captions remain in the text.
 
-`{{paper_stem}}` matches the source PDF filename on CEUR-WS, so a document can always be
+`{{paper_id}}` is derived from the source PDF filename on CEUR-WS, so a document can always be
 traced back to its origin. `manifest.jsonl` records, per document: `task_id`, `role`,
-source `pdf_url`, output `markdown_path`, `chars`, `pages`, `chars_per_page`, whether an
+source `pdf_url`, output `pdf_path` and `markdown_path`, `chars`, `pages`, `chars_per_page`, whether an
 OCR server was used, and whether the text layer looked too thin to trust (`needs_ocr`).
 
 ## Aligning with the corpus files
@@ -442,8 +442,8 @@ OCR server was used, and whether the text layer looked too thin to trust (`needs
 `shared_tasks.jsonl` carries the path to each parsed document directly, so no filename
 munging is needed:
 
-    task["overview"]["fulltext_path"]        -> {{task_id}}/overview.md
-    task["participants"][i]["fulltext_path"] -> {{task_id}}/participants/....md
+    task["overview"]["fulltext_path"]        -> {{task_id}}/overview/overview.txt.md
+    task["participants"][i]["fulltext_path"] -> {{task_id}}/papers/{{paper_id}}/paper.txt.md
 
 In `shared_tasks.csv`, `overview_fulltext_path` holds the overview and
 `participant_fulltext_paths` holds the notebook papers joined by `; ` in the same order

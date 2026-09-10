@@ -1,24 +1,22 @@
 #!/usr/bin/env python
-"""Stage 4 — extract claimed team/run counts from overview PDFs, scoped to the 44
-high-confidence task groups from Stage 3 (see PLAN.md section 3, Stage 4)."""
+"""Stage 6 — extract claimed team/run counts from parsed overview Markdown."""
 import argparse
 import json
 import logging
 import re
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-import requests
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.corpus_paths import overview_markdown_path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
-PDF_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "pdf"
 COUNTS_DIR = PROJECT_ROOT / "data" / "intermediate" / "counts"
 LOGS_DIR = PROJECT_ROOT / "logs"
-
-REQUEST_TIMEOUT_SECONDS = 30
 
 # Restricting to the first ~15000 characters of extracted text (roughly the abstract,
 # introduction, and any early results-summary paragraph for a typical CEUR paper) avoids
@@ -86,43 +84,6 @@ def setup_logging() -> Path:
     return log_path
 
 
-def fetch_pdf(url: str, dest_path: Path, logger: logging.Logger) -> bool:
-    if dest_path.exists():
-        logger.info("cache hit: %s -> %s", url, dest_path)
-        return True
-
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS, headers={"User-Agent": "uniagent-corpus-builder/0.1"})
-    except requests.RequestException as exc:
-        logger.error("fetch failed: %s (%s)", url, exc)
-        return False
-
-    logger.info("fetched: %s status=%d -> %s", url, response.status_code, dest_path)
-    if response.status_code != 200:
-        logger.warning("non-200 status for %s: %d", url, response.status_code)
-        return False
-
-    dest_path.write_bytes(response.content)
-    return True
-
-
-def parse_pdf_text(pdf_path: Path, txt_path: Path, logger: logging.Logger) -> str | None:
-    if txt_path.exists():
-        logger.info("parse cache hit: %s", txt_path)
-        return txt_path.read_text(encoding="utf-8")
-
-    result = subprocess.run(
-        ["lit", "parse", str(pdf_path), "--format", "text", "--no-ocr", "-o", str(txt_path)],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        logger.error("lit parse failed for %s: %s", pdf_path, result.stderr.strip())
-        return None
-    logger.info("parsed: %s -> %s", pdf_path, txt_path)
-    return txt_path.read_text(encoding="utf-8")
-
-
 NUMBERED_HEADING_RE = re.compile(r"\n(\d+)\.\s+\S")
 
 
@@ -180,40 +141,32 @@ def process_task(task: dict, logger: logging.Logger) -> dict:
         logger.info("counts cache hit: %s", out_path)
         return json.loads(out_path.read_text(encoding="utf-8"))
 
-    pdf_dir = PDF_RAW_DIR / task_id
-    pdf_path = pdf_dir / "overview.pdf"
-    txt_path = pdf_dir / "overview.txt"
-
-    if not fetch_pdf(task["overview"]["pdf_url"], pdf_path, logger):
+    txt_path = overview_markdown_path(task_id)
+    if not txt_path.exists():
+        logger.error("%s: missing parsed overview %s — run parse_fulltext.py first", task_id, txt_path)
         result = {"teams": None, "runs": None}
     else:
-        text = parse_pdf_text(pdf_path, txt_path, logger)
-        if text is None:
-            result = {"teams": None, "runs": None}
-        else:
-            window = abstract_and_intro_window(text)
-            teams = extract_count(window, TEAM_PATTERNS)
-            runs = extract_run_count(window)
+        text = txt_path.read_text(encoding="utf-8")
+        window = abstract_and_intro_window(text)
+        teams = extract_count(window, TEAM_PATTERNS)
+        runs = extract_run_count(window)
 
-            # PLAN.md's own coverage_ratio bound doubles as a sanity check on the
-            # extraction: more notebook papers than claimed teams (ratio > 1.5) means the
-            # regex almost certainly grabbed the wrong number, e.g. a real case (LongEval
-            # 2023) where "14 and 4 teams participated in Task 1 and Task 2, respectively"
-            # yielded 4 (only the second, elliptically-written figure) against 14 actual
-            # notebook papers. Null it out rather than keep a number known to be wrong.
-            notebook_papers = len(task["participants"])
-            if teams is not None and notebook_papers / teams > 1.5:
-                logger.warning(
-                    "%s: claimed teams=%d implausible against %d notebook papers (ratio %.2f > 1.5) — discarding as mis-parsed",
-                    task_id, teams, notebook_papers, notebook_papers / teams,
-                )
-                teams = None
+        # PLAN.md's own coverage_ratio bound doubles as a sanity check on the
+        # extraction: more notebook papers than claimed teams (ratio > 1.5) means the
+        # regex almost certainly grabbed the wrong number.
+        notebook_papers = len(task["participants"])
+        if teams is not None and notebook_papers / teams > 1.5:
+            logger.warning(
+                "%s: claimed teams=%d implausible against %d notebook papers (ratio %.2f > 1.5) — discarding as mis-parsed",
+                task_id, teams, notebook_papers, notebook_papers / teams,
+            )
+            teams = None
 
-            result = {"teams": teams, "runs": runs}
-            if teams is None:
-                logger.warning("%s: no team-count pattern matched — storing null", task_id)
-            if runs is None:
-                logger.warning("%s: no run-count pattern matched — storing null", task_id)
+        result = {"teams": teams, "runs": runs}
+        if teams is None:
+            logger.warning("%s: no team-count pattern matched — storing null", task_id)
+        if runs is None:
+            logger.warning("%s: no run-count pattern matched — storing null", task_id)
 
     COUNTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -221,8 +174,9 @@ def process_task(task: dict, logger: logging.Logger) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract claimed team/run counts from overview PDFs.")
+    parser = argparse.ArgumentParser(description="Extract claimed team/run counts from parsed overview Markdown.")
     parser.add_argument("--confidence", type=str, default="high", choices=["high", "medium", "all"], help="Which candidate tasks to process (default: high only).")
+    parser.add_argument("--task-id", type=str, default=None, help="Process only this task id.")
     args = parser.parse_args()
 
     log_path = setup_logging()
@@ -234,7 +188,12 @@ def main() -> None:
         sys.exit(1)
 
     tasks = [json.loads(line) for line in CANDIDATES_PATH.read_text(encoding="utf-8").splitlines()]
-    if args.confidence != "all":
+    if args.task_id is not None:
+        tasks = [task for task in tasks if task["task_id"] == args.task_id]
+        if not tasks:
+            logger.error("task_id %s not found", args.task_id)
+            sys.exit(1)
+    elif args.confidence != "all":
         tasks = [t for t in tasks if t["provenance"]["confidence"] == args.confidence]
 
     matched_teams = matched_runs = 0
