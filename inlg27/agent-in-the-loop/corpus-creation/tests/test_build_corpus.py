@@ -76,13 +76,25 @@ def test_fulltext_paths_are_published_on_the_records():
 
     task = make_task("t1", "https://x/ov.pdf", ["https://x/p1.pdf", "https://x/p2.pdf"])
     manifest = {
-        "https://x/ov.pdf": {"markdown_path": "data/final/fulltext/t1/overview.md", "n_figures": 0, "n_tables": 3},
-        "https://x/p1.pdf": {"markdown_path": "data/final/fulltext/t1/participants/p1.md", "n_figures": 2, "n_tables": 1},
+        "https://x/ov.pdf": {
+            "pdf_path": "data/final/t1/overview/overview.pdf",
+            "markdown_path": "data/final/t1/overview/overview.txt.md",
+            "n_figures": 0,
+            "n_tables": 3,
+        },
+        "https://x/p1.pdf": {
+            "pdf_path": "data/final/t1/papers/p1/paper.pdf",
+            "markdown_path": "data/final/t1/papers/p1/paper.txt.md",
+            "n_figures": 2,
+            "n_tables": 1,
+        },
     }
     join_fulltext_paths(task, manifest, LOGGER)
 
-    assert task["overview"]["fulltext_path"] == "data/final/fulltext/t1/overview.md"
-    assert task["participants"][0]["fulltext_path"] == "data/final/fulltext/t1/participants/p1.md"
+    assert task["overview"]["pdf_path"] == "data/final/t1/overview/overview.pdf"
+    assert task["overview"]["fulltext_path"] == "data/final/t1/overview/overview.txt.md"
+    assert task["participants"][0]["pdf_path"] == "data/final/t1/papers/p1/paper.pdf"
+    assert task["participants"][0]["fulltext_path"] == "data/final/t1/papers/p1/paper.txt.md"
     # An unparsed document yields null rather than a fabricated path.
     assert task["participants"][1]["fulltext_path"] is None
     # Figure/table counts ride along so they are queryable from the corpus files.

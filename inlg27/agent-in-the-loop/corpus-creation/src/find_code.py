@@ -1,25 +1,25 @@
 #!/usr/bin/env python
-"""Stage 5 — resolve participant code links, scoped to the 44 high-confidence task
-groups from Stage 3 (see PLAN.md section 3, Stage 5)."""
+"""Stage 8 — resolve participant code links from parsed Markdown."""
 import argparse
 import json
 import logging
 import re
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.corpus_paths import paper_id_for, participant_markdown_path
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
-PDF_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "pdf"
 CODE_DIR = PROJECT_ROOT / "data" / "intermediate" / "code"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
-REQUEST_TIMEOUT_SECONDS = 30
 HEAD_TIMEOUT_SECONDS = 10
 
 CODE_URL_RE = re.compile(
@@ -167,62 +167,20 @@ def validate_url(url: str, logger: logging.Logger) -> str:
     return status
 
 
-def fetch_pdf(url: str, dest_path: Path, logger: logging.Logger) -> bool:
-    if dest_path.exists():
-        logger.info("cache hit: %s -> %s", url, dest_path)
-        return True
-
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS, headers={"User-Agent": "uniagent-corpus-builder/0.1"})
-    except requests.RequestException as exc:
-        logger.error("fetch failed: %s (%s)", url, exc)
-        return False
-
-    logger.info("fetched: %s status=%d -> %s", url, response.status_code, dest_path)
-    if response.status_code != 200:
-        logger.warning("non-200 status for %s: %d", url, response.status_code)
-        return False
-
-    dest_path.write_bytes(response.content)
-    return True
-
-
-def parse_pdf_text(pdf_path: Path, txt_path: Path, logger: logging.Logger) -> str | None:
-    if txt_path.exists():
-        logger.info("parse cache hit: %s", txt_path)
-        return txt_path.read_text(encoding="utf-8")
-
-    result = subprocess.run(
-        ["lit", "parse", str(pdf_path), "--format", "text", "--no-ocr", "-o", str(txt_path)],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        logger.error("lit parse failed for %s: %s", pdf_path, result.stderr.strip())
-        return None
-    logger.info("parsed: %s -> %s", pdf_path, txt_path)
-    return txt_path.read_text(encoding="utf-8")
-
-
 def pdf_filename_for(pdf_url: str) -> str:
-    stem = Path(urlparse(pdf_url).path).stem
-    return re.sub(r"[^a-zA-Z0-9_\-]", "_", stem)
+    """Backward-compatible name for the canonical paper-id helper."""
+    return paper_id_for(pdf_url)
 
 
 def process_participant(task_id: str, participant: dict, logger: logging.Logger) -> dict:
     pdf_url = participant["pdf_url"]
-    stem = pdf_filename_for(pdf_url)
-    pdf_dir = PDF_RAW_DIR / task_id
-    pdf_path = pdf_dir / f"{stem}.pdf"
-    txt_path = pdf_dir / f"{stem}.txt"
-
     empty = {"pdf_url": pdf_url, "code_urls": [], "third_party_urls": [], "tira_refs": []}
-    if not fetch_pdf(pdf_url, pdf_path, logger):
+    txt_path = participant_markdown_path(task_id, pdf_url)
+    if not txt_path.exists():
+        logger.error("%s: missing parsed participant %s — run parse_fulltext.py first", task_id, txt_path)
         return empty
 
-    text = parse_pdf_text(pdf_path, txt_path, logger)
-    if text is None:
-        return empty
+    text = txt_path.read_text(encoding="utf-8")
 
     candidates, third_party, tira_refs = extract_links(text)
     if third_party:

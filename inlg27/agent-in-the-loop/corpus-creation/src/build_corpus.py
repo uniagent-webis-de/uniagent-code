@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""Assemble the final benchmark deliverables from the high-confidence candidate tasks,
-joined with Stage 4 counts and Stage 5 code links. See PLAN.md sections 1, 5, 6."""
+"""Stage 9 — assemble the final benchmark deliverables from enriched candidate tasks."""
 import argparse
 import csv
 import json
@@ -11,19 +10,30 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.corpus_paths import (
+    FINAL_DIR,
+    MANIFEST_PATH,
+    document_markdown_path,
+    document_pdf_path,
+    task_metadata_path,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
 COUNTS_DIR = PROJECT_ROOT / "data" / "intermediate" / "counts"
 CODE_DIR = PROJECT_ROOT / "data" / "intermediate" / "code"
-FINAL_DIR = PROJECT_ROOT / "data" / "final"
-FULLTEXT_MANIFEST_PATH = FINAL_DIR / "fulltext" / "manifest.jsonl"
+FULLTEXT_MANIFEST_PATH = MANIFEST_PATH
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 CSV_FIELDS = [
     "task_id", "venue", "parent_venue", "year", "task_name", "ceur_volume",
     "overview_title", "overview_pdf_url", "overview_authors", "is_umbrella",
     "notebook_papers", "teams_claimed_in_overview", "runs_claimed_in_overview", "coverage_ratio",
-    "participant_pdf_urls", "team_names", "overview_fulltext_path", "participant_fulltext_paths",
+    "participant_pdf_urls", "team_names", "overview_pdf_path", "participant_pdf_paths",
+    "overview_fulltext_path", "participant_fulltext_paths",
     "code_urls", "code_urls_live", "tira_refs",
     "task_assignment_method", "confidence", "extracted_at",
 ]
@@ -94,16 +104,20 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         participant["tira_refs"] = entry["tira_refs"]
 
 
-def join_fulltext_paths(task: dict, manifest: dict[str, str], logger: logging.Logger) -> None:
+def join_fulltext_paths(task: dict, manifest: dict[str, dict], logger: logging.Logger) -> None:
     """Publish each document's parsed-markdown path on the record itself, so consumers can
     go from a corpus entry straight to its text without deriving filenames from URLs."""
     if not manifest:
         return
 
     def apply(document: dict, record: dict | None) -> None:
+        document["pdf_path"] = record.get("pdf_path") if record else None
         document["fulltext_path"] = record["markdown_path"] if record else None
         document["figures_dir"] = record.get("figures_dir") if record else None
         document["n_figures"] = record.get("n_figures", 0) if record else 0
+        document["pdffigures2_status"] = record.get("pdffigures2_status") if record else None
+        document["pdffigures2_figures"] = record.get("pdffigures2_figures", 0) if record else 0
+        document["pdffigures2_tables"] = record.get("pdffigures2_tables", 0) if record else 0
         document["tables_dir"] = record.get("tables_dir") if record else None
         document["n_tables"] = record.get("n_tables", 0) if record else 0
 
@@ -123,7 +137,7 @@ def join_fulltext_paths(task: dict, manifest: dict[str, str], logger: logging.Lo
 
 
 def load_fulltext_manifest(logger: logging.Logger) -> dict[str, dict]:
-    """Map pdf_url -> parsed-document record from Stage 7's manifest, if it has run."""
+    """Map pdf_url -> parsed-document record from the full-text manifest."""
     if not FULLTEXT_MANIFEST_PATH.exists():
         logger.warning("no full-text manifest at %s — run parse_fulltext.py to add fulltext_path fields", FULLTEXT_MANIFEST_PATH)
         return {}
@@ -207,6 +221,30 @@ def validate(tasks: list[dict], logger: logging.Logger) -> bool:
     return ok
 
 
+def validate_output_files(tasks: list[dict], logger: logging.Logger) -> bool:
+    """Ensure the final records point to the local PDF and Markdown files."""
+    ok = True
+    for task in tasks:
+        documents = [("overview", task["overview"]["pdf_url"])]
+        documents.extend(("participant", p["pdf_url"]) for p in task["participants"])
+        for role, pdf_url in documents:
+            pdf_path = document_pdf_path(task["task_id"], role, pdf_url)
+            markdown_path = document_markdown_path(task["task_id"], role, pdf_url)
+            if not pdf_path.exists():
+                logger.error("VALIDATION FAILED: missing PDF %s", pdf_path)
+                ok = False
+            if not markdown_path.exists():
+                logger.error("VALIDATION FAILED: missing Markdown %s", markdown_path)
+                ok = False
+    return ok
+
+
+def write_task_metadata(task: dict) -> None:
+    path = task_metadata_path(task["task_id"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(task, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def write_jsonl(tasks: list[dict], path: Path) -> None:
     with path.open("w", encoding="utf-8") as f:
         for t in tasks:
@@ -242,6 +280,8 @@ def write_csv(tasks: list[dict], path: Path) -> None:
                 "coverage_ratio": t["counts"]["coverage_ratio"],
                 "participant_pdf_urls": "; ".join(p["pdf_url"] for p in t["participants"]),
                 "team_names": "; ".join(team_names),
+                "overview_pdf_path": t["overview"].get("pdf_path") or "",
+                "participant_pdf_paths": "; ".join(p.get("pdf_path") or "" for p in t["participants"]),
                 "overview_fulltext_path": t["overview"].get("fulltext_path") or "",
                 # Positionally aligned with participant_pdf_urls; empty where unparsed.
                 "participant_fulltext_paths": "; ".join(p.get("fulltext_path") or "" for p in t["participants"]),
@@ -321,6 +361,7 @@ def main() -> None:
     parser.add_argument("--confidence", type=str, default="high", choices=["high", "medium", "all"], help="Which candidate tasks to include (default: high only).")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for the spot-check sample.")
     parser.add_argument("--target", type=int, default=50, help="Maximum corpus size to emit (PLAN.md target: 30-50).")
+    parser.add_argument("--task-id", type=str, default=None, help="Assemble only this task id.")
     args = parser.parse_args()
 
     log_path = setup_logging()
@@ -333,7 +374,12 @@ def main() -> None:
         sys.exit(1)
 
     tasks = [json.loads(line) for line in CANDIDATES_PATH.read_text(encoding="utf-8").splitlines()]
-    if args.confidence != "all":
+    if args.task_id is not None:
+        tasks = [task for task in tasks if task["task_id"] == args.task_id]
+        if not tasks:
+            logger.error("task_id %s not found", args.task_id)
+            sys.exit(1)
+    elif args.confidence != "all":
         tasks = [t for t in tasks if t["provenance"]["confidence"] == args.confidence]
     logger.info("assembling corpus from %d tasks (confidence=%s)", len(tasks), args.confidence)
 
@@ -345,11 +391,13 @@ def main() -> None:
 
     tasks = select_corpus(tasks, args.target, logger)
 
-    if not validate(tasks, logger):
+    if not validate(tasks, logger) or not validate_output_files(tasks, logger):
         logger.error("validation failed — see errors above. Deliverables NOT written.")
         sys.exit(1)
 
     FINAL_DIR.mkdir(parents=True, exist_ok=True)
+    for task in tasks:
+        write_task_metadata(task)
     write_jsonl(tasks, FINAL_DIR / "shared_tasks.jsonl")
     write_csv(tasks, FINAL_DIR / "shared_tasks.csv")
     write_report(tasks, FINAL_DIR / "report.md")

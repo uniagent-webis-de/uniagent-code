@@ -23,7 +23,8 @@ def test_manifest_records_are_shaped_for_auditing(tmp_path):
         "task_id": "clef2020-touch-touch-2020-argument-retrieval",
         "role": "overview",
         "pdf_url": "https://ceur-ws.org/Vol-2696/paper_261.pdf",
-        "markdown_path": "data/final/fulltext/x/overview.md",
+        "pdf_path": "data/final/x/overview/overview.pdf",
+        "markdown_path": "data/final/x/overview/overview.txt.md",
         "chars": 51234,
         "pages": 18,
         "chars_per_page": 2846.3,
@@ -33,20 +34,21 @@ def test_manifest_records_are_shaped_for_auditing(tmp_path):
     path = tmp_path / "manifest.jsonl"
     path.write_text(json.dumps(record) + "\n", encoding="utf-8")
     loaded = json.loads(path.read_text(encoding="utf-8").strip())
-    assert set(loaded) >= {"task_id", "role", "pdf_url", "markdown_path", "chars", "pages", "needs_ocr", "ocr_server_used"}
+    assert set(loaded) >= {"task_id", "role", "pdf_url", "pdf_path", "markdown_path", "chars", "pages", "needs_ocr", "ocr_server_used"}
 
 
-def test_participants_are_grouped_under_a_subfolder():
-    # Layout contract relied on by the corpus files: the overview (the target output)
-    # sits at the task root, notebook papers (the inputs) under participants/.
+def test_documents_use_the_agreed_task_layout():
+    # The overview is the target and notebook papers are the inputs, with each document
+    # keeping its PDF, Markdown, figures, and tables together.
     from src.parse_fulltext import FULLTEXT_DIR
 
     task_dir = FULLTEXT_DIR / "some-task"
-    overview = task_dir / "overview.md"
-    participant = task_dir / "participants" / "paper_130.md"
-    assert overview.parent == task_dir
-    assert participant.parent.name == "participants"
-    assert participant.parent.parent == task_dir
+    overview = task_dir / "overview" / "overview.txt.md"
+    participant = task_dir / "papers" / "paper_130" / "paper.txt.md"
+    assert overview.parent.name == "overview"
+    assert participant.parent.name == "paper_130"
+    assert participant.parent.parent.name == "papers"
+    assert participant.parent.parent.parent == task_dir
 
 
 def test_pipe_tables_are_split_out_of_the_markdown():

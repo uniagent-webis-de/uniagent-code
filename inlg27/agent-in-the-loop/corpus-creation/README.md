@@ -1,6 +1,7 @@
-# To incorporate
+# Local corpus builder
 
-the data is moved to `/mnt/ceph/storage/data-in-progress/data-research/agentic-ai/INLG-27-corpus`
+Generated data is kept locally under `data/` and can be uploaded to Ceph manually after
+verification. The pipeline never uploads data automatically.
 
 # Shared-Task Corpus — Build, Layout, and Usage
 
@@ -90,24 +91,32 @@ ImageCLEFlifelog 2020`), so it flagged ~48 genuine participant papers.
 data/final/
 ├── shared_tasks.jsonl      one JSON record per task — the primary artifact
 ├── shared_tasks.csv        the same, flattened one row per task, for spreadsheets
+├── manifest.jsonl          one record per parsed document
 ├── report.md               generated summary: counts, coverage, link stats
-└── fulltext/
-    ├── README.md
-    ├── manifest.jsonl      one record per parsed document
-    └── {task_id}/
-        ├── overview.md                          the target output
-        ├── participants/{paper_stem}.md         the inputs
-        ├── figures/{doc}/img_p4_1.png           figures, per document
-        └── tables/{doc}/
-            ├── table-01.md                      table as parsed text
-            └── page011-table01.png              table cropped from the page
+└── {task_id}/
+    ├── metadata.json       the complete task record and provenance
+    ├── overview/
+    │   ├── overview.pdf
+    │   ├── overview.txt.md
+    │   ├── figures/
+    │   └── tables/
+    └── papers/{paper_id}/
+        ├── paper.pdf
+        ├── paper.txt.md
+        ├── figures/
+        └── tables/
 ```
 
-`{doc}` is `overview` or a notebook paper's stem. `{paper_stem}` matches the source PDF
-filename on CEUR-WS, so any document traces back to its origin.
+`{paper_id}` is derived from the source PDF filename on CEUR-WS, so any document traces
+back to its origin through both the directory name and `pdf_url` in the metadata.
 
-The raw PDFs are **not** in git — they are re-fetchable (see §7) and were removed to keep
-the repository usable.
+The generated `data/` directory and `logs/` are local-only and are not committed to Git.
+The raw PDFs remain beside their parsed Markdown so the corpus can be copied as one
+self-contained directory.
+
+All paths above are relative to
+`/Users/pierreachkar/Documents/projects/uniagent-code/inlg27/agent-in-the-loop/corpus-creation`
+when run in the shared workspace. The pipeline does not upload data to Ceph or GitHub.
 
 ### Task record
 
@@ -122,7 +131,8 @@ the repository usable.
     "pdf_url": "https://ceur-ws.org/Vol-2696/paper_261.pdf",
     "authors": ["Alexander Bondarenko", "..."],
     "is_umbrella": false,
-    "fulltext_path": "data/final/fulltext/clef2020-.../overview.md",
+    "pdf_path": "data/final/clef2020-.../overview/overview.pdf",
+    "fulltext_path": "data/final/clef2020-.../overview/overview.txt.md",
     "figures_dir": "...", "n_figures": 0,
     "tables_dir": "...",  "n_tables": 6
   },
@@ -132,7 +142,8 @@ the repository usable.
       "authors": ["..."],
       "pdf_url": "https://ceur-ws.org/Vol-2696/paper_130.pdf",
       "team_name": null,
-      "fulltext_path": "data/final/fulltext/clef2020-.../participants/paper_130.md",
+      "pdf_path": "data/final/clef2020-.../papers/paper_130/paper.pdf",
+      "fulltext_path": "data/final/clef2020-.../papers/paper_130/paper.txt.md",
       "code_urls": ["https://github.com/hemiipatu/Blocklists.git"],
       "code_url_details": [{"url": "...", "status": "200", "availability_evidence": false}],
       "third_party_urls": ["https://github.com/huggingface/transformers"],
@@ -187,7 +198,11 @@ so expect it on roughly half of participants (205/444).
 ## 5. Full text, figures, and tables
 
 Text comes from each PDF's own text layer via [liteparse](https://github.com/run-llama/liteparse),
-output as Markdown to preserve heading structure. 18.4M characters across 486 documents.
+output as Markdown to preserve heading structure. The PDF is parsed once for its text and
+Liteparse assets; later count and code-link stages read the generated Markdown. A separate
+PDFFigures2 pass detects captioned figures and tables, including many vector-rendered
+figures, and stores its outputs beside those assets. 18.4M characters were produced
+across 486 documents in the previous CLEF run.
 
 **OCR is not used, and does not need to be.** Measured across all 504 PDFs: 0 are garbled,
 0 are scanned page images, and exactly **1** lacks a usable text layer
@@ -199,9 +214,11 @@ a model and point at it:
 ./src/parse_fulltext.py --ocr-server-url http://localhost:8080 --only-needs-ocr
 ```
 
-**Figures** (1,291) are the raster images embedded in the PDFs, referenced inline from the
-markdown so a document still reads as a whole. Figures drawn as *vector* graphics — many
-plots and diagrams — are not files and are not extracted; their captions remain in the text.
+**Figures** (1,291 in the previous Liteparse run) are the raster images embedded in the
+PDFs, referenced inline from the markdown so a document still reads as a whole. The
+PDFFigures2 pass adds captioned figure renderings, including figures drawn as *vector*
+graphics. Its files use the `pdffigures2-` prefix so both extractors' outputs remain
+auditable and cannot overwrite each other.
 
 **Tables** exist in two independent views, and this distinction matters:
 
@@ -242,38 +259,62 @@ solid = [t for t in tasks
 
 > **Before you build a test split:** the overview papers are the target output, and their
 > full text ships inside this corpus. Any blind evaluation split must withhold
-> `overview.md`, or the answer leaks.
+> `overview.txt.md`, or the answer leaks.
 
 ---
 
 ## 7. Reproducing
 
-Setup — note the parser is an npm package, so `pip install` alone is not enough:
+Setup — note the parser is an npm package, so `pip install` alone is not enough. The
+pipeline also needs Java plus a local PDFFigures2 checkout or assembled JAR:
 
 ```bash
 pyenv activate uniagent
 pip install -r requirements.txt
 npm i -g @llamaindex/liteparse   # provides the `lit` command
+mkdir -p third_party
+git clone https://github.com/allenai/pdffigures2.git third_party/pdffigures2
+(cd third_party/pdffigures2 && sbt assembly)
+```
+
+If `sbt` is not available, pass an assembled JAR instead:
+
+```bash
+./src/run_pipeline.py --pdffigures2-jar /path/to/pdffigures2.jar
 ```
 
 Every stage is independently re-runnable and caches to disk; nothing re-fetches what is
 already there. Run from the project root:
 
 ```bash
+./src/run_pipeline.py      # run all stages below in order
 ./src/fetch_volumes.py     # CEUR + DBLP pages     -> data/raw/
 ./src/parse_sections.py    # sections and papers   -> data/intermediate/sections/
 ./src/group_tasks.py       # tasks                 -> data/intermediate/all_candidates.jsonl
-./src/extract_counts.py    # claimed team/run counts
-./src/find_code.py         # code + TIRA links     (slow: fetches every PDF)
-./src/parse_fulltext.py    # markdown, figures, tables
-./src/build_corpus.py      # assemble data/final/
+./src/download_papers.py   # PDFs                  -> data/final/{task_id}/
+./src/parse_fulltext.py    # Markdown, figures, tables -> data/final/{task_id}/
+./src/extract_figs_tbls.py # captioned figures/tables -> document figures/ and tables/
+./src/extract_counts.py    # counts from overview Markdown
+./src/find_code.py         # code + TIRA links from participant Markdown
+./src/build_corpus.py      # indexes, metadata, report -> data/final/
 ```
+
+The complete local run is:
+
+```bash
+./src/run_pipeline.py
+```
+
+The runner is resumable and writes its combined progress log to
+`logs/run_pipeline_YYYYMMDD_HHMMSS.log`. Each individual stage also writes a readable
+`filemode="w"` log in `logs/`.
 
 `build_corpus.py` validates before writing anything, and refuses to emit the corpus if a
 check fails: every task has exactly one overview and ≥1 participant, no duplicate `task_id`
 or `pdf_url`, and every `coverage_ratio` is null or within `[0, 1.5]`.
 
-`pytest` covers the parsing and grouping logic against saved fixtures — 68 tests, no
+`pytest` covers the parsing, layout, download caching, PDFFigures2 integration, enrichment,
+and grouping logic against saved fixtures — 82 tests, no
 network.
 
 ---
@@ -284,8 +325,9 @@ network.
    overview→participant assignment (§2) and sit in `data/intermediate/needs_review.jsonl`.
 2. **`coverage_ratio` is unknown for half the corpus** (21/42), so the plan's intended
    quality filter cannot be applied everywhere.
-3. **Vector figures are not extracted** — only raster images are, which is why 267 of 486
-   documents have figure files rather than nearly all.
+3. **PDFFigures2 is a separate external dependency.** The pipeline fails clearly if its
+   checkout/JAR or Java/SBT is missing; Liteparse assets remain intact and the run can be
+   resumed after setup.
 4. **Markdown tables are unreliable for large tables.** Use the images.
 5. **CLEF only.** SemEval, standalone PAN, and Touché editions outside CLEF are not
    included; the target of 30–50 tasks was met without them.
