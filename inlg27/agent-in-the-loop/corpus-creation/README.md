@@ -199,8 +199,10 @@ so expect it on roughly half of participants (205/444).
 
 Text comes from each PDF's own text layer via [liteparse](https://github.com/run-llama/liteparse),
 output as Markdown to preserve heading structure. The PDF is parsed once for its text and
-assets; later count and code-link stages read the generated Markdown. 18.4M characters
-were produced across 486 documents in the previous CLEF run.
+Liteparse assets; later count and code-link stages read the generated Markdown. A separate
+PDFFigures2 pass detects captioned figures and tables, including many vector-rendered
+figures, and stores its outputs beside those assets. 18.4M characters were produced
+across 486 documents in the previous CLEF run.
 
 **OCR is not used, and does not need to be.** Measured across all 504 PDFs: 0 are garbled,
 0 are scanned page images, and exactly **1** lacks a usable text layer
@@ -212,9 +214,11 @@ a model and point at it:
 ./src/parse_fulltext.py --ocr-server-url http://localhost:8080 --only-needs-ocr
 ```
 
-**Figures** (1,291) are the raster images embedded in the PDFs, referenced inline from the
-markdown so a document still reads as a whole. Figures drawn as *vector* graphics — many
-plots and diagrams — are not files and are not extracted; their captions remain in the text.
+**Figures** (1,291 in the previous Liteparse run) are the raster images embedded in the
+PDFs, referenced inline from the markdown so a document still reads as a whole. The
+PDFFigures2 pass adds captioned figure renderings, including figures drawn as *vector*
+graphics. Its files use the `pdffigures2-` prefix so both extractors' outputs remain
+auditable and cannot overwrite each other.
 
 **Tables** exist in two independent views, and this distinction matters:
 
@@ -261,12 +265,22 @@ solid = [t for t in tasks
 
 ## 7. Reproducing
 
-Setup — note the parser is an npm package, so `pip install` alone is not enough:
+Setup — note the parser is an npm package, so `pip install` alone is not enough. The
+pipeline also needs Java plus a local PDFFigures2 checkout or assembled JAR:
 
 ```bash
 pyenv activate uniagent
 pip install -r requirements.txt
 npm i -g @llamaindex/liteparse   # provides the `lit` command
+mkdir -p third_party
+git clone https://github.com/allenai/pdffigures2.git third_party/pdffigures2
+(cd third_party/pdffigures2 && sbt assembly)
+```
+
+If `sbt` is not available, pass an assembled JAR instead:
+
+```bash
+./src/run_pipeline.py --pdffigures2-jar /path/to/pdffigures2.jar
 ```
 
 Every stage is independently re-runnable and caches to disk; nothing re-fetches what is
@@ -279,6 +293,7 @@ already there. Run from the project root:
 ./src/group_tasks.py       # tasks                 -> data/intermediate/all_candidates.jsonl
 ./src/download_papers.py   # PDFs                  -> data/final/{task_id}/
 ./src/parse_fulltext.py    # Markdown, figures, tables -> data/final/{task_id}/
+./src/extract_figs_tbls.py # captioned figures/tables -> document figures/ and tables/
 ./src/extract_counts.py    # counts from overview Markdown
 ./src/find_code.py         # code + TIRA links from participant Markdown
 ./src/build_corpus.py      # indexes, metadata, report -> data/final/
@@ -298,8 +313,8 @@ The runner is resumable and writes its combined progress log to
 check fails: every task has exactly one overview and ≥1 participant, no duplicate `task_id`
 or `pdf_url`, and every `coverage_ratio` is null or within `[0, 1.5]`.
 
-`pytest` covers the parsing, layout, download caching, enrichment, and grouping logic
-against saved fixtures — 75 tests, no
+`pytest` covers the parsing, layout, download caching, PDFFigures2 integration, enrichment,
+and grouping logic against saved fixtures — 82 tests, no
 network.
 
 ---
@@ -310,8 +325,9 @@ network.
    overview→participant assignment (§2) and sit in `data/intermediate/needs_review.jsonl`.
 2. **`coverage_ratio` is unknown for half the corpus** (21/42), so the plan's intended
    quality filter cannot be applied everywhere.
-3. **Vector figures are not extracted** — only raster images are, which is why 267 of 486
-   documents have figure files rather than nearly all.
+3. **PDFFigures2 is a separate external dependency.** The pipeline fails clearly if its
+   checkout/JAR or Java/SBT is missing; Liteparse assets remain intact and the run can be
+   resumed after setup.
 4. **Markdown tables are unreliable for large tables.** Use the images.
 5. **CLEF only.** SemEval, standalone PAN, and Touché editions outside CLEF are not
    included; the target of 30–50 tasks was met without them.

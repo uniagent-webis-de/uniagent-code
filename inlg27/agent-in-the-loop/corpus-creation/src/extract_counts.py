@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Stage 6 — extract claimed team/run counts from parsed overview Markdown."""
+"""Stage 7 — extract claimed team/run counts from parsed overview Markdown."""
 import argparse
 import json
 import logging

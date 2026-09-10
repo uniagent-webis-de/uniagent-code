@@ -410,9 +410,11 @@ the downloaded PDFs to Markdown.
     {{task_id}}/papers/{{paper_id}}/tables/    notebook tables
 
 Figures are raster images embedded in the PDF, and the markdown keeps an inline `![](...)` reference to each one, so a
-document still reads as a whole. Tables are handled the same way: markdown for the text,
-plus an image of the table exactly as it appears in the paper, which preserves the
-column layout, spanning headers and alignment that a flattened text version loses.
+document still reads as a whole. The later PDFFigures2 stage adds captioned figure and
+table renderings, including many vector-rendered figures. Tables are handled the same
+way: markdown for the text, plus an image of the table exactly as it appears in the
+paper, which preserves the column layout, spanning headers and alignment that a
+flattened text version loses.
 Tables also stay inline in the markdown — these files are an extra view, not a removal.
 
 The two views are produced independently and are **not** index-matched:
@@ -429,8 +431,11 @@ claim to show, and a table drawn without ruling lines has markdown only.
 `manifest.jsonl` records `n_tables` (markdown) beside `n_table_images` (cropped).
 For any table where the two disagree, trust the image.
 
-Note that figures drawn as vector graphics (many plots and diagrams) are not raster
-images and are therefore not extracted as files; their captions remain in the text.
+PDFFigures2 outputs are prefixed with `pdffigures2-` and their counts/status are recorded
+in `manifest.jsonl` as `pdffigures2_figures`, `pdffigures2_tables`, and
+`pdffigures2_status`. If the external extractor is not installed, the pipeline stops at
+that stage with an actionable error; Liteparse's assets remain usable and the run can be
+resumed after installation.
 
 `{{paper_id}}` is derived from the source PDF filename on CEUR-WS, so a document can always be
 traced back to its origin. `manifest.jsonl` records, per document: `task_id`, `role`,

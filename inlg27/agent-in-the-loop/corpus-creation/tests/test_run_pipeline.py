@@ -12,6 +12,11 @@ def make_args(**overrides):
         "ocr_server_url": None,
         "ocr_language": "eng",
         "only_needs_ocr": False,
+        "pdffigures2_dir": None,
+        "pdffigures2_jar": None,
+        "pdffigures2_dpi": 150,
+        "pdffigures2_image_format": "png",
+        "pdffigures2_threads": 4,
     }
     values.update(overrides)
     return Namespace(**values)
@@ -25,6 +30,7 @@ def test_stage_order_matches_the_canonical_pipeline():
         "group_tasks",
         "download_papers",
         "parse_fulltext",
+        "extract_figs_tbls",
         "extract_counts",
         "find_code",
         "build_corpus",

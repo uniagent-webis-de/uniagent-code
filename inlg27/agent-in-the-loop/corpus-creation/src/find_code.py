@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Stage 7 — resolve participant code links from parsed Markdown."""
+"""Stage 8 — resolve participant code links from parsed Markdown."""
 import argparse
 import json
 import logging

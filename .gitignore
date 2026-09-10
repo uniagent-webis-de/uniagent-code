@@ -5,6 +5,7 @@
 /inlg27/agent-in-the-loop/corpus-creation/logs/*
 !/inlg27/agent-in-the-loop/corpus-creation/data/.gitkeep
 !/inlg27/agent-in-the-loop/corpus-creation/logs/.gitkeep
+/inlg27/agent-in-the-loop/corpus-creation/third_party/
 corpora-in-progress
 conf27/inductive-nlg-for-shared-tasks/corpus-creation/raw-data/
 

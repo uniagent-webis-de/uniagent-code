@@ -64,6 +64,18 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
     if args.only_needs_ocr:
         parse_fulltext.append("--only-needs-ocr")
 
+    extract_figs_tbls = list(common)
+    if args.pdffigures2_dir:
+        extract_figs_tbls += ["--pdffigures2-dir", args.pdffigures2_dir]
+    if args.pdffigures2_jar:
+        extract_figs_tbls += ["--pdffigures2-jar", args.pdffigures2_jar]
+    if args.pdffigures2_dpi != 150:
+        extract_figs_tbls += ["--dpi", str(args.pdffigures2_dpi)]
+    if args.pdffigures2_image_format != "png":
+        extract_figs_tbls += ["--image-format", args.pdffigures2_image_format]
+    if args.pdffigures2_threads != 4:
+        extract_figs_tbls += ["--threads", str(args.pdffigures2_threads)]
+
     build = []
     if args.confidence != "high":
         build += ["--confidence", args.confidence]
@@ -78,6 +90,7 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
         ("group_tasks", ["group_tasks.py", *group]),
         ("download_papers", ["download_papers.py", *common]),
         ("parse_fulltext", ["parse_fulltext.py", *parse_fulltext]),
+        ("extract_figs_tbls", ["extract_figs_tbls.py", *extract_figs_tbls]),
         ("extract_counts", ["extract_counts.py", *common]),
         ("find_code", ["find_code.py", *common]),
         ("build_corpus", ["build_corpus.py", *build]),
@@ -120,6 +133,20 @@ def main() -> None:
     parser.add_argument("--ocr-server-url", help="Optional Liteparse OCR server URL.")
     parser.add_argument("--ocr-language", default="eng", help="OCR language for the OCR server.")
     parser.add_argument("--only-needs-ocr", action="store_true", help="Reparse only documents flagged by a previous full-text run.")
+    parser.add_argument(
+        "--pdffigures2-dir",
+        default=None,
+        help="PDFFigures2 checkout; defaults to third_party/pdffigures2.",
+    )
+    parser.add_argument("--pdffigures2-jar", help="Built PDFFigures2 JAR; avoids invoking sbt.")
+    parser.add_argument("--pdffigures2-dpi", type=int, default=150, help="PDFFigures2 render resolution.")
+    parser.add_argument(
+        "--pdffigures2-image-format",
+        choices=["png", "jpg", "jpeg"],
+        default="png",
+        help="PDFFigures2 output image format.",
+    )
+    parser.add_argument("--pdffigures2-threads", type=int, default=4, help="PDFFigures2 worker threads.")
     args = parser.parse_args()
     raise SystemExit(run_pipeline(args))
 

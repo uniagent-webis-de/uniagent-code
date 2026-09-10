@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Assemble the final benchmark deliverables from enriched candidate tasks."""
+"""Stage 9 — assemble the final benchmark deliverables from enriched candidate tasks."""
 import argparse
 import csv
 import json
@@ -115,6 +115,9 @@ def join_fulltext_paths(task: dict, manifest: dict[str, dict], logger: logging.L
         document["fulltext_path"] = record["markdown_path"] if record else None
         document["figures_dir"] = record.get("figures_dir") if record else None
         document["n_figures"] = record.get("n_figures", 0) if record else 0
+        document["pdffigures2_status"] = record.get("pdffigures2_status") if record else None
+        document["pdffigures2_figures"] = record.get("pdffigures2_figures", 0) if record else 0
+        document["pdffigures2_tables"] = record.get("pdffigures2_tables", 0) if record else 0
         document["tables_dir"] = record.get("tables_dir") if record else None
         document["n_tables"] = record.get("n_tables", 0) if record else 0
 
