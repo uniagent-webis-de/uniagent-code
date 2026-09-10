@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 from smolagents import OpenAIModel, Tool
 
-from event_logging import log_tool_calls
+from event_logging import log_event, log_tool_calls
 
 
 MAX_JUDGMENTS_PER_QUERY = 20
@@ -200,7 +200,8 @@ class JudgeRelevanceTool(Tool):
             f"QUERY_ID: {qid}\nQUERY: {query}\n"
             + (f"DESCRIPTION: {description}\n" if description else "")
             + "For EVERY candidate below, judge how relevant its text is to the query on a "
-            "0-3 scale (0=not relevant, 1=marginally relevant, 2=relevant, 3=highly relevant).\n"
+            "0-3 scale (0=not relevant, 1=marginally relevant, 2=relevant, 3=highly relevant). "
+            "Only judge the exact docno values given below; do not invent, rename, or retype them.\n"
             f"CANDIDATES_JSON:\n{json.dumps(candidates, ensure_ascii=False)}\n\n"
             "Respond with ONLY a JSON object, no markdown: "
             '{"judgments":[{"docno":"...","relevance":0-3}, ...]}'
@@ -208,26 +209,59 @@ class JudgeRelevanceTool(Tool):
         content = _call_model_text(self.model, [{"role": "user", "content": prompt}])
         raw_judgments = _parse_judgment_entries(content)
 
+        # The model occasionally returns entries that are not usable: a
+        # hallucinated/retyped docno that does not match any candidate (LLMs
+        # are error-prone at retyping long UUIDs, and the lenient multi-object
+        # parser above can also pick up illustrative example JSON from the
+        # model's reasoning text), an out-of-range relevance grade, or a
+        # malformed entry altogether. A single such entry must not abort the
+        # whole judge_relevance call (and with it the query's entire
+        # reformulation loop): invalid entries are skipped and logged as
+        # `error` observations instead, and only if *no* entry is usable at
+        # all does this tool raise.
         candidate_docnos = {str(candidate["docno"]) for candidate in candidates}
         judgments: dict[str, int] = {}
+        skipped: list[dict[str, Any]] = []
         for entry in raw_judgments[:MAX_JUDGMENTS_PER_QUERY]:
-            if not isinstance(entry, dict) or "docno" not in entry:
-                raise ValueError(f"Invalid judgment entry: {entry!r}")
-            docno = str(entry["docno"])
-            if docno not in candidate_docnos:
-                raise ValueError(f"Judged docno {docno!r} was not among the candidates.")
-            try:
-                relevance = int(entry["relevance"])
-            except (TypeError, ValueError) as error:
-                raise ValueError(f"Invalid relevance grade for {docno!r}: {entry.get('relevance')!r}") from error
-            if not MIN_RELEVANCE <= relevance <= MAX_RELEVANCE:
-                raise ValueError(
-                    f"Relevance grade for {docno!r} must be between {MIN_RELEVANCE} and {MAX_RELEVANCE}."
-                )
-            judgments[docno] = relevance
+            reason = self._invalid_reason(entry, candidate_docnos)
+            if reason is not None:
+                skipped.append({"entry": entry, "reason": reason})
+                continue
+            judgments[str(entry["docno"])] = int(entry["relevance"])
+
+        if skipped:
+            log_event(
+                "error",
+                tool=self.name,
+                input={"qid": qid, "candidate_docnos": sorted(candidate_docnos)},
+                output={"skipped": skipped},
+                status="error",
+                error=f"Skipped {len(skipped)} unusable judgment entry/entries.",
+            )
+        if not judgments:
+            raise ValueError(
+                f"Model did not return any usable judgments for query {qid!r}; "
+                f"all {len(raw_judgments)} entries were invalid: {skipped!r}"
+            )
 
         self.store.set_judgments(qid, judgments)
         return json.dumps({"qid": qid, "judgments": judgments}, ensure_ascii=False)
+
+    @staticmethod
+    def _invalid_reason(entry: Any, candidate_docnos: set[str]) -> Optional[str]:
+        """Return why `entry` cannot be used as a judgment, or None if valid."""
+        if not isinstance(entry, dict) or "docno" not in entry:
+            return "not a {docno, relevance} object"
+        docno = str(entry["docno"])
+        if docno not in candidate_docnos:
+            return "docno was not among the candidates"
+        try:
+            relevance = int(entry["relevance"])
+        except (KeyError, TypeError, ValueError):
+            return f"invalid relevance grade: {entry.get('relevance')!r}"
+        if not MIN_RELEVANCE <= relevance <= MAX_RELEVANCE:
+            return f"relevance grade {relevance} out of range [{MIN_RELEVANCE}, {MAX_RELEVANCE}]"
+        return None
 
 
 class ComputeNdcgTool(Tool):

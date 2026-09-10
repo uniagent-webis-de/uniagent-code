@@ -22,7 +22,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import click
 import pandas as pd
@@ -160,6 +160,77 @@ def reorder_with_relevant_first(results: pd.DataFrame, judgments: dict[str, int]
     return reordered
 
 
+def _run_query(
+    qid: str,
+    original_query: str,
+    description: Optional[str],
+    index,
+    language: str,
+    tools: dict[str, Any],
+    store: QueryJudgmentStore,
+    documents_by_id: dict[str, str],
+    max_reformulations: int,
+    progress: tqdm,
+) -> pd.DataFrame:
+    """Run the judge -> compute_ndcg -> reformulate loop for one query and
+    return its final, reordered ranking."""
+    best_query = original_query
+    best_ndcg = -1.0
+    best_results = pd.DataFrame(columns=["qid", "docno", "rank", "score"])
+    current_query = original_query
+
+    for iteration in range(1, max_reformulations + 2):
+        results = search(index, language, qid, current_query)
+        if results.empty:
+            log_event("observation", input={"qid": qid, "query": current_query}, output={"hits": 0})
+            break
+
+        if iteration == 1:
+            candidates = _candidates_for_judging(results, documents_by_id)
+            tools["judge_relevance"](qid, current_query, candidates, description)
+
+        ranked_docnos = results.sort_values("rank")["docno"].astype(str).tolist()
+        ndcg_response = json.loads(tools["compute_ndcg"](qid, ranked_docnos))
+        current_ndcg = float(ndcg_response["ndcg@10"])
+        log_event(
+            "observation",
+            input={"qid": qid, "query": current_query},
+            output={"ndcg@10": current_ndcg, "hits": len(results)},
+        )
+
+        if current_ndcg > best_ndcg:
+            best_ndcg, best_query, best_results = current_ndcg, current_query, results
+        progress.set_postfix_str(f"qid={qid} round={iteration} ndcg@10={current_ndcg:.3f} best={best_ndcg:.3f}")
+
+        if iteration > max_reformulations:
+            break
+
+        reformulation = json.loads(
+            tools["reformulate_query"](qid, original_query, current_query, current_ndcg, description)
+        )
+        if reformulation["satisfied"]:
+            break
+        current_query = reformulation["query"]
+
+    judgments = store.get_judgments(qid)
+    final_results = reorder_with_relevant_first(best_results, judgments)
+    log_event(
+        "decision",
+        output={
+            "qid": qid,
+            "best_query": best_query,
+            "best_ndcg@10": best_ndcg,
+            "relevant_judged": sum(1 for grade in judgments.values() if grade > 0),
+            "hits": len(final_results),
+        },
+    )
+    progress.write(
+        f"  {qid}: best_query={best_query!r} ndcg@10={best_ndcg:.3f} "
+        f"relevant_judged={sum(1 for grade in judgments.values() if grade > 0)} hits={len(final_results)}"
+    )
+    return final_results
+
+
 def run_agentic_retrieval(
     dataset,
     index,
@@ -186,70 +257,48 @@ def run_agentic_retrieval(
         progress.set_postfix_str(f"qid={qid}")
 
         with case_context(qid):
-            best_query = original_query
-            best_ndcg = -1.0
-            best_results = pd.DataFrame(columns=["qid", "docno", "rank", "score"])
-            current_query = original_query
-
-            for iteration in range(1, max_reformulations + 2):
-                results = search(index, language, qid, current_query)
-                if results.empty:
-                    log_event(
-                        "observation",
-                        input={"qid": qid, "query": current_query},
-                        output={"hits": 0},
-                    )
-                    break
-
-                if iteration == 1:
-                    candidates = _candidates_for_judging(results, documents_by_id)
-                    tools["judge_relevance"](qid, current_query, candidates, description)
-
-                ranked_docnos = results.sort_values("rank")["docno"].astype(str).tolist()
-                ndcg_response = json.loads(tools["compute_ndcg"](qid, ranked_docnos))
-                current_ndcg = float(ndcg_response["ndcg@10"])
+            # A single query's judging/reformulation loop must not abort the
+            # whole run (e.g. every judgment the model returned turned out to
+            # be unusable, or any other unexpected tool/model error): log the
+            # failure and fall back to the query's plain BM25 ranking (no
+            # judged reordering) instead, so every other query still gets
+            # processed and this one still contributes a ranking to run.txt.gz.
+            try:
+                final_results = _run_query(
+                    qid,
+                    original_query,
+                    description,
+                    index,
+                    language,
+                    tools,
+                    store,
+                    documents_by_id,
+                    max_reformulations,
+                    progress,
+                )
+            except Exception as error:
                 log_event(
-                    "observation",
-                    input={"qid": qid, "query": current_query},
-                    output={"ndcg@10": current_ndcg, "hits": len(results)},
+                    "error",
+                    input={"qid": qid, "query": original_query},
+                    output=None,
+                    status="error",
+                    error=str(error),
                 )
-
-                if current_ndcg > best_ndcg:
-                    best_ndcg, best_query, best_results = current_ndcg, current_query, results
-                progress.set_postfix_str(
-                    f"qid={qid} round={iteration} ndcg@10={current_ndcg:.3f} best={best_ndcg:.3f}"
+                final_results = search(index, language, qid, original_query)
+                log_event(
+                    "decision",
+                    output={
+                        "qid": qid,
+                        "best_query": original_query,
+                        "best_ndcg@10": None,
+                        "relevant_judged": 0,
+                        "hits": len(final_results),
+                    },
+                    status="error",
+                    error=str(error),
                 )
-
-                if iteration > max_reformulations:
-                    break
-
-                reformulation = json.loads(
-                    tools["reformulate_query"](
-                        qid, original_query, current_query, current_ndcg, description
-                    )
-                )
-                if reformulation["satisfied"]:
-                    break
-                current_query = reformulation["query"]
-
-            judgments = store.get_judgments(qid)
-            final_results = reorder_with_relevant_first(best_results, judgments)
-            log_event(
-                "decision",
-                output={
-                    "qid": qid,
-                    "best_query": best_query,
-                    "best_ndcg@10": best_ndcg,
-                    "relevant_judged": sum(1 for grade in judgments.values() if grade > 0),
-                    "hits": len(final_results),
-                },
-            )
-            progress.write(
-                f"  {qid}: best_query={best_query!r} ndcg@10={best_ndcg:.3f} "
-                f"relevant_judged={sum(1 for grade in judgments.values() if grade > 0)} "
-                f"hits={len(final_results)}"
-            )
-            runs.append(final_results)
+                progress.write(f"  {qid}: FAILED ({error}); falling back to plain BM25 ranking.")
+        runs.append(final_results)
 
     if not runs:
         return pd.DataFrame(columns=["qid", "docno", "rank", "score"])

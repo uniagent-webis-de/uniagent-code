@@ -81,18 +81,18 @@ class JudgeRelevanceToolTest(unittest.TestCase):
         self.assertEqual(result["judgments"], {"a": 3, "b": 0})
         self.assertEqual(store.get_judgments("q1"), {"a": 3, "b": 0})
 
-    def test_rejects_docno_not_among_candidates(self) -> None:
+    def test_rejects_docno_not_among_candidates_when_no_other_judgment_is_valid(self) -> None:
         model = mock_model(json.dumps({"judgments": [{"docno": "unknown", "relevance": 1}]}))
         tool = JudgeRelevanceTool(model, QueryJudgmentStore())
 
-        with self.assertRaisesRegex(ValueError, "not among the candidates"):
+        with self.assertRaisesRegex(ValueError, "did not return any usable judgments"):
             tool.forward("q1", "query", [{"docno": "a", "snippet": "..."}])
 
-    def test_rejects_out_of_range_relevance(self) -> None:
+    def test_rejects_out_of_range_relevance_when_no_other_judgment_is_valid(self) -> None:
         model = mock_model(json.dumps({"judgments": [{"docno": "a", "relevance": 9}]}))
         tool = JudgeRelevanceTool(model, QueryJudgmentStore())
 
-        with self.assertRaisesRegex(ValueError, "between 0 and 3"):
+        with self.assertRaisesRegex(ValueError, "did not return any usable judgments"):
             tool.forward("q1", "query", [{"docno": "a", "snippet": "..."}])
 
     def test_caps_judgments_at_twenty_candidates(self) -> None:
@@ -152,6 +152,62 @@ class JudgeRelevanceToolTest(unittest.TestCase):
         tool.forward("q1", "query", [{"docno": "a", "snippet": "..."}])
 
         self.assertEqual(store.get_judgments("q1"), {"a": 3})
+
+    def test_skips_hallucinated_docno_but_keeps_valid_judgments(self) -> None:
+        """Regression test: a model that mostly follows instructions but
+        also returns one extra judgment for a docno that was never among the
+        candidates (e.g. a hallucinated/mistyped UUID, or an illustrative
+        example JSON object caught by the lenient multi-object parser) must
+        not abort the whole call - the unusable entry is skipped and the
+        valid ones are still stored."""
+        model = mock_model(
+            json.dumps(
+                {
+                    "judgments": [
+                        {"docno": "a", "relevance": 3},
+                        {"docno": "74ae8556-feb0-4b80-a70e-9566acb8360b", "relevance": 2},
+                        {"docno": "b", "relevance": 0},
+                    ]
+                }
+            )
+        )
+        store = QueryJudgmentStore()
+        tool = JudgeRelevanceTool(model, store)
+        candidates = [{"docno": "a", "snippet": "..."}, {"docno": "b", "snippet": "..."}]
+
+        result = json.loads(tool.forward("q1", "query", candidates))
+
+        self.assertEqual(result["judgments"], {"a": 3, "b": 0})
+        self.assertEqual(store.get_judgments("q1"), {"a": 3, "b": 0})
+
+    def test_skips_out_of_range_relevance_but_keeps_valid_judgments(self) -> None:
+        model = mock_model(
+            json.dumps(
+                {
+                    "judgments": [
+                        {"docno": "a", "relevance": 3},
+                        {"docno": "b", "relevance": 99},
+                    ]
+                }
+            )
+        )
+        store = QueryJudgmentStore()
+        tool = JudgeRelevanceTool(model, store)
+        candidates = [{"docno": "a", "snippet": "..."}, {"docno": "b", "snippet": "..."}]
+
+        tool.forward("q1", "query", candidates)
+
+        self.assertEqual(store.get_judgments("q1"), {"a": 3})
+
+    def test_raises_only_if_every_entry_is_unusable(self) -> None:
+        model = mock_model(
+            json.dumps({"judgments": [{"docno": "unknown-1", "relevance": 1}, {"docno": "unknown-2", "relevance": 2}]})
+        )
+        tool = JudgeRelevanceTool(model, QueryJudgmentStore())
+        candidates = [{"docno": "a", "snippet": "..."}]
+
+        with self.assertRaisesRegex(ValueError, "did not return any usable judgments"):
+            tool.forward("q1", "query", candidates)
 
 
 class ComputeNdcgToolTest(unittest.TestCase):
@@ -354,6 +410,42 @@ class RunAgenticRetrievalTest(unittest.TestCase):
 
         self.assertGreaterEqual(len(run), 2)
         self.assertEqual(run.sort_values("rank").iloc[0]["docno"], "reimbursement-document")
+
+    def test_falls_back_to_plain_bm25_ranking_when_judging_fails(self) -> None:
+        """Regression test: if the model's judgments for a query are entirely
+        unusable (e.g. every returned docno is hallucinated/mistyped and
+        therefore not among that query's candidates), run_agentic_retrieval
+        must not crash the whole run - it must log the failure and fall back
+        to that query's plain BM25 ranking, and still process every query."""
+        queries = [
+            {"qid": "q1", "query": "travel reimbursement", "original_query": {"language": "en"}},
+            {"qid": "q2", "query": "laboratory safety", "original_query": {"language": "en"}},
+        ]
+        documents = [
+            {"doc_id": "reimbursement-document", "text": "Travel reimbursement is processed monthly."},
+            {"doc_id": "safety-document", "text": "Laboratory safety instructions for staff."},
+        ]
+
+        # q1's judge_relevance response only contains a hallucinated docno
+        # that is not among q1's candidates -> judge_relevance raises ->
+        # run_agentic_retrieval must fall back instead of propagating.
+        # q2 then succeeds normally (judge + satisfied reformulation).
+        model = mock_model(
+            json.dumps({"judgments": [{"docno": "74ae8556-feb0-4b80-a70e-9566acb8360b", "relevance": 2}]}),
+            json.dumps({"judgments": [{"docno": "safety-document", "relevance": 3}]}),
+            json.dumps({"satisfied": True}),
+        )
+
+        with persisted_dataset(queries, documents) as dataset:
+            index = create_index(dataset, "en")
+            with event_logging.log_to_file(Path(tempfile.mkstemp(suffix=".jsonl.log.gz")[1])):
+                run = run_agentic_retrieval(dataset, index, "en", model, max_reformulations=1)
+
+        # Both queries still contribute a ranking: q1 via the plain BM25
+        # fallback, q2 via the normal judge/score/reorder path.
+        self.assertEqual(set(run["qid"].astype(str)), {"q1", "q2"})
+        q1_docnos = run[run["qid"].astype(str) == "q1"]["docno"].tolist()
+        self.assertIn("reimbursement-document", q1_docnos)
 
 
 if __name__ == "__main__":
