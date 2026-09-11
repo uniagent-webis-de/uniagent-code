@@ -2,6 +2,7 @@ import logging
 
 from src.group_tasks import (
     ORGANIZER_TITLE_RE,
+    HISTORICAL_ORGANIZER_TITLE_RE,
     assign_by_title_match,
     extract_team_name,
     find_overview_indices,
@@ -169,7 +170,7 @@ def test_best_of_labs_papers_excluded():
     assert all("Best of Labs" not in p["title"] for p in kept)
 
 
-def test_no_overview_keyword_falls_back_to_first_paper():
+def test_no_overview_keyword_falls_back_to_first_paper_for_review_only():
     section = {
         "lab_name": "Odd Lab (ODD)",
         "papers": [
@@ -180,6 +181,9 @@ def test_no_overview_keyword_falls_back_to_first_paper():
     tasks = group_section(section, ENTRY, LOGGER, "2026-08-16")
     assert len(tasks) == 1
     assert tasks[0]["overview"]["title"] == "ODD 2023: A Technical Summary of the Shared Task"
+    assert tasks[0]["provenance"]["task_assignment_method"] == "first_paper_fallback"
+    assert tasks[0]["provenance"]["confidence"] == "medium"
+    assert tasks[0]["provenance"]["confidence_reasons"]
 
 
 def test_tokenize_splits_camelcase_compounds():
@@ -269,6 +273,21 @@ def test_organizer_task_paper_without_overview_keyword_is_detected():
     }
     overview_indices = find_overview_indices(section["papers"], LOGGER, section["lab_name"])
     assert overview_indices == [0, 1, 2]
+
+
+def test_historical_clef_organizer_title_forms_are_detected():
+    titles = [
+        "The CLEF 2001 Interactive Track",
+        "The CLEF 2003 Cross Language Image Retrieval Task",
+        "The Multiple Language Question Answering Track at CLEF 2003",
+        "Report on CLEF-2003 Multilingual Tracks",
+    ]
+    for title in titles:
+        assert HISTORICAL_ORGANIZER_TITLE_RE.search(title)
+
+    assert not HISTORICAL_ORGANIZER_TITLE_RE.search(
+        "Report on CLEF-2003 Experiments: Two Ways of Extracting Multilingual Resources from Corpora"
+    )
 
 
 def test_team_system_paper_is_not_mistaken_for_an_organizer_paper():

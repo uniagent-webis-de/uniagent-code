@@ -34,6 +34,20 @@ def test_parse_ceur_volume_normalizes_multiline_section_heading():
     assert checkthat_section["lab_name"].startswith("Check-Worthiness, Subjectivity")
 
 
+def test_parse_ceur_volume_supports_legacy_plural_author_span():
+    raw_html = """
+    <h3><span class="CEURSESSION">Legacy Lab</span></h3>
+    <ul>
+      <li><a href="legacy.pdf"><span class="CEURTITLE">Legacy paper</span></a>
+        <span class="CEURAUTHORS">Ada Lovelace, Alan Turing</span>
+      </li>
+    </ul>
+    """
+    sections = parse_ceur_volume(raw_html, "1166")
+
+    assert sections[0]["papers"][0]["authors"] == ["Ada Lovelace", "Alan Turing"]
+
+
 def test_normalize_title_treats_punctuation_as_word_boundary():
     # Real-world case: DBLP spells "CheckThat!-2023", CEUR spells "CheckThat! 2023" —
     # the hyphen must not silently merge the two words into one token.

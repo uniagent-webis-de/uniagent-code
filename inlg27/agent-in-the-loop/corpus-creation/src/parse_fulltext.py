@@ -350,9 +350,8 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
     # count that could not be established at all (treated as suspicious, not as a pass).
     #
     # liteparse's own is-complex verdict is deliberately NOT a trigger here: it fires on
-    # ordinary tables, figures and vector graphics, and flagged 471 of 486 perfectly
-    # well-extracted papers when tried. The text metrics below match the independent
-    # 504-PDF scan exactly (one genuine case).
+    # ordinary tables, figures and vector graphics, and can flag otherwise well-extracted
+    # papers. The text metrics below are deliberately independent of that verdict.
     reasons = []
     if chars_per_page is not None and chars_per_page < MIN_CHARS_PER_PAGE:
         reasons.append(f"only {chars_per_page} chars/page")

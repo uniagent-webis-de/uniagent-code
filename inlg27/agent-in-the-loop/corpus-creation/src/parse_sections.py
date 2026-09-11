@@ -11,6 +11,11 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.clef_config import CLEF_VOLUMES
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CEUR_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "ceur"
 DBLP_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "dblp"
@@ -19,18 +24,7 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 
 CEUR_BASE_URL_TEMPLATE = "https://ceur-ws.org/Vol-{volume}/"
 
-# Same volume map as src/fetch_volumes.py — kept in sync there; Stage 2 only needs
-# volume -> (parent_venue, year) to name output files and locate the DBLP cache.
-VOLUME_MAP = [
-    {"parent_venue": "CLEF", "year": 2025, "volume": "4038"},
-    {"parent_venue": "CLEF", "year": 2024, "volume": "3740"},
-    {"parent_venue": "CLEF", "year": 2023, "volume": "3497"},
-    {"parent_venue": "CLEF", "year": 2022, "volume": "3180"},
-    {"parent_venue": "CLEF", "year": 2021, "volume": "2936"},
-    {"parent_venue": "CLEF", "year": 2020, "volume": "2696"},
-    {"parent_venue": "CLEF", "year": 2019, "volume": "2380"},
-    {"parent_venue": "CLEF", "year": 2018, "volume": "2125"},
-]
+VOLUME_MAP = CLEF_VOLUMES
 
 
 def setup_logging() -> Path:
@@ -88,7 +82,14 @@ def parse_ceur_volume(raw_html: str, volume: str) -> list[dict]:
                 continue
 
             title = re.sub(r"\s+", " ", title_span.get_text(strip=True))
-            authors = [a.get_text(strip=True) for a in item.find_all("span", class_="CEURAUTHOR")]
+            authors = []
+            author_nodes = item.find_all("span", class_=re.compile(r"^CEURAUTHORS?$"))
+            for author_node in author_nodes:
+                authors.extend(
+                    author.strip()
+                    for author in author_node.get_text(" ", strip=True).split(",")
+                    if author.strip()
+                )
             pdf_url = base_url + link["href"]
 
             papers.append({

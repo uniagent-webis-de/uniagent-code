@@ -9,6 +9,11 @@ from pathlib import Path
 
 import requests
 
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.clef_config import CLEF_VOLUMES
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CEUR_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "ceur"
 DBLP_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "dblp"
@@ -18,17 +23,7 @@ CEUR_URL_TEMPLATE = "https://ceur-ws.org/Vol-{volume}/"
 REQUEST_TIMEOUT_SECONDS = 30
 REQUEST_DELAY_SECONDS = 1.0
 
-# Parent venue | year | CEUR-WS volume | DBLP working-notes record (PLAN.md section 2)
-VOLUME_MAP = [
-    {"parent_venue": "CLEF", "year": 2025, "volume": "4038", "dblp_url": "https://dblp.org/db/conf/clef/clef2025w.html"},
-    {"parent_venue": "CLEF", "year": 2024, "volume": "3740", "dblp_url": "https://dblp.org/db/conf/clef/clef2024w.html"},
-    {"parent_venue": "CLEF", "year": 2023, "volume": "3497", "dblp_url": "https://dblp.org/db/conf/clef/clef2023w.html"},
-    {"parent_venue": "CLEF", "year": 2022, "volume": "3180", "dblp_url": "https://dblp.org/db/conf/clef/clef2022w.html"},
-    {"parent_venue": "CLEF", "year": 2021, "volume": "2936", "dblp_url": "https://dblp.org/db/conf/clef/clef2021w.html"},
-    {"parent_venue": "CLEF", "year": 2020, "volume": "2696", "dblp_url": "https://dblp.org/db/conf/clef/clef2020w.html"},
-    {"parent_venue": "CLEF", "year": 2019, "volume": "2380", "dblp_url": "https://dblp.org/db/conf/clef/clef2019w.html"},
-    {"parent_venue": "CLEF", "year": 2018, "volume": "2125", "dblp_url": "https://dblp.org/db/conf/clef/clef2018w.html"},
-]
+VOLUME_MAP = CLEF_VOLUMES
 
 
 def setup_logging() -> Path:

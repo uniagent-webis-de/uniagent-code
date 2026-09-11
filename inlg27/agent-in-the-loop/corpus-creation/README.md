@@ -20,7 +20,7 @@ high-confidence candidates that pass screening.
 
 ## 1. Where the data comes from
 
-The initial CLEF corpus derives from two public sources, both fetched once and cached.
+The CLEF corpus derives from two public sources, both fetched once and cached.
 Source-specific expansion collectors use the same candidate contract and are merged before
 the paper-download stages:
 
@@ -30,12 +30,14 @@ the paper-download stages:
 | [DBLP](https://dblp.org) working-notes records | Cross-check only — confirms titles and supplies cleaner author name spellings |
 | [ACL Anthology](https://aclanthology.org) proceedings pages | Official SemEval collection pages, paper metadata, and source-provided PDF links |
 
-Eight volumes, one per CLEF edition: 2125 (2018), 2380, 2696, 2936, 3180, 3497, 3740,
-4038 (2025).
+Twenty-six volumes, one per CLEF Working Notes edition from 2000 through 2025: volumes
+1166–1179 (2000–2013), 1180 (2014), 1391 (2015), 1609 (2016), 1866 (2017), and
+2125–4038 (2018–2025).
 
 DBLP never adds or removes a paper. CEUR-WS is authoritative for *which* papers exist and
 what section they sit in; DBLP only corrects author spellings where the normalized titles
-match (99%+ of papers).
+match. In the latest all-years run, DBLP served anti-bot challenge pages, so no DBLP
+matches contributed to the corpus and CEUR author metadata was retained.
 
 **Every `pdf_url` in the corpus was read from an `href` on a CEUR-WS index page.** None are
 constructed from a filename pattern — the patterns are not stable across volumes
@@ -77,8 +79,8 @@ included in the released corpus. Marked `confidence: "high"`,
 **Several overviews in the section** → assignment falls back to matching notebook titles
 against overview titles. This is *not* reliable, so those entries are marked
 `confidence: "medium"` and written to `data/intermediate/needs_review.jsonl` for human
-review. **156 of 198 candidate tasks are in this state and are excluded from the released
-corpus.**
+review. In the current all-years CLEF scan, 105 of 384 candidate task groups are high
+confidence; the remaining 279 are excluded from the released corpus pending review.
 
 > The original plan assumed overviews and their participants appear contiguously, so
 > positional grouping would work throughout. They do not: CEUR volumes list *all* of a
@@ -195,7 +197,7 @@ the **same order**, so the columns align positionally.
 
 **`coverage_ratio`** = `notebook_papers / teams_claimed_in_overview`. Not every team that
 competes writes a paper, so a ratio below 1 is normal and expected, not a bug — Touché 2020
-reports 17 teams and 41 runs but published 10 notebook papers. **It is `null` for 21 of 42
+reports 17 teams and 41 runs but published 10 notebook papers. **It is `null` for 128 of 227
 tasks**, where the overview does not state a participation count in extractable prose. Team
 counts are only taken from statements about *actual participation*; registration counts
 ("98 teams registered") are deliberately refused, since they would inflate the ratio.
@@ -213,7 +215,7 @@ whose titles omit task numbers entirely reads as non-umbrella even if it ran sev
 
 **`team_name`** is extracted only from the two attribution shapes CEUR titles actually use
 (`TEAM at Venue Year: …`, `TEAM@Venue: …`), and is `null` rather than guessed otherwise —
-so expect it on roughly half of participants (205/444).
+it was extracted for 2,903 of 3,611 participants in the current corpus.
 
 ---
 
@@ -223,37 +225,32 @@ Text comes from each PDF's own text layer via [liteparse](https://github.com/run
 output as Markdown to preserve heading structure. The PDF is parsed once for its text and
 Liteparse assets; later count and code-link stages read the generated Markdown. A separate
 PDFFigures2 pass detects captioned figures and tables, including many vector-rendered
-figures, and stores its outputs beside those assets. 18.4M characters were produced
-across 486 documents in the previous CLEF run.
+figures, and stores its outputs beside those assets. The current corpus contains 106.4M
+extracted characters across 3,838 documents.
 
-**OCR is not used, and does not need to be.** Measured across all 504 PDFs: 0 are garbled,
-0 are scanned page images, and exactly **1** lacks a usable text layer
-(`Vol-3740/paper-124.pdf`, whose text is drawn as vector outlines). It is flagged
-`needs_ocr` in `manifest.jsonl`. If you want it, liteparse delegates OCR over HTTP, so serve
-a model and point at it:
+**OCR is opt-in.** Seven of the 3,838 PDFs have a thin or missing text layer and are flagged
+`needs_ocr` in `manifest.jsonl`; the other 3,831 were parsed without OCR. If you want to
+retry those documents, liteparse delegates OCR over HTTP, so serve a model and point at it:
 
 ```bash
 ./src/parse_fulltext.py --ocr-server-url http://localhost:8080 --only-needs-ocr
 ```
 
-**Figures** (1,291 in the previous Liteparse run) are the raster images embedded in the
+**Figures** (11,268 in the current corpus) are the raster images embedded in the
 PDFs, referenced inline from the markdown so a document still reads as a whole. The
 PDFFigures2 pass adds captioned figure renderings, including figures drawn as *vector*
 graphics. Its files use the `pdffigures2-` prefix so both extractors' outputs remain
 auditable and cannot overwrite each other.
 
-**Tables** exist in two independent views, and this distinction matters:
+**Tables** in the final corpus are rendered by PDFFigures2:
 
 | View | Count | How it is produced |
 |---|---|---|
-| `table-NN.md` | 3,199 | The parser's text reconstruction, in document order |
-| `pageNNN-tableNN.png` | 3,055 | Cropped from the page using the paper's own ruling lines |
+| `tables/pdffigures2-*.png` | 15,557 | Captioned table renderings from PDFFigures2 |
 
-**They are not index-matched, and where they disagree, trust the image.** The text
-reconstruction is unreliable for large tables — in the eRisk 2018 overview the parser
-collapsed a 34-team results table into a single markdown row. Pairing images to markdown
-tables by matching cell text was tried and produced images filed under the wrong table, so
-images are now named for the page they came from and always show what they claim to.
+The parsed Markdown still retains table content inline. The extraction stage removes the
+older standalone `table-NN.md` and cropped `pageNNN-tableNN.png` assets so the final
+`tables/` directories have one auditable representation.
 
 ---
 
@@ -349,11 +346,12 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
 
 ## 8. Known limitations
 
-1. **The initial screen is conservative.** The current cached candidate set contains 42
-   high-confidence CLEF tasks and 122 high-confidence SemEval tasks across 17 configured
-   editions. The merged review file contains medium-confidence candidates and unresolved
-   papers from both sources. These numbers can change as more venues are added or source
-   pages are refreshed.
+1. **The initial screen is conservative.** The current cached candidate set contains 105
+   high-confidence CLEF tasks and 122 high-confidence SemEval tasks across the configured
+   editions. CLEF scans 2000–2025, but the 2000 volume currently has no high-confidence
+   grouping and remains in the merged review file. The review file also contains other
+   medium-confidence candidates and unresolved papers from both sources. These numbers can
+   change as more venues are added or source pages are refreshed.
 2. **`coverage_ratio` is source-dependent.** It is unknown where an overview's claimed
    team count cannot be extracted, so the plan's coverage-based ranking is only partially
    available until more source-specific count extractors are added.

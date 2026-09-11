@@ -28,6 +28,16 @@ CANDIDATES_DIR = INTERMEDIATE_DIR / "candidates"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 OVERVIEW_TITLE_RE = re.compile(r"\boverview\b|\bextended abstract\b", re.IGNORECASE)
+# Early CLEF Working Notes often used a direct track/task description instead of the
+# word "overview". These patterns are deliberately narrow: they cover the recurring
+# organizer forms in the 2001–2003 volumes without treating ordinary participant titles
+# such as "Report on CLEF-2003 Experiments: ..." as overviews.
+HISTORICAL_ORGANIZER_TITLE_RE = re.compile(
+    r"(?:^The CLEF[- ]20\d\d\b.*\b(?:track|task)\b|"
+    r"^The .+\bTrack at CLEF[- ]?20\d\d$|"
+    r"^Report on CLEF-20\d\d (?:Experiments|Multilingual Tracks)$)",
+    re.IGNORECASE,
+)
 
 # Organizer-written task descriptions that never use the word "overview". Real bug found
 # in audit: the ELOQUENT 2024 section publishes three organizer task papers, but only
@@ -146,12 +156,25 @@ def clean_task_name(overview_title: str) -> str:
 def find_overview_indices(papers: list[dict], logger: logging.Logger, lab_name: str) -> list[int]:
     indices = [
         i for i, p in enumerate(papers)
-        if OVERVIEW_TITLE_RE.search(p["title"]) or ORGANIZER_TITLE_RE.search(p["title"])
+        if overview_was_explicitly_detected(p)
     ]
     if not indices and papers:
-        logger.warning("no title matched overview keyword in section %r — using first paper as overview", lab_name)
+        logger.warning(
+            "no title matched overview keyword in section %r — using first paper as an inferred overview; candidate will require review",
+            lab_name,
+        )
         indices = [0]
     return indices
+
+
+def overview_was_explicitly_detected(paper: dict) -> bool:
+    """Return whether a paper title matched an organizer/overview title rule."""
+    title = paper["title"]
+    return bool(
+        OVERVIEW_TITLE_RE.search(title)
+        or ORGANIZER_TITLE_RE.search(title)
+        or HISTORICAL_ORGANIZER_TITLE_RE.search(title)
+    )
 
 
 def split_best_of_labs(papers: list[dict], logger: logging.Logger) -> tuple[list[dict], list[dict]]:
@@ -312,21 +335,36 @@ def group_section(section: dict, entry: dict, logger: logging.Logger, extracted_
     if len(overview_indices) == 1:
         overview = papers[overview_indices[0]]
         participants = assign_by_position(papers, overview_indices)
+        explicit_overview = overview_was_explicitly_detected(overview)
+        confidence = "high" if explicit_overview else "medium"
+        method = "section_grouping" if explicit_overview else "first_paper_fallback"
+        reasons = [] if explicit_overview else [
+            "overview inferred from first paper because no explicit overview or organizer title marker matched",
+        ]
         if has_hidden_second_task(overview["title"], participants):
             logger.warning(
                 "section %r: overview %r declares its own task number but a participant declares a different one — "
                 "likely a second, undetected overview in this section; downgrading to confidence=medium for review",
                 lab_name, overview["title"],
             )
-            tasks.append(build_task_record(entry, lab_name, overview, participants, "section_grouping", "medium", extracted_at))
-        else:
-            tasks.append(build_task_record(entry, lab_name, overview, participants, "section_grouping", "high", extracted_at))
+            confidence = "medium"
+            reasons.append("participant titles indicate a second task not represented by the detected overview")
+        tasks.append(build_task_record(entry, lab_name, overview, participants, method, confidence, extracted_at, reasons))
     else:
         assignments = assign_by_title_match(papers, overview_indices, logger, lab_name)
         for ov_idx in overview_indices:
             overview = papers[ov_idx]
             participants = assignments[ov_idx]
-            tasks.append(build_task_record(entry, lab_name, overview, participants, "title_heuristic", "medium", extracted_at))
+            tasks.append(build_task_record(
+                entry,
+                lab_name,
+                overview,
+                participants,
+                "title_heuristic",
+                "medium",
+                extracted_at,
+                ["participant assignment depends on title-keyword matching across multiple overviews"],
+            ))
 
     rejected = [t for t in tasks if not t["participants"]]
     for t in rejected:
@@ -334,7 +372,16 @@ def group_section(section: dict, entry: dict, logger: logging.Logger, extracted_
     return [t for t in tasks if t["participants"]]
 
 
-def build_task_record(entry: dict, lab_name: str, overview: dict, participants: list[dict], method: str, confidence: str, extracted_at: str) -> dict:
+def build_task_record(
+    entry: dict,
+    lab_name: str,
+    overview: dict,
+    participants: list[dict],
+    method: str,
+    confidence: str,
+    extracted_at: str,
+    confidence_reasons: list[str] | None = None,
+) -> dict:
     venue = extract_venue(lab_name)
     task_name = clean_task_name(overview["title"])
     task_id = f"{entry['parent_venue'].lower()}{entry['year']}-{slugify(venue)}-{slugify(task_name)}"
@@ -379,6 +426,7 @@ def build_task_record(entry: dict, lab_name: str, overview: dict, participants: 
         "provenance": {
             "task_assignment_method": method,
             "confidence": confidence,
+            "confidence_reasons": confidence_reasons or [],
             "extracted_at": extracted_at,
         },
     }

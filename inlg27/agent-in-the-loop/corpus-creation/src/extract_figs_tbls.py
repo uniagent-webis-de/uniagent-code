@@ -190,7 +190,7 @@ def pdffigures2_batch_command(
 
     The reference wrapper invokes the CLI once per file. The CLI also accepts a
     directory and supports multiple worker threads; using that mode keeps the JVM startup
-    cost from being paid 486 times during a corpus build.
+    cost from being paid once per document during a corpus build.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     arguments = [
