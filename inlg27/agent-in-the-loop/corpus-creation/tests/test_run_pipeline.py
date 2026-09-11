@@ -10,6 +10,7 @@ def make_args(**overrides):
         "task_id": None,
         "download_workers": 8,
         "semeval_year": None,
+        "trec_year": None,
         "target": None,
         "ocr_server_url": None,
         "ocr_language": "eng",
@@ -32,6 +33,8 @@ def test_stage_order_matches_the_canonical_pipeline():
         "group_tasks",
         "fetch_semeval",
         "collect_semeval",
+        "fetch_trec",
+        "collect_trec",
         "merge_candidates",
         "download_papers",
         "parse_fulltext",
@@ -60,3 +63,9 @@ def test_pipeline_stops_after_a_failed_stage(monkeypatch):
     monkeypatch.setattr("src.run_pipeline.subprocess.Popen", fake_popen)
     assert run_pipeline(make_args()) == 1
     assert len(calls) == 2
+
+
+def test_trec_year_is_forwarded_to_both_trec_stages():
+    commands = dict(stage_commands(make_args(trec_year=2025)))
+    assert commands["fetch_trec"] == ["fetch_trec.py", "--year", "2025"]
+    assert commands["collect_trec"] == ["collect_trec.py", "--year", "2025"]

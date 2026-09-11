@@ -19,6 +19,7 @@ from src.corpus_paths import CANDIDATES_DIR, INTERMEDIATE_DIR, SCREENING_DIR
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = PROJECT_ROOT / "logs"
+DOWNLOAD_FAILURES_PATH = INTERMEDIATE_DIR / "download_failures.jsonl"
 
 
 def setup_logging() -> Path:
@@ -70,6 +71,7 @@ def demote_duplicates(candidates: list[dict], logger: logging.Logger) -> None:
             logger.warning(reason)
             for candidate in matches:
                 demote(candidate, [reason])
+
     for pdf_url, matches in by_pdf_url.items():
         task_ids = {candidate.get("task_id") for candidate in matches}
         if pdf_url and len(task_ids) > 1:
@@ -77,6 +79,26 @@ def demote_duplicates(candidates: list[dict], logger: logging.Logger) -> None:
             logger.warning(reason)
             for candidate in matches:
                 demote(candidate, [reason])
+
+
+def demote_download_failures(candidates: list[dict], logger: logging.Logger) -> None:
+    """Keep tasks with previously failed required PDFs in the review queue."""
+    failures = read_jsonl(DOWNLOAD_FAILURES_PATH)
+    by_task: dict[str, list[str]] = defaultdict(list)
+    for failure in failures:
+        task_id = failure.get("task_id")
+        pdf_url = failure.get("pdf_url")
+        if task_id and pdf_url:
+            by_task[task_id].append(pdf_url)
+    for candidate in candidates:
+        urls = sorted(set(by_task.get(candidate.get("task_id"), [])))
+        if not urls:
+            continue
+        demote(candidate, [f"required PDF download failed: {url}" for url in urls])
+        logger.warning(
+            "%s remains in review because %d required PDF(s) previously failed to download",
+            candidate.get("task_id", "unknown"), len(urls),
+        )
 
 
 def merge(logger: logging.Logger) -> tuple[list[dict], list[dict], list[dict]]:
@@ -94,6 +116,7 @@ def merge(logger: logging.Logger) -> tuple[list[dict], list[dict], list[dict]]:
             logger.warning("%s moved to review: %s", candidate.get("task_id", "unknown"), "; ".join(issues))
         valid_candidates.append(candidate)
 
+    demote_download_failures(valid_candidates, logger)
     demote_duplicates(valid_candidates, logger)
     valid_candidates.sort(key=candidate_sort_key)
     review.extend(candidate for candidate in valid_candidates if candidate.get("provenance", {}).get("confidence") != "high")
