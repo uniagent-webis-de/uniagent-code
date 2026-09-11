@@ -46,6 +46,7 @@ def test_single_overview_section_uses_positional_grouping():
     assert tasks[0]["provenance"]["task_assignment_method"] == "section_grouping"
     assert tasks[0]["provenance"]["confidence"] == "high"
     assert len(tasks[0]["participants"]) == 2
+    assert tasks[0]["source"]["provider"] == "ceur_ws"
 
 
 def test_multi_overview_section_assigns_by_title_keyword_overlap():

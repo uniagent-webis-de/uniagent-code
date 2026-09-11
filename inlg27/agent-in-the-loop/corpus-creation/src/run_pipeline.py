@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run the Phase 1 CLEF corpus pipeline in the canonical order.
+"""Run the multi-source shared-task corpus pipeline in the canonical order.
 
 The individual stages remain directly executable for debugging. This wrapper provides
 one resumable entry point and stops at the first failed stage so a partial corpus is not
@@ -79,15 +79,22 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
     build = []
     if args.confidence != "high":
         build += ["--confidence", args.confidence]
-    if args.target != 50:
+    if args.target is not None:
         build += ["--target", str(args.target)]
     if args.task_id:
         build += ["--task-id", args.task_id]
+
+    semeval = []
+    if args.semeval_year:
+        semeval = ["--year", str(args.semeval_year)]
 
     return [
         ("fetch_volumes", ["fetch_volumes.py", *fetch]),
         ("parse_sections", ["parse_sections.py", *parse]),
         ("group_tasks", ["group_tasks.py", *group]),
+        ("fetch_semeval", ["fetch_semeval.py", *semeval]),
+        ("collect_semeval", ["collect_semeval.py", *semeval]),
+        ("merge_candidates", ["merge_candidates.py"]),
         ("download_papers", ["download_papers.py", *common]),
         ("parse_fulltext", ["parse_fulltext.py", *parse_fulltext]),
         ("extract_figs_tbls", ["extract_figs_tbls.py", *extract_figs_tbls]),
@@ -125,11 +132,17 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Phase 1 CLEF corpus pipeline.")
+    parser = argparse.ArgumentParser(description="Run the multi-source shared-task corpus pipeline.")
     parser.add_argument("--volume", help="Process only one CLEF volume during metadata stages.")
     parser.add_argument("--confidence", choices=["high", "medium", "all"], default="high")
     parser.add_argument("--task-id", help="Process and assemble only one task.")
-    parser.add_argument("--target", type=int, default=50, help="Maximum number of tasks to emit.")
+    parser.add_argument("--semeval-year", type=int, help="Process only one configured SemEval year during SemEval stages.")
+    parser.add_argument(
+        "--target",
+        type=int,
+        default=None,
+        help="Optional maximum number of tasks to emit; by default all selected candidates are emitted.",
+    )
     parser.add_argument("--ocr-server-url", help="Optional Liteparse OCR server URL.")
     parser.add_argument("--ocr-language", default="eng", help="OCR language for the OCR server.")
     parser.add_argument("--only-needs-ocr", action="store_true", help="Reparse only documents flagged by a previous full-text run.")

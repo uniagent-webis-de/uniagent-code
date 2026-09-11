@@ -5,25 +5,30 @@ verification. The pipeline never uploads data automatically.
 
 # Shared-Task Corpus — Build, Layout, and Usage
 
-A corpus of CLEF shared tasks where each entry links one **overview paper** (written by the
-lab organizers, summarising the whole task) to the **notebook papers** written by the teams
-that participated in it.
+A corpus of shared tasks where each entry links one **overview paper** (written by the
+organizers, summarising the whole task) to the **notebook papers** written by the teams
+that participated in it. The current corpus starts with CLEF and is being expanded with
+high-precision collectors for SemEval and other ACL/IR venues.
 
 The intended use is generation: the notebook papers are the inputs, the overview paper is
 the target output.
 
-**42 tasks · 444 notebook papers · 486 parsed documents · CLEF 2018–2025 · 22 labs**
+The generated counts are recorded in `data/final/report.md`; the default pipeline emits all
+high-confidence candidates that pass screening.
 
 ---
 
 ## 1. Where the data comes from
 
-Everything derives from two public sources, both fetched once and cached:
+The initial CLEF corpus derives from two public sources, both fetched once and cached.
+Source-specific expansion collectors use the same candidate contract and are merged before
+the paper-download stages:
 
 | Source | Role |
 |---|---|
 | [CEUR-WS](https://ceur-ws.org) volume index pages | Authoritative table of contents: which papers exist, in which lab section, in what order |
 | [DBLP](https://dblp.org) working-notes records | Cross-check only — confirms titles and supplies cleaner author name spellings |
+| [ACL Anthology](https://aclanthology.org) proceedings pages | Official SemEval collection pages, paper metadata, and source-provided PDF links |
 
 Eight volumes, one per CLEF edition: 2125 (2018), 2380, 2696, 2936, 3180, 3497, 3740,
 4038 (2025).
@@ -40,6 +45,19 @@ produces dead links.
 ---
 
 ## 2. How tasks were identified
+
+Each source has its own conservative collector. Collectors write source-specific records to
+`data/intermediate/candidates/*.jsonl`; `merge_candidates.py` validates the common schema,
+demotes collisions or malformed records, and combines the candidates. High-confidence
+records are eligible for the final corpus automatically. Medium-confidence candidates and
+unresolved source records are combined in `data/intermediate/needs_review.jsonl`, including
+the existing CLEF review candidates.
+
+The first non-CLEF collector targets SemEval 2025. It uses the official ACL Anthology
+volume page and requires an explicit `SemEval-YYYY Task N` marker, one organizer paper,
+at least two participant papers, official PDF links, and unique document URLs before a
+task is marked high confidence. The parser accepts both `Team at SemEval-YYYY` and the
+frequent compact `TeamatSemEval-YYYY` title form. Other title forms remain review material.
 
 This is the part worth understanding before you trust an entry, because it is where the
 judgement lives.
@@ -290,7 +308,10 @@ already there. Run from the project root:
 ./src/run_pipeline.py      # run all stages below in order
 ./src/fetch_volumes.py     # CEUR + DBLP pages     -> data/raw/
 ./src/parse_sections.py    # sections and papers   -> data/intermediate/sections/
-./src/group_tasks.py       # tasks                 -> data/intermediate/all_candidates.jsonl
+./src/group_tasks.py       # CLEF candidates       -> data/intermediate/candidates/clef.jsonl
+./src/fetch_semeval.py     # ACL SemEval pages     -> data/raw/acl_anthology/semeval/
+./src/collect_semeval.py   # SemEval candidates    -> data/intermediate/candidates/semeval.jsonl
+./src/merge_candidates.py  # merged candidates     -> data/intermediate/all_candidates.jsonl
 ./src/download_papers.py   # PDFs                  -> data/final/{task_id}/
 ./src/parse_fulltext.py    # Markdown, figures, tables -> data/final/{task_id}/
 ./src/extract_figs_tbls.py # captioned figures/tables -> document figures/ and tables/
@@ -309,26 +330,37 @@ The runner is resumable and writes its combined progress log to
 `logs/run_pipeline_YYYYMMDD_HHMMSS.log`. Each individual stage also writes a readable
 `filemode="w"` log in `logs/`.
 
+By default, `build_corpus.py` emits all high-confidence candidates selected by the
+pipeline. Use `--confidence medium` or `--confidence all` only when you intentionally want
+to include review material. Use `--target N` as an optional experimental cap.
+
 `build_corpus.py` validates before writing anything, and refuses to emit the corpus if a
 check fails: every task has exactly one overview and ≥1 participant, no duplicate `task_id`
 or `pdf_url`, and every `coverage_ratio` is null or within `[0, 1.5]`.
 
 `pytest` covers the parsing, layout, download caching, PDFFigures2 integration, enrichment,
-and grouping logic against saved fixtures — 82 tests, no
-network.
+candidate screening, and grouping logic against saved fixtures — with no network access.
 
 ---
 
 ## 8. Known limitations
 
-1. **42 of 198 candidate tasks are released.** The other 156 need human review of their
-   overview→participant assignment (§2) and sit in `data/intermediate/needs_review.jsonl`.
-2. **`coverage_ratio` is unknown for half the corpus** (21/42), so the plan's intended
-   quality filter cannot be applied everywhere.
+1. **The initial screen is conservative.** The current candidate set contains 42 high-
+   confidence CLEF tasks, 11 high-confidence SemEval 2025 tasks, and 163 review records.
+   These numbers are generated from the current cached sources and can change as more
+   venues are added.
+2. **`coverage_ratio` is source-dependent.** It is unknown where an overview's claimed
+   team count cannot be extracted, so the plan's coverage-based ranking is only partially
+   available until more source-specific count extractors are added.
 3. **PDFFigures2 is a separate external dependency.** The pipeline fails clearly if its
    checkout/JAR or Java/SBT is missing; Liteparse assets remain intact and the run can be
    resumed after setup.
 4. **Markdown tables are unreliable for large tables.** Use the images.
-5. **CLEF only.** SemEval, standalone PAN, and Touché editions outside CLEF are not
-   included; the target of 30–50 tasks was met without them.
-6. **One document lacks a usable text layer** and needs OCR to be complete (§5).
+5. **SemEval expansion is deliberately narrow at first.** The collector is currently
+   configured for the 2025 ACL Anthology volume. TREC, NTCIR, FIRE, MediaEval, and
+   additional SemEval years can be added as source-specific collectors without changing
+   the downstream document pipeline.
+6. **Unassigned SemEval papers remain review material.** Papers whose title does not
+   explicitly name a task are preserved in the SemEval review file rather than assigned by
+   guesswork.
+7. **One document lacks a usable text layer** and needs OCR to be complete (§5).

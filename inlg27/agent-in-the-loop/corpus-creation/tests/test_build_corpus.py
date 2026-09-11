@@ -69,6 +69,27 @@ def test_null_coverage_ratio_is_allowed():
     assert validate(tasks, LOGGER) is True
 
 
+def test_select_corpus_emits_all_candidates_without_a_target_cap():
+    from src.build_corpus import select_corpus
+
+    tasks = [
+        make_task("t1", "ov1.pdf", ["p1.pdf"]),
+        make_task("t2", "ov2.pdf", ["p2.pdf"]),
+    ]
+    selected = select_corpus(tasks, None, LOGGER)
+    assert {task["task_id"] for task in selected} == {"t1", "t2"}
+
+
+def test_select_corpus_keeps_optional_target_cap():
+    from src.build_corpus import select_corpus
+
+    tasks = [
+        make_task("t1", "ov1.pdf", ["p1.pdf"]),
+        make_task("t2", "ov2.pdf", ["p2.pdf"]),
+    ]
+    assert len(select_corpus(tasks, 1, LOGGER)) == 1
+
+
 def test_fulltext_paths_are_published_on_the_records():
     # Consumers must be able to go from a corpus entry straight to its parsed text,
     # rather than deriving filenames from pdf_url by string manipulation.

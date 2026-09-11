@@ -82,6 +82,21 @@ def test_cached_extraction_requires_all_recorded_files(tmp_path, monkeypatch):
     assert not extractor.cached_extraction(record)
 
 
+def test_refresh_asset_counts_keeps_empty_canonical_directories(tmp_path, monkeypatch):
+    monkeypatch.setattr(extractor, "PROJECT_ROOT", tmp_path)
+    figures = tmp_path / "data" / "final" / "task" / "overview" / "figures"
+    tables = tmp_path / "data" / "final" / "task" / "overview" / "tables"
+
+    record = extractor.refresh_asset_counts({"pdf_url": "paper.pdf"}, figures, tables)
+
+    assert figures.is_dir()
+    assert tables.is_dir()
+    assert record["figures_dir"] == "data/final/task/overview/figures"
+    assert record["tables_dir"] == "data/final/task/overview/tables"
+    assert record["n_figures"] == 0
+    assert record["n_tables"] == 0
+
+
 def test_process_document_copies_and_classifies_pdffigures2_images(tmp_path, monkeypatch):
     monkeypatch.setattr(extractor, "PROJECT_ROOT", tmp_path)
     task_id = "task"

@@ -24,6 +24,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SECTIONS_DIR = PROJECT_ROOT / "data" / "intermediate" / "sections"
 INTERMEDIATE_DIR = PROJECT_ROOT / "data" / "intermediate"
+CANDIDATES_DIR = INTERMEDIATE_DIR / "candidates"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 OVERVIEW_TITLE_RE = re.compile(r"\boverview\b|\bextended abstract\b", re.IGNORECASE)
@@ -345,6 +346,11 @@ def build_task_record(entry: dict, lab_name: str, overview: dict, participants: 
         "year": entry["year"],
         "task_name": task_name,
         "ceur_volume": entry["volume"],
+        "source": {
+            "provider": "ceur_ws",
+            "collection_id": entry["volume"],
+            "proceedings_url": f"https://ceur-ws.org/Vol-{entry['volume']}/",
+        },
         "overview": {
             "title": overview["title"],
             "pdf_url": overview["pdf_url"],
@@ -425,19 +431,24 @@ def main() -> None:
     validate(all_tasks, logger)
 
     INTERMEDIATE_DIR.mkdir(parents=True, exist_ok=True)
+    CANDIDATES_DIR.mkdir(parents=True, exist_ok=True)
     candidates_path = INTERMEDIATE_DIR / "all_candidates.jsonl"
+    source_candidates_path = CANDIDATES_DIR / "clef.jsonl"
     review_path = INTERMEDIATE_DIR / "needs_review.jsonl"
 
-    with candidates_path.open("w", encoding="utf-8") as f:
-        for task in all_tasks:
-            f.write(json.dumps(task, ensure_ascii=False) + "\n")
+    serialized = "".join(json.dumps(task, ensure_ascii=False) + "\n" for task in all_tasks)
+    candidates_path.write_text(serialized, encoding="utf-8")
+    source_candidates_path.write_text(serialized, encoding="utf-8")
 
     review_tasks = [t for t in all_tasks if t["provenance"]["confidence"] != "high"]
     with review_path.open("w", encoding="utf-8") as f:
         for task in review_tasks:
             f.write(json.dumps(task, ensure_ascii=False) + "\n")
 
-    logger.info("wrote %d candidate tasks to %s (%d flagged for review in %s)", len(all_tasks), candidates_path, len(review_tasks), review_path)
+    logger.info(
+        "wrote %d CLEF candidate tasks to %s and %s (%d flagged for review in %s)",
+        len(all_tasks), candidates_path, source_candidates_path, len(review_tasks), review_path,
+    )
 
 
 if __name__ == "__main__":
