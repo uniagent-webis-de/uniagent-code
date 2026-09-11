@@ -16,8 +16,10 @@ if __package__ in (None, ""):
 from src.corpus_paths import (
     FINAL_DIR,
     MANIFEST_PATH,
+    document_figures_dir,
     document_markdown_path,
     document_pdf_path,
+    document_tables_dir,
     task_metadata_path,
 )
 
@@ -168,14 +170,21 @@ def selection_key(task: dict) -> tuple:
     )
 
 
-def select_corpus(tasks: list[dict], target: int, logger: logging.Logger) -> list[dict]:
-    """Rank candidates and emit the top `target`. The selection is a view, not a
-    destructive filter — every candidate remains in all_candidates.jsonl (PLAN.md)."""
+def select_corpus(tasks: list[dict], target: int | None, logger: logging.Logger) -> list[dict]:
+    """Rank candidates and optionally emit only the top ``target``.
+
+    With no target, every candidate selected by the confidence filter is emitted. The
+    selection is a view, not a destructive filter — every candidate remains in
+    ``all_candidates.jsonl``.
+    """
     ranked = sorted(tasks, key=selection_key)
-    if len(ranked) > target:
+    if target is not None and len(ranked) > target:
         logger.info("selecting top %d of %d ranked candidates", target, len(ranked))
         return ranked[:target]
-    logger.info("all %d candidates are within the target of %d; emitting all, ranked", len(ranked), target)
+    if target is None:
+        logger.info("no target cap configured; emitting all %d candidates, ranked", len(ranked))
+    else:
+        logger.info("all %d candidates are within the target of %d; emitting all, ranked", len(ranked), target)
     return ranked
 
 
@@ -235,6 +244,14 @@ def validate_output_files(tasks: list[dict], logger: logging.Logger) -> bool:
                 ok = False
             if not markdown_path.exists():
                 logger.error("VALIDATION FAILED: missing Markdown %s", markdown_path)
+                ok = False
+            figures_dir = document_figures_dir(task["task_id"], role, pdf_url)
+            tables_dir = document_tables_dir(task["task_id"], role, pdf_url)
+            if not figures_dir.is_dir():
+                logger.error("VALIDATION FAILED: missing figures directory %s", figures_dir)
+                ok = False
+            if not tables_dir.is_dir():
+                logger.error("VALIDATION FAILED: missing tables directory %s", tables_dir)
                 ok = False
     return ok
 
@@ -360,7 +377,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Assemble final shared_tasks.jsonl / .csv / report.md from high-confidence candidate tasks.")
     parser.add_argument("--confidence", type=str, default="high", choices=["high", "medium", "all"], help="Which candidate tasks to include (default: high only).")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for the spot-check sample.")
-    parser.add_argument("--target", type=int, default=50, help="Maximum corpus size to emit (PLAN.md target: 30-50).")
+    parser.add_argument(
+        "--target",
+        type=int,
+        default=None,
+        help="Optional maximum number of tasks to emit; by default all selected candidates are emitted.",
+    )
     parser.add_argument("--task-id", type=str, default=None, help="Assemble only this task id.")
     args = parser.parse_args()
 

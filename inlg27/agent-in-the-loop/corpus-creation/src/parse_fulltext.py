@@ -41,6 +41,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
 FULLTEXT_DIR = FINAL_DIR
 LOGS_DIR = PROJECT_ROOT / "logs"
+EXTRACTOR_FIELD_PREFIX = "pdffigures2_"
 
 # A born-digital CEUR page carries roughly 2000-4000 characters. A document averaging
 # below this is either scanned or has a broken text layer, and is worth re-parsing
@@ -320,20 +321,21 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
     tables_dir = document_tables_dir(task_id, role, pdf_url)
     # Figures and tables are now beside the corresponding Markdown file.
     figures_rel_prefix = "figures"
+    # Keep the canonical document layout even when a paper has no detected figures or
+    # tables. Downstream consumers can then rely on both paths being present.
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    tables_dir.mkdir(parents=True, exist_ok=True)
 
     if out_path.exists():
         logger.info("fulltext cache hit: %s", out_path)
         text = out_path.read_text(encoding="utf-8")
     else:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        figures_dir.mkdir(parents=True, exist_ok=True)
         if not parse_document(pdf_path, out_path, ocr_server_url, ocr_language, logger, figures_dir):
             return None
         rewrite_figure_refs(out_path, figures_rel_prefix)
         text = out_path.read_text(encoding="utf-8")
         write_tables(text, tables_dir, pdf_path, logger)
-        if not any(figures_dir.iterdir()):
-            figures_dir.rmdir()
         logger.info("parsed %s -> %s (%d chars)", pdf_path.name, out_path, len(text))
 
     figures = sorted(p.name for p in figures_dir.glob("*")) if figures_dir.exists() else []
@@ -368,9 +370,9 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         "chars": len(text),
         "pages": pages,
         "chars_per_page": chars_per_page,
-        "figures_dir": str(figures_dir.relative_to(PROJECT_ROOT)) if figures else None,
+        "figures_dir": str(figures_dir.relative_to(PROJECT_ROOT)),
         "n_figures": len(figures),
-        "tables_dir": str(tables_dir.relative_to(PROJECT_ROOT)) if tables else None,
+        "tables_dir": str(tables_dir.relative_to(PROJECT_ROOT)),
         "n_tables": len(tables),
         "n_table_images": len(table_images),
         "ocr_server_used": bool(ocr_server_url),
@@ -383,6 +385,21 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
             task_id, out_path.name, "; ".join(reasons),
             "" if ocr_server_url else " — re-run with --ocr-server-url --only-needs-ocr",
         )
+    return record
+
+
+def preserve_extractor_fields(record: dict, previous: dict | None) -> dict:
+    """Keep PDFFigures2 metadata when the text stage rewrites the manifest.
+
+    The text and asset stages are independently re-runnable.  Replacing a parsed record
+    must therefore not make the next asset run think every PDF is new.
+    """
+    if previous:
+        record.update({
+            key: value
+            for key, value in previous.items()
+            if key.startswith(EXTRACTOR_FIELD_PREFIX)
+        })
     return record
 
 
@@ -505,6 +522,15 @@ def main() -> None:
             logger.error("task_id %s not found in the final corpus", args.task_id)
             sys.exit(1)
 
+    previous_by_url: dict[str, dict] = {}
+    if MANIFEST_PATH.exists():
+        for line in MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            previous = json.loads(line)
+            if previous.get("pdf_url"):
+                previous_by_url[previous["pdf_url"]] = previous
+
     retry_only: set[str] = set()
     if args.only_needs_ocr:
         if not MANIFEST_PATH.exists():
@@ -527,7 +553,7 @@ def main() -> None:
                 continue
             record = process_document(task["task_id"], role, pdf_url, task_dir, args.ocr_server_url, args.ocr_language, logger)
             if record:
-                records.append(record)
+                records.append(preserve_extractor_fields(record, previous_by_url.get(pdf_url)))
 
     if retry_only and MANIFEST_PATH.exists():
         # Merge into the existing manifest so a targeted OCR re-run does not discard the

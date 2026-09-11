@@ -11,6 +11,7 @@ import json
 import logging
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -117,11 +118,68 @@ def process_task(task: dict, logger: logging.Logger) -> list[str]:
     return failed
 
 
+def document_jobs(tasks: list[dict]) -> list[tuple[str, str, str]]:
+    """Return the overview and participant downloads as independent jobs."""
+    jobs = []
+    for task in tasks:
+        jobs.append((task["task_id"], "overview", task["overview"]["pdf_url"]))
+        jobs.extend(
+            (task["task_id"], "participant", participant["pdf_url"])
+            for participant in task["participants"]
+        )
+    return jobs
+
+
+def process_documents(
+    tasks: list[dict], logger: logging.Logger, workers: int
+) -> list[str]:
+    """Download documents concurrently while keeping each file atomic and resumable."""
+    jobs = document_jobs(tasks)
+    failed: list[str] = []
+    completed = 0
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="pdf") as executor:
+        futures = {
+            executor.submit(
+                process_document,
+                task_id,
+                role,
+                pdf_url,
+                logger,
+            ): pdf_url
+            for task_id, role, pdf_url in jobs
+        }
+        for future in as_completed(futures):
+            pdf_url = futures[future]
+            completed += 1
+            try:
+                if not future.result():
+                    failed.append(pdf_url)
+            except Exception:
+                logger.exception("unexpected downloader error for %s", pdf_url)
+                failed.append(pdf_url)
+            logger.info(
+                "download progress: %d/%d documents completed (%d failed)",
+                completed,
+                len(jobs),
+                len(failed),
+            )
+    return failed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download overview and notebook PDFs into the final task layout.")
     parser.add_argument("--confidence", choices=["high", "medium", "all"], default="high")
     parser.add_argument("--task-id", default=None, help="Process only one task id.")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Number of concurrent PDF downloads (default: 8).",
+    )
     args = parser.parse_args()
+
+    if args.workers < 1:
+        parser.error("--workers must be at least 1")
 
     setup_logging()
     logger = logging.getLogger("download_papers")
@@ -139,7 +197,7 @@ def main() -> None:
     elif args.confidence != "all":
         tasks = [task for task in tasks if task["provenance"]["confidence"] == args.confidence]
 
-    failed = [url for task in tasks for url in process_task(task, logger)]
+    failed = process_documents(tasks, logger, args.workers)
     logger.info("processed %d tasks; %d PDFs failed", len(tasks), len(failed))
     if failed:
         for url in failed:

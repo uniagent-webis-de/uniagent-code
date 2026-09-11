@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 INTERMEDIATE_DIR = DATA_DIR / "intermediate"
+CANDIDATES_DIR = INTERMEDIATE_DIR / "candidates"
+SCREENING_DIR = INTERMEDIATE_DIR / "screening"
 FINAL_DIR = DATA_DIR / "final"
 MANIFEST_PATH = FINAL_DIR / "manifest.jsonl"
 

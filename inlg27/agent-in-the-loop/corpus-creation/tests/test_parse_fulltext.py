@@ -1,6 +1,6 @@
 import json
 
-from src.parse_fulltext import MIN_CHARS_PER_PAGE, pdf_stem_for
+from src.parse_fulltext import MIN_CHARS_PER_PAGE, pdf_stem_for, preserve_extractor_fields
 
 
 def test_pdf_stem_matches_the_layout_stage_5_cached():
@@ -35,6 +35,22 @@ def test_manifest_records_are_shaped_for_auditing(tmp_path):
     path.write_text(json.dumps(record) + "\n", encoding="utf-8")
     loaded = json.loads(path.read_text(encoding="utf-8").strip())
     assert set(loaded) >= {"task_id", "role", "pdf_url", "pdf_path", "markdown_path", "chars", "pages", "needs_ocr", "ocr_server_used"}
+
+
+def test_text_refresh_preserves_pdffigures2_metadata():
+    record = {"pdf_url": "paper.pdf", "markdown_path": "new.md"}
+    previous = {
+        "pdf_url": "paper.pdf",
+        "pdffigures2_status": "ok",
+        "pdffigures2_files": ["data/final/task/overview/figures/pdffigures2-a.png"],
+        "figures_dir": "old/figures",
+    }
+
+    refreshed = preserve_extractor_fields(record, previous)
+
+    assert refreshed["pdffigures2_status"] == "ok"
+    assert refreshed["pdffigures2_files"] == previous["pdffigures2_files"]
+    assert "figures_dir" not in refreshed
 
 
 def test_documents_use_the_agreed_task_layout():

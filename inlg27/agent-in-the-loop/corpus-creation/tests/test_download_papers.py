@@ -36,3 +36,23 @@ def test_process_document_uses_the_agreed_path(monkeypatch, tmp_path):
     assert download_papers.process_document("task", "participant", "https://x/paper-1.pdf", logging.getLogger("test"))
     expected = document_pdf_path("task", "participant", "https://x/paper-1.pdf")
     assert destinations == [expected]
+
+
+def test_process_documents_runs_overview_and_participant_jobs(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        download_papers,
+        "process_document",
+        lambda task_id, role, url, logger: calls.append((task_id, role, url)) or True,
+    )
+    tasks = [{
+        "task_id": "task-1",
+        "overview": {"pdf_url": "https://x/overview.pdf"},
+        "participants": [{"pdf_url": "https://x/paper-1.pdf"}],
+    }]
+
+    assert download_papers.process_documents(tasks, logging.getLogger("test"), workers=2) == []
+    assert sorted(calls) == [
+        ("task-1", "overview", "https://x/overview.pdf"),
+        ("task-1", "participant", "https://x/paper-1.pdf"),
+    ]

@@ -283,11 +283,15 @@ def cached_extraction(record: dict | None) -> bool:
 
 def refresh_asset_counts(record: dict, figures_dir: Path, tables_dir: Path) -> dict:
     """Refresh aggregate asset counts for the final document-local assets."""
+    # These directories are part of the public corpus layout, including for papers
+    # where PDFFigures2 found no assets.
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    tables_dir.mkdir(parents=True, exist_ok=True)
     figure_files = sorted(path for path in figures_dir.glob("*") if path.is_file()) if figures_dir.is_dir() else []
     table_files = sorted(path for path in tables_dir.glob("*") if path.is_file()) if tables_dir.is_dir() else []
-    record["figures_dir"] = relative_project_path(figures_dir) if figure_files else None
+    record["figures_dir"] = relative_project_path(figures_dir)
     record["n_figures"] = len(figure_files)
-    record["tables_dir"] = relative_project_path(tables_dir) if table_files else None
+    record["tables_dir"] = relative_project_path(tables_dir)
     # PDFFigures2 table images are the only table representation in the final
     # corpus. Keep the legacy aggregate fields aligned for existing consumers.
     record["n_tables"] = len(table_files)
@@ -572,11 +576,17 @@ def main() -> None:
     def mark_failure(task_id: str, role: str, pdf_url: str, previous: dict | None, message: str) -> None:
         """Record a failed document without discarding the rest of the batch."""
         failures.append((pdf_url, message))
+        figures_dir = document_figures_dir(task_id, role, pdf_url)
+        tables_dir = document_tables_dir(task_id, role, pdf_url)
+        figures_dir.mkdir(parents=True, exist_ok=True)
+        tables_dir.mkdir(parents=True, exist_ok=True)
         failed_record = dict(previous or {})
         failed_record.update({
             "task_id": task_id,
             "role": role,
             "pdf_url": pdf_url,
+            "figures_dir": relative_project_path(figures_dir),
+            "tables_dir": relative_project_path(tables_dir),
             "pdffigures2_status": "error",
             "pdffigures2_error": message,
             "pdffigures2_extracted_at": datetime.now().isoformat(timespec="seconds"),
@@ -592,11 +602,13 @@ def main() -> None:
             tables_dir = document_tables_dir(task_id, role, pdf_url)
             if not pdf_path.is_file():
                 raise FileNotFoundError(f"missing PDF: {pdf_path} — run download_papers.py first")
-            remove_previous_outputs(figures_dir, tables_dir)
             if cached_extraction(previous):
                 logger.info("PDFFigures2 cache hit: %s", pdf_path)
                 manifest_by_url[pdf_url] = refresh_asset_counts(dict(previous), figures_dir, tables_dir)
                 continue
+            # Only remove stale outputs after the cache check. Removing them first would
+            # make every valid cache entry fail its own existence test.
+            remove_previous_outputs(figures_dir, tables_dir)
             pending.append({
                 "task_id": task_id,
                 "role": role,
