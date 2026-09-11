@@ -95,7 +95,7 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
         ("fetch_semeval", ["fetch_semeval.py", *semeval]),
         ("collect_semeval", ["collect_semeval.py", *semeval]),
         ("merge_candidates", ["merge_candidates.py"]),
-        ("download_papers", ["download_papers.py", *common]),
+        ("download_papers", ["download_papers.py", *common, "--workers", str(args.download_workers)]),
         ("parse_fulltext", ["parse_fulltext.py", *parse_fulltext]),
         ("extract_figs_tbls", ["extract_figs_tbls.py", *extract_figs_tbls]),
         ("extract_counts", ["extract_counts.py", *common]),
@@ -136,6 +136,12 @@ def main() -> None:
     parser.add_argument("--volume", help="Process only one CLEF volume during metadata stages.")
     parser.add_argument("--confidence", choices=["high", "medium", "all"], default="high")
     parser.add_argument("--task-id", help="Process and assemble only one task.")
+    parser.add_argument(
+        "--download-workers",
+        type=int,
+        default=8,
+        help="Concurrent PDF downloads (default: 8).",
+    )
     parser.add_argument("--semeval-year", type=int, help="Process only one configured SemEval year during SemEval stages.")
     parser.add_argument(
         "--target",
@@ -161,6 +167,8 @@ def main() -> None:
     )
     parser.add_argument("--pdffigures2-threads", type=int, default=4, help="PDFFigures2 worker threads.")
     args = parser.parse_args()
+    if args.download_workers < 1:
+        parser.error("--download-workers must be at least 1")
     raise SystemExit(run_pipeline(args))
 
 

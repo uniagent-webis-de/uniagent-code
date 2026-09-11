@@ -8,6 +8,7 @@ def make_args(**overrides):
         "volume": None,
         "confidence": "high",
         "task_id": None,
+        "download_workers": 8,
         "semeval_year": None,
         "target": None,
         "ocr_server_url": None,

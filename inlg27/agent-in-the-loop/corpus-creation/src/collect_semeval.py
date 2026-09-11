@@ -42,7 +42,10 @@ TASK_RE = re.compile(
 ORGANIZER_RE = re.compile(r"^\s*SemEval[- ]20\d{2}\s+Task[- ]?\d+\b", re.IGNORECASE)
 # Both ``Team at SemEval`` and the common compact ``TeamatSemEval`` form occur.
 PARTICIPANT_RE = re.compile(r"(?:\bat\s*|at)SemEval[- ]20\d{2}\s+Task[- ]?\d+\b", re.IGNORECASE)
-PAPER_ID_RE = re.compile(r"^/(?P<id>[^/]+\.\d+)/?$")
+# Modern ACL identifiers look like ``2025.semeval-1.12``; older SemEval volumes
+# use identifiers such as ``S19-2012``. Restricting this pattern prevents generic
+# navigation links from being mistaken for papers.
+PAPER_ID_RE = re.compile(r"^/(?P<id>(?:20\d{2}\.[^/]+\.\d+|S\d{2}-\d+))/?$")
 PDF_RE = re.compile(r"\.pdf(?:$|[?#])", re.IGNORECASE)
 
 
@@ -154,10 +157,18 @@ def build_task_candidate(group: list[dict], volume: dict, logger: logging.Logger
     """Build one task candidate and classify it as high confidence or review."""
     task_number = group[0]["task_number"]
     organizers = [paper for paper in group if paper["is_organizer"]]
-    participants = [paper for paper in group if paper["is_participant"] and not paper["is_organizer"]]
+    # Older ACL volumes often omit the ``at SemEval`` phrase from participant titles,
+    # while still naming the exact SemEval task.  The task-number reference is strong
+    # enough evidence for legacy volumes; papers without either signal stay in review.
+    legacy_volume = str(volume["collection_id"]).startswith("S")
+    participants = [
+        paper for paper in group
+        if not paper["is_organizer"]
+        and (paper["is_participant"] or (legacy_volume and paper["task_number"] is not None))
+    ]
     other_task_papers = [
         paper for paper in group
-        if not paper["is_organizer"] and not paper["is_participant"]
+        if not paper["is_organizer"] and paper not in participants
     ]
     if not organizers:
         logger.warning(

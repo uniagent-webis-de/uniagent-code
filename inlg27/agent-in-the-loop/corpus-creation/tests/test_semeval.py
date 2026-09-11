@@ -48,6 +48,32 @@ SAMPLE_HTML = """
 </body></html>
 """
 
+LEGACY_SAMPLE_HTML = """
+<html><body>
+  <div class="paper-row">
+    <div class="d-sm-flex align-items-stretch mb-3">
+      <div class="list-button-row"><a href="https://aclanthology.org/S19-2001.pdf">pdf</a></div>
+      <span class="d-block"><strong><a class="align-middle" href="/S19-2001/"><span class="acl-fixed-case">S</span>em<span class="acl-fixed-case">E</span>val-2019 Task 1: Organizer Task</a></strong><br/>
+      <a href="/people/organizer/">Organizer One</a></span>
+    </div>
+  </div>
+  <div class="paper-row">
+    <div class="d-sm-flex align-items-stretch mb-3">
+      <div class="list-button-row"><a href="https://aclanthology.org/S19-2002.pdf">pdf</a></div>
+      <span class="d-block"><strong><a class="align-middle" href="/S19-2002/">Team X at <span class="acl-fixed-case">S</span>em<span class="acl-fixed-case">E</span>val-2019 Task 1: Participant System</a></strong><br/>
+      <a href="/people/participant/">Participant One</a></span>
+    </div>
+  </div>
+  <div class="paper-row">
+    <div class="d-sm-flex align-items-stretch mb-3">
+      <div class="list-button-row"><a href="https://aclanthology.org/S19-2003.pdf">pdf</a></div>
+      <span class="d-block"><strong><a class="align-middle" href="/S19-2003/">Team Y: Participant System for <span class="acl-fixed-case">S</span>em<span class="acl-fixed-case">E</span>val-2019 Task 1</a></strong><br/>
+      <a href="/people/participant-two/">Participant Two</a></span>
+    </div>
+  </div>
+</body></html>
+"""
+
 
 def test_parse_papers_handles_compact_acl_participant_titles():
     papers = parse_papers(SAMPLE_HTML, VOLUME)
@@ -62,6 +88,31 @@ def test_parse_papers_handles_compact_acl_participant_titles():
     assert spaced["is_participant"] is True
     assert spaced["pdf_url"] == "https://aclanthology.org/2025.semeval-1.3.pdf"
     assert compact["authors"] == ["Alpha Author"]
+
+
+def test_parse_papers_handles_legacy_acl_identifiers_and_markup():
+    papers = parse_papers(LEGACY_SAMPLE_HTML, {**VOLUME, "collection_id": "S19-2"})
+
+    assert len(papers) == 3
+    assert papers[0]["source_id"] == "S19-2001"
+    assert papers[0]["task_number"] == 1
+    assert papers[0]["is_organizer"] is True
+    assert papers[1]["source_id"] == "S19-2002"
+    assert papers[1]["is_participant"] is True
+    assert papers[2]["source_id"] == "S19-2003"
+    assert papers[2]["task_number"] == 1
+    assert papers[2]["is_participant"] is False
+
+
+def test_legacy_task_reference_titles_can_supply_participants():
+    volume = {**VOLUME, "year": 2019, "collection_id": "S19-2"}
+    papers = parse_papers(LEGACY_SAMPLE_HTML, volume)
+    task_one = [paper for paper in papers if paper["task_number"] == 1]
+
+    candidate = build_task_candidate(task_one, volume, LOGGER)
+
+    assert candidate["provenance"]["confidence"] == "high"
+    assert len(candidate["participants"]) == 2
 
 
 def test_build_task_candidate_is_high_only_with_strong_evidence():

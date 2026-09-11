@@ -53,11 +53,15 @@ records are eligible for the final corpus automatically. Medium-confidence candi
 unresolved source records are combined in `data/intermediate/needs_review.jsonl`, including
 the existing CLEF review candidates.
 
-The first non-CLEF collector targets SemEval 2025. It uses the official ACL Anthology
-volume page and requires an explicit `SemEval-YYYY Task N` marker, one organizer paper,
-at least two participant papers, official PDF links, and unique document URLs before a
-task is marked high confidence. The parser accepts both `Team at SemEval-YYYY` and the
-frequent compact `TeamatSemEval-YYYY` title form. Other title forms remain review material.
+The first non-CLEF collector targets all SemEval editions represented by the ACL Anthology
+venue index (2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015,
+2014, 2013, 2012, 2010, and 2007). It requires an explicit `SemEval-YYYY Task N`
+marker, one organizer paper, at least two participant papers, official PDF links, and
+unique document URLs before a task is marked high confidence. The parser accepts both
+`Team at SemEval-YYYY` and the frequent compact `TeamatSemEval-YYYY` title form. For
+legacy ACL volumes, an exact task-number reference is also accepted for participant
+papers because those titles often omit the `at SemEval` phrase. Other title forms remain
+review material. The SENSEVAL predecessor editions are intentionally excluded.
 
 This is the part worth understanding before you trust an entry, because it is where the
 judgement lives.
@@ -345,10 +349,11 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
 
 ## 8. Known limitations
 
-1. **The initial screen is conservative.** The current candidate set contains 42 high-
-   confidence CLEF tasks, 11 high-confidence SemEval 2025 tasks, and 163 review records.
-   These numbers are generated from the current cached sources and can change as more
-   venues are added.
+1. **The initial screen is conservative.** The current cached candidate set contains 42
+   high-confidence CLEF tasks and 122 high-confidence SemEval tasks across 17 configured
+   editions. The merged review file contains medium-confidence candidates and unresolved
+   papers from both sources. These numbers can change as more venues are added or source
+   pages are refreshed.
 2. **`coverage_ratio` is source-dependent.** It is unknown where an overview's claimed
    team count cannot be extracted, so the plan's coverage-based ranking is only partially
    available until more source-specific count extractors are added.
@@ -356,10 +361,10 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
    checkout/JAR or Java/SBT is missing; Liteparse assets remain intact and the run can be
    resumed after setup.
 4. **Markdown tables are unreliable for large tables.** Use the images.
-5. **SemEval expansion is deliberately narrow at first.** The collector is currently
-   configured for the 2025 ACL Anthology volume. TREC, NTCIR, FIRE, MediaEval, and
-   additional SemEval years can be added as source-specific collectors without changing
-   the downstream document pipeline.
+5. **SemEval coverage is metadata-first.** The collector covers the configured ACL
+   Anthology SemEval editions and keeps ambiguous historical records in review. TREC,
+   NTCIR, FIRE, MediaEval, and additional source pages can be added as source-specific
+   collectors without changing the downstream document pipeline.
 6. **Unassigned SemEval papers remain review material.** Papers whose title does not
    explicitly name a task are preserved in the SemEval review file rather than assigned by
    guesswork.
