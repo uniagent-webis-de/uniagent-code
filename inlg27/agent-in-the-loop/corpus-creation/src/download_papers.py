@@ -20,11 +20,13 @@ import requests
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.corpus_paths import document_pdf_path
+from src.candidate_schema import demote, read_jsonl, write_jsonl
+from src.corpus_paths import INTERMEDIATE_DIR, document_pdf_path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
+DOWNLOAD_FAILURES_PATH = INTERMEDIATE_DIR / "download_failures.jsonl"
 LOGS_DIR = PROJECT_ROOT / "logs"
 REQUEST_TIMEOUT_SECONDS = 30
 USER_AGENT = "uniagent-corpus-builder/0.1"
@@ -166,6 +168,50 @@ def process_documents(
     return failed
 
 
+def demote_failed_tasks(tasks: list[dict], failed_urls: list[str], logger: logging.Logger) -> set[str]:
+    """Demote tasks whose required PDFs remain unavailable after the download attempt."""
+    failed_set = set(failed_urls)
+    failed_task_ids = {
+        task["task_id"]
+        for task in tasks
+        if task["overview"]["pdf_url"] in failed_set
+        or any(participant["pdf_url"] in failed_set for participant in task["participants"])
+    }
+    if not failed_task_ids or not CANDIDATES_PATH.exists():
+        return failed_task_ids
+
+    all_candidates = read_jsonl(CANDIDATES_PATH)
+    failure_records = read_jsonl(DOWNLOAD_FAILURES_PATH)
+    known_failures = {
+        (record.get("task_id"), record.get("pdf_url"))
+        for record in failure_records
+    }
+    for candidate in all_candidates:
+        if candidate.get("task_id") not in failed_task_ids:
+            continue
+        failed_for_task = [
+            url
+            for url in failed_set
+            if url == (candidate.get("overview") or {}).get("pdf_url")
+            or any(url == participant.get("pdf_url") for participant in candidate.get("participants", []))
+        ]
+        demote(candidate, [f"required PDF download failed: {url}" for url in sorted(failed_for_task)])
+        for url in sorted(failed_for_task):
+            key = (candidate["task_id"], url)
+            if key not in known_failures:
+                failure_records.append(
+                    {"task_id": candidate["task_id"], "pdf_url": url, "reason": "download_failed"}
+                )
+                known_failures.add(key)
+        logger.warning(
+            "%s demoted to review because %d required PDF(s) failed to download",
+            candidate["task_id"], len(failed_for_task),
+        )
+    write_jsonl(all_candidates, CANDIDATES_PATH)
+    write_jsonl(failure_records, DOWNLOAD_FAILURES_PATH)
+    return failed_task_ids
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download overview and notebook PDFs into the final task layout.")
     parser.add_argument("--confidence", choices=["high", "medium", "all"], default="high")
@@ -200,9 +246,13 @@ def main() -> None:
     failed = process_documents(tasks, logger, args.workers)
     logger.info("processed %d tasks; %d PDFs failed", len(tasks), len(failed))
     if failed:
+        failed_task_ids = demote_failed_tasks(tasks, failed, logger)
+        logger.info("automatically moved %d incomplete task(s) to review", len(failed_task_ids))
         for url in failed:
             logger.error("missing PDF after download attempt: %s", url)
-        sys.exit(1)
+        # A failed required document is a review decision, not a pipeline crash. The
+        # affected task records are demoted before the next stage, so only complete
+        # high-confidence tasks continue to parsing and final assembly.
 
 
 if __name__ == "__main__":

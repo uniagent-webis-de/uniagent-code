@@ -7,8 +7,8 @@ verification. The pipeline never uploads data automatically.
 
 A corpus of shared tasks where each entry links one **overview paper** (written by the
 organizers, summarising the whole task) to the **notebook papers** written by the teams
-that participated in it. The current corpus starts with CLEF and is being expanded with
-high-precision collectors for SemEval and other ACL/IR venues.
+that participated in it. The current corpus covers CLEF, SemEval, and TREC, with more
+high-precision source-specific collectors planned for other ACL/IR venues.
 
 The intended use is generation: the notebook papers are the inputs, the overview paper is
 the target output.
@@ -20,15 +20,16 @@ high-confidence candidates that pass screening.
 
 ## 1. Where the data comes from
 
-The CLEF corpus derives from two public sources, both fetched once and cached.
-Source-specific expansion collectors use the same candidate contract and are merged before
-the paper-download stages:
+The corpus draws on public sources that are fetched once and cached. Source-specific
+collectors use the same candidate contract and are merged before the paper-download stages:
 
 | Source | Role |
 |---|---|
 | [CEUR-WS](https://ceur-ws.org) volume index pages | Authoritative table of contents: which papers exist, in which lab section, in what order |
 | [DBLP](https://dblp.org) working-notes records | Cross-check only — confirms titles and supplies cleaner author name spellings |
 | [ACL Anthology](https://aclanthology.org) proceedings pages | Official SemEval collection pages, paper metadata, and source-provided PDF links |
+| [NIST TREC proceedings](https://trec.nist.gov/proceedings/proceedings.html) | Authoritative TREC track sections, overview papers, participant papers, and official PDF links |
+| [DBLP TREC records](https://dblp.org/db/conf/trec/index.html) and [TIRA](https://www.tira.io/tasks) | Supplemental TREC cross-checks; neither source creates a paper or task grouping |
 
 Twenty-six volumes, one per CLEF Working Notes edition from 2000 through 2025: volumes
 1166–1179 (2000–2013), 1180 (2014), 1391 (2015), 1609 (2016), 1866 (2017), and
@@ -64,6 +65,15 @@ unique document URLs before a task is marked high confidence. The parser accepts
 legacy ACL volumes, an exact task-number reference is also accepted for participant
 papers because those titles often omit the `at SemEval` phrase. Other title forms remain
 review material. The SENSEVAL predecessor editions are intentionally excluded.
+
+The TREC collector scans every completed NIST edition from 1992 through 2025. It uses
+the official NIST track section as the authoritative grouping, supports both modern and
+legacy proceedings HTML, and attaches separately listed overview papers when their track
+name matches exactly. A task is high confidence only when it has exactly one overview,
+at least two unambiguous participant papers, official PDF links, unique PDFs, and no
+participant listed under multiple tracks. DBLP and TIRA are retained as supplemental
+provenance only. Missing required PDFs automatically demote the affected task to the
+existing review queue; they do not stop the rest of the corpus from being built.
 
 This is the part worth understanding before you trust an entry, because it is where the
 judgement lives.
@@ -197,7 +207,7 @@ the **same order**, so the columns align positionally.
 
 **`coverage_ratio`** = `notebook_papers / teams_claimed_in_overview`. Not every team that
 competes writes a paper, so a ratio below 1 is normal and expected, not a bug — Touché 2020
-reports 17 teams and 41 runs but published 10 notebook papers. **It is `null` for 128 of 227
+reports 17 teams and 41 runs but published 10 notebook papers. **It is `null` for 166 of 269
 tasks**, where the overview does not state a participation count in extractable prose. Team
 counts are only taken from statements about *actual participation*; registration counts
 ("98 teams registered") are deliberately refused, since they would inflate the ratio.
@@ -215,7 +225,7 @@ whose titles omit task numbers entirely reads as non-umbrella even if it ran sev
 
 **`team_name`** is extracted only from the two attribution shapes CEUR titles actually use
 (`TEAM at Venue Year: …`, `TEAM@Venue: …`), and is `null` rather than guessed otherwise —
-it was extracted for 2,903 of 3,611 participants in the current corpus.
+it was extracted for 3,184 of 3,947 participants in the current corpus.
 
 ---
 
@@ -225,18 +235,18 @@ Text comes from each PDF's own text layer via [liteparse](https://github.com/run
 output as Markdown to preserve heading structure. The PDF is parsed once for its text and
 Liteparse assets; later count and code-link stages read the generated Markdown. A separate
 PDFFigures2 pass detects captioned figures and tables, including many vector-rendered
-figures, and stores its outputs beside those assets. The current corpus contains 106.4M
-extracted characters across 3,838 documents.
+figures, and stores its outputs beside those assets. The current corpus contains 115.4M
+extracted characters across 4,216 documents.
 
-**OCR is opt-in.** Seven of the 3,838 PDFs have a thin or missing text layer and are flagged
-`needs_ocr` in `manifest.jsonl`; the other 3,831 were parsed without OCR. If you want to
+**OCR is opt-in.** Seven of the 4,216 PDFs have a thin or missing text layer and are flagged
+`needs_ocr` in `manifest.jsonl`; the other 4,209 were parsed without OCR. If you want to
 retry those documents, liteparse delegates OCR over HTTP, so serve a model and point at it:
 
 ```bash
 ./src/parse_fulltext.py --ocr-server-url http://localhost:8080 --only-needs-ocr
 ```
 
-**Figures** (11,268 in the current corpus) are the raster images embedded in the
+**Figures** (12,579 in the current corpus) are the raster images embedded in the
 PDFs, referenced inline from the markdown so a document still reads as a whole. The
 PDFFigures2 pass adds captioned figure renderings, including figures drawn as *vector*
 graphics. Its files use the `pdffigures2-` prefix so both extractors' outputs remain
@@ -246,7 +256,7 @@ auditable and cannot overwrite each other.
 
 | View | Count | How it is produced |
 |---|---|---|
-| `tables/pdffigures2-*.png` | 15,557 | Captioned table renderings from PDFFigures2 |
+| `tables/pdffigures2-*.png` | 16,732 | Captioned table renderings from PDFFigures2 |
 
 The parsed Markdown still retains table content inline. The extraction stage removes the
 older standalone `table-NN.md` and cropped `pageNNN-tableNN.png` assets so the final
@@ -312,6 +322,8 @@ already there. Run from the project root:
 ./src/group_tasks.py       # CLEF candidates       -> data/intermediate/candidates/clef.jsonl
 ./src/fetch_semeval.py     # ACL SemEval pages     -> data/raw/acl_anthology/semeval/
 ./src/collect_semeval.py   # SemEval candidates    -> data/intermediate/candidates/semeval.jsonl
+./src/fetch_trec.py        # NIST TREC pages       -> data/raw/trec/
+./src/collect_trec.py      # TREC candidates       -> data/intermediate/candidates/trec.jsonl
 ./src/merge_candidates.py  # merged candidates     -> data/intermediate/all_candidates.jsonl
 ./src/download_papers.py   # PDFs                  -> data/final/{task_id}/
 ./src/parse_fulltext.py    # Markdown, figures, tables -> data/final/{task_id}/
@@ -346,12 +358,14 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
 
 ## 8. Known limitations
 
-1. **The initial screen is conservative.** The current cached candidate set contains 105
-   high-confidence CLEF tasks and 122 high-confidence SemEval tasks across the configured
-   editions. CLEF scans 2000–2025, but the 2000 volume currently has no high-confidence
-   grouping and remains in the merged review file. The review file also contains other
-   medium-confidence candidates and unresolved papers from both sources. These numbers can
-   change as more venues are added or source pages are refreshed.
+1. **The initial screen is conservative.** The current released corpus contains 105
+   high-confidence CLEF tasks, 122 SemEval tasks, and 42 TREC tasks. The TREC collector
+   scanned all 34 configured editions from 1992–2025; two otherwise high-confidence TREC
+   groups were automatically moved to review because 25 required official PDFs were
+   unavailable. CLEF scans 2000–2025, but the 2000 volume currently has no
+   high-confidence grouping. The review file contains medium-confidence candidates and
+   unresolved records from all three sources. These numbers can change as more venues are
+   added or source pages are refreshed.
 2. **`coverage_ratio` is source-dependent.** It is unknown where an overview's claimed
    team count cannot be extracted, so the plan's coverage-based ranking is only partially
    available until more source-specific count extractors are added.
@@ -359,11 +373,14 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
    checkout/JAR or Java/SBT is missing; Liteparse assets remain intact and the run can be
    resumed after setup.
 4. **Markdown tables are unreliable for large tables.** Use the images.
-5. **SemEval coverage is metadata-first.** The collector covers the configured ACL
-   Anthology SemEval editions and keeps ambiguous historical records in review. TREC,
-   NTCIR, FIRE, MediaEval, and additional source pages can be added as source-specific
-   collectors without changing the downstream document pipeline.
+5. **Coverage is metadata-first.** The SemEval collector covers the configured ACL
+   Anthology editions, and the TREC collector covers the configured NIST proceedings
+   editions. Ambiguous historical records remain in review. NTCIR, FIRE, MediaEval, and
+   additional source pages can be added as source-specific collectors without changing
+   the downstream document pipeline.
 6. **Unassigned SemEval papers remain review material.** Papers whose title does not
    explicitly name a task are preserved in the SemEval review file rather than assigned by
    guesswork.
-7. **One document lacks a usable text layer** and needs OCR to be complete (§5).
+7. **Seven documents have thin or missing text layers** and are flagged for optional OCR
+   (§5); four additional documents have a recorded PDFFigures2-specific failure while
+   retaining their Liteparse assets.

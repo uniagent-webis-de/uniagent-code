@@ -88,12 +88,18 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
     if args.semeval_year:
         semeval = ["--year", str(args.semeval_year)]
 
+    trec = []
+    if args.trec_year:
+        trec = ["--year", str(args.trec_year)]
+
     return [
         ("fetch_volumes", ["fetch_volumes.py", *fetch]),
         ("parse_sections", ["parse_sections.py", *parse]),
         ("group_tasks", ["group_tasks.py", *group]),
         ("fetch_semeval", ["fetch_semeval.py", *semeval]),
         ("collect_semeval", ["collect_semeval.py", *semeval]),
+        ("fetch_trec", ["fetch_trec.py", *trec]),
+        ("collect_trec", ["collect_trec.py", *trec]),
         ("merge_candidates", ["merge_candidates.py"]),
         ("download_papers", ["download_papers.py", *common, "--workers", str(args.download_workers)]),
         ("parse_fulltext", ["parse_fulltext.py", *parse_fulltext]),
@@ -143,6 +149,7 @@ def main() -> None:
         help="Concurrent PDF downloads (default: 8).",
     )
     parser.add_argument("--semeval-year", type=int, help="Process only one configured SemEval year during SemEval stages.")
+    parser.add_argument("--trec-year", type=int, help="Process only one configured TREC year during TREC stages.")
     parser.add_argument(
         "--target",
         type=int,
