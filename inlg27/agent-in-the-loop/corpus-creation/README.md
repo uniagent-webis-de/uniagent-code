@@ -389,7 +389,7 @@ already there. Run from the project root:
 ./src/fetch_sisap.py       # SISAP pages + results  -> data/raw/sisap/
 ./src/collect_sisap.py     # SISAP candidates      -> data/intermediate/candidates/sisap.jsonl
 ./src/merge_candidates.py  # merged candidates     -> data/intermediate/all_candidates.jsonl
-./src/download_papers.py   # PDFs                  -> data/final/{task_id}/
+./src/download_papers.py   # staged PDFs, complete tasks -> data/final/{task_id}/
 ./src/parse_fulltext.py    # Markdown, figures, tables -> data/final/{task_id}/
 ./src/extract_figs_tbls.py # captioned figures/tables -> document figures/ and tables/
 ./src/extract_counts.py    # counts from overview Markdown
@@ -416,7 +416,12 @@ to include review material. Use `--target N` as an optional experimental cap.
 
 `build_corpus.py` validates before writing anything, and refuses to emit the corpus if a
 check fails: every task has exactly one overview and ≥1 participant, no duplicate `task_id`
-or `pdf_url`, and every `coverage_ratio` is null or within `[0, 1.5]`.
+or `pdf_url`, every `coverage_ratio` is null or within `[0, 1.5]`, and the final directory
+contains exactly the assembled task ids. PDF downloads first live under
+`data/intermediate/downloads/{task_id}/`; a task is promoted to `data/final/{task_id}/`
+only after its overview and every participant PDF are valid. Failed or demoted tasks stay
+there for later retries. To clean up an older run's partial final directories without
+network access, use `./src/download_papers.py --reconcile-only`.
 
 `pytest` covers the parsing, layout, download caching, PDFFigures2 integration, enrichment,
 candidate screening, and grouping logic against saved fixtures — with no network access.

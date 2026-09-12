@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 INTERMEDIATE_DIR = DATA_DIR / "intermediate"
+DOWNLOADS_DIR = INTERMEDIATE_DIR / "downloads"
 CANDIDATES_DIR = INTERMEDIATE_DIR / "candidates"
 SCREENING_DIR = INTERMEDIATE_DIR / "screening"
 FINAL_DIR = DATA_DIR / "final"
@@ -26,28 +27,49 @@ def paper_id_for(pdf_url: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_\-]", "_", stem) or "paper"
 
 
+def task_dir_at(root: Path, task_id: str) -> Path:
+    """Return a task directory below an arbitrary corpus root."""
+    return root / task_id
+
+
 def task_dir(task_id: str) -> Path:
-    return FINAL_DIR / task_id
+    return task_dir_at(FINAL_DIR, task_id)
 
 
 def overview_dir(task_id: str) -> Path:
     return task_dir(task_id) / "overview"
 
 
+def overview_dir_at(root: Path, task_id: str) -> Path:
+    return task_dir_at(root, task_id) / "overview"
+
+
 def participant_dir(task_id: str, pdf_url: str) -> Path:
     return task_dir(task_id) / "papers" / paper_id_for(pdf_url)
 
 
+def participant_dir_at(root: Path, task_id: str, pdf_url: str) -> Path:
+    return task_dir_at(root, task_id) / "papers" / paper_id_for(pdf_url)
+
+
 def document_dir(task_id: str, role: str, pdf_url: str) -> Path:
+    return document_dir_at(FINAL_DIR, task_id, role, pdf_url)
+
+
+def document_dir_at(root: Path, task_id: str, role: str, pdf_url: str) -> Path:
     if role == "overview":
-        return overview_dir(task_id)
+        return overview_dir_at(root, task_id)
     if role == "participant":
-        return participant_dir(task_id, pdf_url)
+        return participant_dir_at(root, task_id, pdf_url)
     raise ValueError(f"unsupported document role: {role}")
 
 
 def document_pdf_path(task_id: str, role: str, pdf_url: str) -> Path:
-    directory = document_dir(task_id, role, pdf_url)
+    return document_pdf_path_at(FINAL_DIR, task_id, role, pdf_url)
+
+
+def document_pdf_path_at(root: Path, task_id: str, role: str, pdf_url: str) -> Path:
+    directory = document_dir_at(root, task_id, role, pdf_url)
     filename = "overview.pdf" if role == "overview" else "paper.pdf"
     return directory / filename
 

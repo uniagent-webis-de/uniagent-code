@@ -101,6 +101,75 @@ def test_process_documents_runs_overview_and_participant_jobs(monkeypatch):
     ]
 
 
+def test_complete_task_is_promoted_from_staging(tmp_path, monkeypatch):
+    final_dir = tmp_path / "final"
+    downloads_dir = tmp_path / "downloads"
+    monkeypatch.setattr(download_papers, "FINAL_DIR", final_dir)
+    monkeypatch.setattr(download_papers, "DOWNLOADS_DIR", downloads_dir)
+    task = {
+        "task_id": "task-1",
+        "overview": {"pdf_url": "https://x/overview.pdf"},
+        "participants": [{"pdf_url": "https://x/paper-1.pdf"}],
+    }
+
+    workspace = download_papers.prepare_task_workspace(task, logging.getLogger("test"))
+    assert workspace == downloads_dir
+    assert not (final_dir / "task-1").exists()
+
+    def fake_download(url, destination, logger):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(FakeResponse.content)
+        return True
+
+    monkeypatch.setattr(download_papers, "download_pdf", fake_download)
+    assert download_papers.process_documents(
+        [task], logging.getLogger("test"), workers=2, workspaces={"task-1": workspace}
+    ) == []
+    assert download_papers.promote_task_workspace(task, workspace, logging.getLogger("test"))
+    assert download_papers.task_is_complete(task, final_dir)
+    assert not (downloads_dir / "task-1").exists()
+
+
+def test_incomplete_final_task_is_moved_to_staging(tmp_path, monkeypatch):
+    final_dir = tmp_path / "final"
+    downloads_dir = tmp_path / "downloads"
+    monkeypatch.setattr(download_papers, "FINAL_DIR", final_dir)
+    monkeypatch.setattr(download_papers, "DOWNLOADS_DIR", downloads_dir)
+    task = {
+        "task_id": "task-1",
+        "overview": {"pdf_url": "https://x/overview.pdf"},
+        "participants": [{"pdf_url": "https://x/paper-1.pdf"}],
+    }
+    overview = final_dir / "task-1" / "overview" / "overview.pdf"
+    overview.parent.mkdir(parents=True)
+    overview.write_bytes(FakeResponse.content)
+
+    workspace = download_papers.prepare_task_workspace(task, logging.getLogger("test"))
+
+    assert workspace == downloads_dir
+    assert not (final_dir / "task-1").exists()
+    assert (downloads_dir / "task-1" / "overview" / "overview.pdf").exists()
+
+
+def test_reconcile_moves_nonaccepted_final_tasks_without_deleting_them(tmp_path, monkeypatch):
+    final_dir = tmp_path / "final"
+    downloads_dir = tmp_path / "downloads"
+    monkeypatch.setattr(download_papers, "FINAL_DIR", final_dir)
+    monkeypatch.setattr(download_papers, "DOWNLOADS_DIR", downloads_dir)
+    orphan = final_dir / "task-1" / "overview" / "overview.pdf"
+    orphan.parent.mkdir(parents=True)
+    orphan.write_bytes(FakeResponse.content)
+    task = {"task_id": "task-1"}
+
+    moved = download_papers.reconcile_final_task_dirs(
+        [task], set(), logging.getLogger("test")
+    )
+
+    assert moved == {"task-1"}
+    assert not (final_dir / "task-1").exists()
+    assert (downloads_dir / "task-1" / "overview" / "overview.pdf").exists()
+
+
 def test_failed_required_pdf_demotes_task_and_records_failure(tmp_path, monkeypatch):
     candidates_path = tmp_path / "all_candidates.jsonl"
     failures_path = tmp_path / "download_failures.jsonl"
