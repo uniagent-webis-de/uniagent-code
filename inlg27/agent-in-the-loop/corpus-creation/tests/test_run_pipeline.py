@@ -13,6 +13,7 @@ def make_args(**overrides):
         "trec_year": None,
         "ntcir_edition": None,
         "fire_year": None,
+        "mediaeval_year": None,
         "target": None,
         "ocr_server_url": None,
         "ocr_language": "eng",
@@ -41,6 +42,8 @@ def test_stage_order_matches_the_canonical_pipeline():
         "collect_ntcir",
         "fetch_fire",
         "collect_fire",
+        "fetch_mediaeval",
+        "collect_mediaeval",
         "merge_candidates",
         "download_papers",
         "parse_fulltext",
@@ -87,3 +90,9 @@ def test_fire_year_is_forwarded_to_both_fire_stages():
     commands = dict(stage_commands(make_args(fire_year=2025)))
     assert commands["fetch_fire"] == ["fetch_fire.py", "--year", "2025"]
     assert commands["collect_fire"] == ["collect_fire.py", "--year", "2025"]
+
+
+def test_mediaeval_year_is_forwarded_to_both_mediaeval_stages():
+    commands = dict(stage_commands(make_args(mediaeval_year=2022)))
+    assert commands["fetch_mediaeval"] == ["fetch_mediaeval.py", "--year", "2022"]
+    assert commands["collect_mediaeval"] == ["collect_mediaeval.py", "--year", "2022"]

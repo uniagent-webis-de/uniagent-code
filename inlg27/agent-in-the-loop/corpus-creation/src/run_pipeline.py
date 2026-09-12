@@ -100,6 +100,10 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
     if args.fire_year:
         fire = ["--year", str(args.fire_year)]
 
+    mediaeval = []
+    if args.mediaeval_year:
+        mediaeval = ["--year", str(args.mediaeval_year)]
+
     return [
         ("fetch_volumes", ["fetch_volumes.py", *fetch]),
         ("parse_sections", ["parse_sections.py", *parse]),
@@ -112,6 +116,8 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
         ("collect_ntcir", ["collect_ntcir.py", *ntcir]),
         ("fetch_fire", ["fetch_fire.py", *fire]),
         ("collect_fire", ["collect_fire.py", *fire]),
+        ("fetch_mediaeval", ["fetch_mediaeval.py", *mediaeval]),
+        ("collect_mediaeval", ["collect_mediaeval.py", *mediaeval]),
         ("merge_candidates", ["merge_candidates.py"]),
         ("download_papers", ["download_papers.py", *common, "--workers", str(args.download_workers)]),
         ("parse_fulltext", ["parse_fulltext.py", *parse_fulltext]),
@@ -164,6 +170,7 @@ def main() -> None:
     parser.add_argument("--trec-year", type=int, help="Process only one configured TREC year during TREC stages.")
     parser.add_argument("--ntcir-edition", type=int, help="Process only one configured NTCIR edition during NTCIR stages.")
     parser.add_argument("--fire-year", type=int, help="Process only one configured FIRE year during FIRE stages.")
+    parser.add_argument("--mediaeval-year", type=int, help="Process only one configured MediaEval year during MediaEval stages.")
     parser.add_argument(
         "--target",
         type=int,
