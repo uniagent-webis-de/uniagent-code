@@ -8,8 +8,8 @@ verification. The pipeline never uploads data automatically.
 A corpus of shared tasks where each entry links one **overview paper** (written by the
 organizers, summarising the whole task) to the **notebook papers** written by the teams
 that participated in it. The current corpus covers CLEF, FIRE, MediaEval, NTCIR, SemEval,
-and TREC, with more high-precision source-specific collectors planned for other ACL/IR
-venues.
+TREC, and SISAP, with more high-precision source-specific collectors planned for other
+ACL/IR venues.
 
 The intended use is generation: the notebook papers are the inputs, the overview paper is
 the target output.
@@ -37,6 +37,8 @@ collectors use the same candidate contract and are merged before the paper-downl
 | [DBLP FIRE records](https://dblp.org/db/conf/fire/index.html) and [TIRA](https://www.tira.io/tasks) | Supplemental FIRE cross-checks; neither source creates a paper or task grouping |
 | [MediaEval official history and edition pages](https://multimediaeval.github.io/about/) and [CEUR MediaEval proceedings](https://ceur-ws.org/Vol-3658/) | Authoritative MediaEval task sections, explicit overview/working-notes/quest-for-insight roles, and official PDF links |
 | [DBLP MediaEval records](https://dblp.org/db/conf/mediaeval/index.html) and [TIRA](https://www.tira.io/tasks) | Supplemental MediaEval cross-checks; neither source creates a paper or task grouping |
+| [SISAP Indexing Challenge editions](https://sisap-challenges.github.io/) and [SISAP proceedings](https://sisap.org/2025/accepted.html) | Authoritative SISAP task definitions, challenge results, organizer overview, participant-paper metadata, and official code/result links |
+| [DBLP SISAP records](https://dblp.org/db/conf/sisap/index.html) and [TIRA](https://www.tira.io/tasks) | Supplemental SISAP cross-checks; neither source creates a paper or task grouping |
 
 Twenty-six volumes, one per CLEF Working Notes edition from 2000 through 2025: volumes
 1166–1179 (2000–2013), 1180 (2014), 1391 (2015), 1609 (2016), 1866 (2017), and
@@ -47,11 +49,14 @@ what section they sit in; DBLP only corrects author spellings where the normaliz
 match. In the latest all-years run, DBLP served anti-bot challenge pages, so no DBLP
 matches contributed to the corpus and CEUR author metadata was retained.
 
-**Every `pdf_url` in the corpus was read from an `href` on the authoritative source page
-for its venue.** None are constructed from a filename pattern — the patterns are not
-stable across collections. One NTCIR-12 IMine-2 href is preserved as
-`source_url_original` because the official ToC uses a stale `SongX` filename while the
-served PDF is `SongM`; the correction is explicit and source-specific.
+**Every publisher `pdf_url` in the corpus was read from an `href` on the authoritative
+source page for its venue.** None are constructed from a filename pattern — the patterns
+are not stable across collections. SISAP records may additionally use a verified
+open-access author-manuscript URL when the publisher endpoint is not automatically
+retrievable; the publisher landing page and DOI are preserved alongside it. One
+NTCIR-12 IMine-2 href is preserved as `source_url_original` because the official ToC uses
+a stale `SongX` filename while the served PDF is `SongM`; the correction is explicit and
+source-specific.
 
 ---
 
@@ -114,6 +119,17 @@ Speech Retrieval is represented as one umbrella task with both role sections. Le
 pages, editions whose proceedings expose insufficient evidence, and current editions
 without parseable official PDF sections remain review-only. DBLP and TIRA are supplemental
 cross-checks and never create task groupings.
+
+The SISAP collector scans all four configured Indexing Challenge editions (2023–2026),
+covering eleven task units. Official SISAP pages provide task definitions and results;
+the Springer proceedings provide the organizer and participant-paper metadata. A task is
+high confidence only when it has one organizer overview, at least two explicitly mapped
+participant notebook papers, official task evidence, unique PDF URLs, and explicit team
+evidence. Verified open-access author manuscripts are used when a publisher PDF is not
+automatically retrievable, while the Springer landing page and DOI remain the canonical
+paper identity. SISAP 2026 task and leaderboard records are preserved in the review queue
+until its proceedings and participant PDFs are public. Historical SISAP tasks with
+insufficient public full-text evidence remain review material automatically.
 
 This is the part worth understanding before you trust an entry, because it is where the
 judgement lives.
@@ -370,6 +386,8 @@ already there. Run from the project root:
 ./src/collect_fire.py      # FIRE candidates       -> data/intermediate/candidates/fire.jsonl
 ./src/fetch_mediaeval.py   # MediaEval pages + CEUR -> data/raw/mediaeval/
 ./src/collect_mediaeval.py # MediaEval candidates   -> data/intermediate/candidates/mediaeval.jsonl
+./src/fetch_sisap.py       # SISAP pages + results  -> data/raw/sisap/
+./src/collect_sisap.py     # SISAP candidates      -> data/intermediate/candidates/sisap.jsonl
 ./src/merge_candidates.py  # merged candidates     -> data/intermediate/all_candidates.jsonl
 ./src/download_papers.py   # PDFs                  -> data/final/{task_id}/
 ./src/parse_fulltext.py    # Markdown, figures, tables -> data/final/{task_id}/
@@ -409,7 +427,8 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
 
 1. **The initial screen is conservative.** The current released corpus contains 105
    high-confidence CLEF tasks, 68 FIRE tasks, 62 MediaEval tasks, 102 NTCIR tasks, 122
-   SemEval tasks, and 42 TREC tasks: 501 tasks and 5,880 participant papers in total. The
+   SemEval tasks, 42 TREC tasks, and no SISAP tasks yet: 501 tasks and 5,880 participant
+   papers in total. The
    TREC collector scanned
    all 34 configured editions from 1992–2025; two otherwise high-confidence TREC groups
    were automatically moved to review because 25 required official PDFs were unavailable.
@@ -418,9 +437,12 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
    17 configured archive editions, with complete CEUR working-notes structure available for
    2015–2025; older editions remain in review when their public source pages do not expose
    enough official PDF evidence. MediaEval scans 2010–2023 and 2025–2026; legacy and
-   insufficiently evidenced editions remain in review. CLEF scans 2000–2025, but the 2000
+   insufficiently evidenced editions remain in review. SISAP scans 2023–2026 and keeps
+   tasks in review when the published proceedings do not expose a complete automatically
+   downloadable participant-PDF set; 2026 is unresolved because its proceedings are not
+   public yet. CLEF scans 2000–2025, but the 2000
    volume currently has no high-confidence grouping. The review file contains
-   medium-confidence candidates and unresolved records from all six sources. These numbers
+   medium-confidence candidates and unresolved records from all seven sources. These numbers
    can change as more venues are added or source pages are refreshed.
 2. **`coverage_ratio` is source-dependent.** It is unknown where an overview's claimed
    team count cannot be extracted, so the plan's coverage-based ranking is only partially
