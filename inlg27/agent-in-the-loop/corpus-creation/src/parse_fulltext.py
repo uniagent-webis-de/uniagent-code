@@ -403,89 +403,96 @@ def preserve_extractor_fields(record: dict, previous: dict | None) -> dict:
 
 
 def write_readme(records: list[dict], path: Path) -> None:
-    """Explain the layout to whoever receives this directory, so the corpus is usable
-    without reading the manifest or the pipeline source."""
+    """Write a short guide that makes the generated corpus usable on its own."""
     overviews = sum(1 for r in records if r["role"] == "overview")
     participants = sum(1 for r in records if r["role"] == "participant")
     ocr_needed = sum(1 for r in records if r.get("needs_ocr"))
     path.write_text(
-        f"""# Shared-task corpus — parsed full text
+        f"""# Final shared-task corpus
 
-{overviews} overview papers and {participants} participant (notebook) papers, parsed from
-the downloaded PDFs to Markdown.
+This directory contains {overviews} shared tasks and {participants} participant papers.
 
-## Layout
+For each task:
 
-    {{task_id}}/overview/overview.pdf          the overview source PDF
-    {{task_id}}/overview/overview.txt.md       the overview target text
-    {{task_id}}/overview/figures/              overview figures
-    {{task_id}}/overview/tables/               overview tables
-    {{task_id}}/papers/{{paper_id}}/paper.pdf  one notebook source PDF
-    {{task_id}}/papers/{{paper_id}}/paper.txt.md notebook input text
-    {{task_id}}/papers/{{paper_id}}/figures/   notebook figures
-    {{task_id}}/papers/{{paper_id}}/tables/    notebook tables
+```text
+Input:  participant papers
+Target: organizer overview paper
+```
 
-Figures are raster images embedded in the PDF, and the markdown keeps an inline `![](...)` reference to each one, so a
-document still reads as a whole. The later PDFFigures2 stage adds captioned figure and
-table renderings, including many vector-rendered figures. Tables are handled the same
-way: markdown for the text, plus an image of the table exactly as it appears in the
-paper, which preserves the column layout, spanning headers and alignment that a
-flattened text version loses.
-Tables also stay inline in the markdown — these files are an extra view, not a removal.
+## Start here
 
-The two views are produced independently and are **not** index-matched:
+- `shared_tasks.jsonl`: complete task records; use this in code
+- `shared_tasks.csv`: the same task metadata in spreadsheet form
+- `manifest.jsonl`: parsing status and local paths for every document
+- `report.md`: corpus totals and quality checks
+- `{{task_id}}/metadata.json`: metadata for one task
 
-- `table-NN.md` is the parser's text reconstruction, in document order.
-- `pageNNN-tableNN.png` is cropped from the page using the paper's own ruling lines, and
-  is named for where it sits in the PDF.
+## Files inside one task
 
-They are kept separate on purpose. The text reconstruction is unreliable for large
-tables — in one overview the parser collapsed a 34-team results table into a single
-markdown row — so pairing an image to a markdown table by matching cell text produced
-images filed under the wrong table. The page-named images always show the table they
-claim to show, and a table drawn without ruling lines has markdown only.
-`manifest.jsonl` records `n_tables` (markdown) beside `n_table_images` (cropped).
-For any table where the two disagree, trust the image.
+```text
+{{task_id}}/
+├── metadata.json
+├── overview/
+│   ├── overview.pdf       original organizer paper
+│   ├── overview.txt.md    target text
+│   ├── figures/
+│   └── tables/
+└── papers/{{paper_id}}/
+    ├── paper.pdf          original participant paper
+    ├── paper.txt.md       input text
+    ├── figures/
+    └── tables/
+```
 
-PDFFigures2 outputs are prefixed with `pdffigures2-` and their counts/status are recorded
-in `manifest.jsonl` as `pdffigures2_figures`, `pdffigures2_tables`, and
-`pdffigures2_status`. If the external extractor is not installed, the pipeline stops at
-that stage with an actionable error; Liteparse's assets remain usable and the run can be
-resumed after installation.
+## Read the corpus in Python
 
-`{{paper_id}}` is derived from the source PDF filename on CEUR-WS, so a document can always be
-traced back to its origin. `manifest.jsonl` records, per document: `task_id`, `role`,
-source `pdf_url`, output `pdf_path` and `markdown_path`, `chars`, `pages`, `chars_per_page`, whether an
-OCR server was used, and whether the text layer looked too thin to trust (`needs_ocr`).
+Run this from the `corpus-creation` directory:
 
-## Aligning with the corpus files
+```python
+import json
+from pathlib import Path
 
-`shared_tasks.jsonl` carries the path to each parsed document directly, so no filename
-munging is needed:
+tasks = [
+    json.loads(line)
+    for line in Path("data/final/shared_tasks.jsonl").read_text().splitlines()
+]
 
-    task["overview"]["fulltext_path"]        -> {{task_id}}/overview/overview.txt.md
-    task["participants"][i]["fulltext_path"] -> {{task_id}}/papers/{{paper_id}}/paper.txt.md
+task = tasks[0]
+overview = Path(task["overview"]["fulltext_path"]).read_text()
+participant_papers = [
+    Path(paper["fulltext_path"]).read_text()
+    for paper in task["participants"]
+]
+```
 
-In `shared_tasks.csv`, `overview_fulltext_path` holds the overview and
-`participant_fulltext_paths` holds the notebook papers joined by `; ` in the same order
-as `participant_pdf_urls`, so the two columns line up positionally. A path is empty only
-when that document could not be parsed.
+The JSONL records already contain the correct PDF and Markdown paths. You do not need to
+construct filenames yourself. In the CSV, multiple participant paths are separated by
+`; ` and have the same order as `participant_pdf_urls`.
 
-## Parsing
+## Text, figures, and tables
 
-Text comes from each PDF's own text layer via liteparse; CEUR working notes are
-born-digital, so no OCR was required for {len(records) - ocr_needed} of {len(records)} documents.
-{"All documents parsed cleanly." if not ocr_needed else f"{ocr_needed} document(s) have no usable text layer and are flagged `needs_ocr` in the manifest; regenerate those with an OCR server (see below)."}
+Liteparse converts the PDF text layer to Markdown. Figures referenced by the Markdown are
+stored in `figures/`. PDFFigures2 stores captioned figure and table images with the prefix
+`pdffigures2-`. For a large or complicated table, prefer its image over flattened Markdown.
 
-To route OCR through a served model (for example PaddleOCR-VL):
+`manifest.jsonl` records page and character counts, output paths, extraction status, and
+whether a document needs OCR.
 
-    ./src/parse_fulltext.py --ocr-server-url http://localhost:8080 --only-needs-ocr
+{len(records) - ocr_needed} of {len(records)} documents produced usable text without OCR.
+{"No document currently needs OCR." if not ocr_needed else f"{ocr_needed} document(s) are marked `needs_ocr`."}
 
-## Caveat for task design
+To retry only those documents with an OCR server:
 
-Overview papers are the *target* output of this shared task. They are included here for
-building and validating systems — withhold the overview text for any split used as a
-blind test set, or the answer leaks.
+```bash
+python3 src/parse_fulltext.py \\
+  --ocr-server-url http://localhost:8080 \\
+  --only-needs-ocr
+```
+
+## Important evaluation rule
+
+Do not give `overview.txt.md` to a system being evaluated. It is the target answer. Giving
+it to the system would leak the expected result.
 """,
         encoding="utf-8",
     )
