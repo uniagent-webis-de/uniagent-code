@@ -92,6 +92,10 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
     if args.trec_year:
         trec = ["--year", str(args.trec_year)]
 
+    ntcir = []
+    if args.ntcir_edition:
+        ntcir = ["--edition", str(args.ntcir_edition)]
+
     return [
         ("fetch_volumes", ["fetch_volumes.py", *fetch]),
         ("parse_sections", ["parse_sections.py", *parse]),
@@ -100,6 +104,8 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
         ("collect_semeval", ["collect_semeval.py", *semeval]),
         ("fetch_trec", ["fetch_trec.py", *trec]),
         ("collect_trec", ["collect_trec.py", *trec]),
+        ("fetch_ntcir", ["fetch_ntcir.py", *ntcir]),
+        ("collect_ntcir", ["collect_ntcir.py", *ntcir]),
         ("merge_candidates", ["merge_candidates.py"]),
         ("download_papers", ["download_papers.py", *common, "--workers", str(args.download_workers)]),
         ("parse_fulltext", ["parse_fulltext.py", *parse_fulltext]),
@@ -150,6 +156,7 @@ def main() -> None:
     )
     parser.add_argument("--semeval-year", type=int, help="Process only one configured SemEval year during SemEval stages.")
     parser.add_argument("--trec-year", type=int, help="Process only one configured TREC year during TREC stages.")
+    parser.add_argument("--ntcir-edition", type=int, help="Process only one configured NTCIR edition during NTCIR stages.")
     parser.add_argument(
         "--target",
         type=int,

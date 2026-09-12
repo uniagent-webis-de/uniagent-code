@@ -11,6 +11,7 @@ def make_args(**overrides):
         "download_workers": 8,
         "semeval_year": None,
         "trec_year": None,
+        "ntcir_edition": None,
         "target": None,
         "ocr_server_url": None,
         "ocr_language": "eng",
@@ -35,6 +36,8 @@ def test_stage_order_matches_the_canonical_pipeline():
         "collect_semeval",
         "fetch_trec",
         "collect_trec",
+        "fetch_ntcir",
+        "collect_ntcir",
         "merge_candidates",
         "download_papers",
         "parse_fulltext",
@@ -69,3 +72,9 @@ def test_trec_year_is_forwarded_to_both_trec_stages():
     commands = dict(stage_commands(make_args(trec_year=2025)))
     assert commands["fetch_trec"] == ["fetch_trec.py", "--year", "2025"]
     assert commands["collect_trec"] == ["collect_trec.py", "--year", "2025"]
+
+
+def test_ntcir_edition_is_forwarded_to_both_ntcir_stages():
+    commands = dict(stage_commands(make_args(ntcir_edition=18)))
+    assert commands["fetch_ntcir"] == ["fetch_ntcir.py", "--edition", "18"]
+    assert commands["collect_ntcir"] == ["collect_ntcir.py", "--edition", "18"]
