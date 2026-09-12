@@ -521,6 +521,7 @@ def main() -> None:
             logger.error("task_id %s not found in the final corpus", args.task_id)
             sys.exit(1)
 
+    previous_by_key: dict[tuple[str | None, str], dict] = {}
     previous_by_url: dict[str, dict] = {}
     if MANIFEST_PATH.exists():
         for line in MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
@@ -528,9 +529,10 @@ def main() -> None:
                 continue
             previous = json.loads(line)
             if previous.get("pdf_url"):
+                previous_by_key[(previous.get("task_id"), previous["pdf_url"])] = previous
                 previous_by_url[previous["pdf_url"]] = previous
 
-    retry_only: set[str] = set()
+    retry_only: set[tuple[str | None, str]] = set()
     if args.only_needs_ocr:
         if not MANIFEST_PATH.exists():
             logger.error("--only-needs-ocr needs a previous run's manifest at %s", MANIFEST_PATH)
@@ -538,7 +540,7 @@ def main() -> None:
         for line in MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
             record = json.loads(line)
             if record.get("needs_ocr"):
-                retry_only.add(record["pdf_url"])
+                retry_only.add((record.get("task_id"), record["pdf_url"]))
                 Path(PROJECT_ROOT / record["markdown_path"]).unlink(missing_ok=True)
         logger.info("re-parsing %d document(s) previously flagged as needing OCR", len(retry_only))
 
@@ -548,18 +550,26 @@ def main() -> None:
         documents = [("overview", task["overview"]["pdf_url"])]
         documents += [("participant", p["pdf_url"]) for p in task["participants"]]
         for role, pdf_url in documents:
-            if retry_only and pdf_url not in retry_only:
+            key = (task["task_id"], pdf_url)
+            if retry_only and key not in retry_only:
                 continue
             record = process_document(task["task_id"], role, pdf_url, task_dir, args.ocr_server_url, args.ocr_language, logger)
             if record:
-                records.append(preserve_extractor_fields(record, previous_by_url.get(pdf_url)))
+                previous = previous_by_key.get(key) or previous_by_url.get(pdf_url)
+                records.append(preserve_extractor_fields(record, previous))
 
     if retry_only and MANIFEST_PATH.exists():
         # Merge into the existing manifest so a targeted OCR re-run does not discard the
         # entries it did not touch.
-        by_url = {json.loads(l)["pdf_url"]: json.loads(l) for l in MANIFEST_PATH.read_text(encoding="utf-8").splitlines()}
-        by_url.update({r["pdf_url"]: r for r in records})
-        records = list(by_url.values())
+        by_key = {
+            (record.get("task_id"), record["pdf_url"]): record
+            for record in (
+                json.loads(line) for line in MANIFEST_PATH.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            )
+        }
+        by_key.update({(record.get("task_id"), record["pdf_url"]): record for record in records})
+        records = list(by_key.values())
 
     FULLTEXT_DIR.mkdir(parents=True, exist_ok=True)
     with MANIFEST_PATH.open("w", encoding="utf-8") as f:

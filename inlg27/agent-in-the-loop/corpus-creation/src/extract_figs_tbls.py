@@ -510,7 +510,7 @@ def process_document(
         )
 
 
-def load_manifest() -> tuple[list[dict], dict[str, dict]]:
+def load_manifest() -> tuple[list[dict], dict[tuple[str | None, str], dict]]:
     """Load the text manifest while preserving its current order."""
     if not MANIFEST_PATH.exists():
         raise FileNotFoundError(f"missing {MANIFEST_PATH} — run parse_fulltext.py first")
@@ -519,7 +519,10 @@ def load_manifest() -> tuple[list[dict], dict[str, dict]]:
         for line in MANIFEST_PATH.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    return records, {record["pdf_url"]: record for record in records}
+    return records, {
+        (record.get("task_id"), record["pdf_url"]): record
+        for record in records
+    }
 
 
 def write_manifest(records: list[dict]) -> None:
@@ -591,11 +594,11 @@ def main() -> None:
             "pdffigures2_error": message,
             "pdffigures2_extracted_at": datetime.now().isoformat(timespec="seconds"),
         })
-        manifest_by_url[pdf_url] = failed_record
+        manifest_by_url[(task_id, pdf_url)] = failed_record
 
     for index, (task_id, role, pdf_url) in enumerate(documents, start=1):
         logger.info("[%d/%d] %s %s", index, len(documents), task_id, role)
-        previous = manifest_by_url.get(pdf_url)
+        previous = manifest_by_url.get((task_id, pdf_url))
         try:
             pdf_path = document_pdf_path(task_id, role, pdf_url)
             figures_dir = document_figures_dir(task_id, role, pdf_url)
@@ -604,7 +607,7 @@ def main() -> None:
                 raise FileNotFoundError(f"missing PDF: {pdf_path} — run download_papers.py first")
             if cached_extraction(previous):
                 logger.info("PDFFigures2 cache hit: %s", pdf_path)
-                manifest_by_url[pdf_url] = refresh_asset_counts(dict(previous), figures_dir, tables_dir)
+                manifest_by_url[(task_id, pdf_url)] = refresh_asset_counts(dict(previous), figures_dir, tables_dir)
                 continue
             # Only remove stale outputs after the cache check. Removing them first would
             # make every valid cache entry fail its own existence test.
@@ -678,7 +681,7 @@ def main() -> None:
                         image_format=args.image_format,
                         logger=logger,
                     )
-                    manifest_by_url[item["pdf_url"]] = record
+                    manifest_by_url[(item["task_id"], item["pdf_url"])] = record
 
     # Keep documents not selected by --task-id/--confidence in place. Append newly
     # discovered records only for completeness; a normal pipeline run updates all of its
@@ -686,11 +689,11 @@ def main() -> None:
     ordered = []
     seen = set()
     for record in manifest_records:
-        url = record["pdf_url"]
-        ordered.append(manifest_by_url.get(url, record))
-        seen.add(url)
-    for url, record in manifest_by_url.items():
-        if url not in seen:
+        key = (record.get("task_id"), record["pdf_url"])
+        ordered.append(manifest_by_url.get(key, record))
+        seen.add(key)
+    for key, record in manifest_by_url.items():
+        if key not in seen:
             ordered.append(record)
     write_manifest(ordered)
 

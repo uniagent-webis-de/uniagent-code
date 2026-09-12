@@ -14,6 +14,7 @@ def make_args(**overrides):
         "ntcir_edition": None,
         "fire_year": None,
         "mediaeval_year": None,
+        "sisap_year": None,
         "target": None,
         "ocr_server_url": None,
         "ocr_language": "eng",
@@ -44,6 +45,8 @@ def test_stage_order_matches_the_canonical_pipeline():
         "collect_fire",
         "fetch_mediaeval",
         "collect_mediaeval",
+        "fetch_sisap",
+        "collect_sisap",
         "merge_candidates",
         "download_papers",
         "parse_fulltext",
@@ -96,3 +99,9 @@ def test_mediaeval_year_is_forwarded_to_both_mediaeval_stages():
     commands = dict(stage_commands(make_args(mediaeval_year=2022)))
     assert commands["fetch_mediaeval"] == ["fetch_mediaeval.py", "--year", "2022"]
     assert commands["collect_mediaeval"] == ["collect_mediaeval.py", "--year", "2022"]
+
+
+def test_sisap_year_is_forwarded_to_both_sisap_stages():
+    commands = dict(stage_commands(make_args(sisap_year=2025)))
+    assert commands["fetch_sisap"] == ["fetch_sisap.py", "--year", "2025"]
+    assert commands["collect_sisap"] == ["collect_sisap.py", "--year", "2025"]

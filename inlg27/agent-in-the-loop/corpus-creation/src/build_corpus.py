@@ -106,7 +106,7 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         participant["tira_refs"] = entry["tira_refs"]
 
 
-def join_fulltext_paths(task: dict, manifest: dict[str, dict], logger: logging.Logger) -> None:
+def join_fulltext_paths(task: dict, manifest: dict, logger: logging.Logger) -> None:
     """Publish each document's parsed-markdown path on the record itself, so consumers can
     go from a corpus entry straight to its text without deriving filenames from URLs."""
     if not manifest:
@@ -123,14 +123,20 @@ def join_fulltext_paths(task: dict, manifest: dict[str, dict], logger: logging.L
         document["tables_dir"] = record.get("tables_dir") if record else None
         document["n_tables"] = record.get("n_tables", 0) if record else 0
 
-    overview_record = manifest.get(task["overview"]["pdf_url"])
+    def lookup(pdf_url: str) -> dict | None:
+        # New manifests are keyed by (task_id, pdf_url), which permits an explicitly
+        # shared SISAP document to have a path in each task directory.  The URL-only
+        # fallback keeps this helper compatible with older manifests and unit fixtures.
+        return manifest.get((task["task_id"], pdf_url)) or manifest.get(pdf_url)
+
+    overview_record = lookup(task["overview"]["pdf_url"])
     apply(task["overview"], overview_record)
     if overview_record is None:
         logger.warning("%s: overview has no parsed full text", task["task_id"])
 
     missing = 0
     for participant in task["participants"]:
-        record = manifest.get(participant["pdf_url"])
+        record = lookup(participant["pdf_url"])
         apply(participant, record)
         if record is None:
             missing += 1
@@ -138,15 +144,18 @@ def join_fulltext_paths(task: dict, manifest: dict[str, dict], logger: logging.L
         logger.warning("%s: %d/%d participants have no parsed full text", task["task_id"], missing, len(task["participants"]))
 
 
-def load_fulltext_manifest(logger: logging.Logger) -> dict[str, dict]:
-    """Map pdf_url -> parsed-document record from the full-text manifest."""
+def load_fulltext_manifest(logger: logging.Logger) -> dict:
+    """Map (task_id, pdf_url) -> parsed-document record from the full-text manifest."""
     if not FULLTEXT_MANIFEST_PATH.exists():
         logger.warning("no full-text manifest at %s — run parse_fulltext.py to add fulltext_path fields", FULLTEXT_MANIFEST_PATH)
         return {}
     manifest = {}
     for line in FULLTEXT_MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
         record = json.loads(line)
-        manifest[record["pdf_url"]] = record
+        key = (record.get("task_id"), record["pdf_url"])
+        manifest[key] = record
+        # Preserve URL-only lookup for older records that lack task-specific paths.
+        manifest.setdefault(record["pdf_url"], record)
     logger.info("loaded full-text manifest with %d documents", len(manifest))
     return manifest
 
@@ -202,14 +211,26 @@ def validate(tasks: list[dict], logger: logging.Logger) -> bool:
         logger.error("VALIDATION FAILED: duplicate task_id(s): %s", duplicate_ids)
         ok = False
 
-    pdf_urls: dict[str, str] = {}
+    pdf_urls: dict[str, tuple[str, dict]] = {}
     for t in tasks:
-        urls = [t["overview"]["pdf_url"]] + [p["pdf_url"] for p in t["participants"]]
-        for url in urls:
-            if url in pdf_urls and pdf_urls[url] != t["task_id"]:
-                logger.error("VALIDATION FAILED: duplicate pdf_url %s across %s and %s", url, pdf_urls[url], t["task_id"])
-                ok = False
-            pdf_urls[url] = t["task_id"]
+        documents = [t["overview"], *t["participants"]]
+        for document in documents:
+            url = document["pdf_url"]
+            if url in pdf_urls and pdf_urls[url][0] != t["task_id"]:
+                previous_task_id, previous_document = pdf_urls[url]
+                explicitly_shared = (
+                    t.get("parent_venue") == "SISAP"
+                    and previous_document.get("shared_document_id")
+                    and previous_document.get("shared_document_id") == document.get("shared_document_id")
+                    and previous_document.get("shared_document_group")
+                    and previous_document.get("shared_document_group") == document.get("shared_document_group")
+                )
+                if explicitly_shared:
+                    logger.info("allowing explicitly shared SISAP document across tasks: %s", url)
+                else:
+                    logger.error("VALIDATION FAILED: duplicate pdf_url %s across %s and %s", url, previous_task_id, t["task_id"])
+                    ok = False
+            pdf_urls[url] = (t["task_id"], document)
 
     for t in tasks:
         ratio = t["counts"]["coverage_ratio"]
