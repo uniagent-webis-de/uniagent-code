@@ -277,6 +277,30 @@ def validate_output_files(tasks: list[dict], logger: logging.Logger) -> bool:
     return ok
 
 
+def validate_final_task_directories(tasks: list[dict], logger: logging.Logger) -> bool:
+    """Ensure ``data/final`` contains exactly the tasks being assembled.
+
+    The downloader promotes complete task trees transactionally. This check catches
+    stale or partial directories that could otherwise look like corpus records to a
+    consumer even though they are absent from ``shared_tasks.jsonl``.
+    """
+    expected = {task["task_id"] for task in tasks}
+    actual = {
+        path.name
+        for path in FINAL_DIR.iterdir()
+        if path.is_dir() and not path.name.startswith(".")
+    } if FINAL_DIR.exists() else set()
+
+    ok = True
+    for task_id in sorted(expected - actual):
+        logger.error("VALIDATION FAILED: missing final task directory %s", FINAL_DIR / task_id)
+        ok = False
+    for task_id in sorted(actual - expected):
+        logger.error("VALIDATION FAILED: unexpected final task directory %s", FINAL_DIR / task_id)
+        ok = False
+    return ok
+
+
 def write_task_metadata(task: dict) -> None:
     path = task_metadata_path(task["task_id"])
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -434,7 +458,9 @@ def main() -> None:
 
     tasks = select_corpus(tasks, args.target, logger)
 
-    if not validate(tasks, logger) or not validate_output_files(tasks, logger):
+    strict_layout = args.task_id is None and args.target is None and args.confidence == "high"
+    layout_ok = validate_final_task_directories(tasks, logger) if strict_layout else True
+    if not validate(tasks, logger) or not validate_output_files(tasks, logger) or not layout_ok:
         logger.error("validation failed — see errors above. Deliverables NOT written.")
         sys.exit(1)
 

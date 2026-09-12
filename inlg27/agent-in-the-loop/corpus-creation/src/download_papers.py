@@ -27,7 +27,14 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.candidate_schema import demote, read_jsonl, write_jsonl
-from src.corpus_paths import INTERMEDIATE_DIR, document_pdf_path
+from src.corpus_paths import (
+    DOWNLOADS_DIR,
+    FINAL_DIR,
+    INTERMEDIATE_DIR,
+    document_pdf_path,
+    document_pdf_path_at,
+    task_dir_at,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -213,18 +220,152 @@ def load_tasks() -> list[dict]:
     return [json.loads(line) for line in CANDIDATES_PATH.read_text(encoding="utf-8").splitlines()]
 
 
-def process_document(task_id: str, role: str, pdf_url: str, logger: logging.Logger) -> bool:
-    destination = document_pdf_path(task_id, role, pdf_url)
+def required_documents(task: dict) -> list[tuple[str, str]]:
+    """Return all required documents for a task in stable overview-first order."""
+    documents = [("overview", task["overview"]["pdf_url"])]
+    documents.extend(("participant", participant["pdf_url"]) for participant in task["participants"])
+    return documents
+
+
+def task_is_complete(task: dict, root: Path) -> bool:
+    """Return whether every required document is a valid PDF below ``root``."""
+    if not task.get("participants"):
+        return False
+    return all(
+        is_valid_pdf(document_pdf_path_at(root, task["task_id"], role, pdf_url))
+        for role, pdf_url in required_documents(task)
+    )
+
+
+def _archive_path(task_id: str) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    return DOWNLOADS_DIR / f"{task_id}.final-orphan-{timestamp}"
+
+
+def _merge_task_directory(source: Path, destination: Path) -> None:
+    """Copy files missing from a resumable workspace without discarding either tree."""
+    for source_path in source.rglob("*"):
+        if not source_path.is_file():
+            continue
+        relative_path = source_path.relative_to(source)
+        destination_path = destination / relative_path
+        if destination_path.exists():
+            # A valid staged PDF is the best available cache entry. Keep it and retain
+            # the old final tree in the archive created by the caller.
+            if source_path.suffix.lower() == ".pdf" and not is_valid_pdf(destination_path) and is_valid_pdf(source_path):
+                shutil.copy2(source_path, destination_path)
+            continue
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, destination_path)
+
+
+def move_final_task_to_staging(task_id: str, logger: logging.Logger) -> Path:
+    """Move an old final task tree to its resumable intermediate workspace.
+
+    The operation is recoverable. If a staging workspace already exists, files are
+    merged into it and the old final tree is retained under a timestamped archive.
+    """
+    source = task_dir_at(FINAL_DIR, task_id)
+    destination = task_dir_at(DOWNLOADS_DIR, task_id)
+    if not source.exists():
+        destination.mkdir(parents=True, exist_ok=True)
+        return destination
+
+    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    if not destination.exists():
+        source.rename(destination)
+        logger.info("moved incomplete final task to staging: %s -> %s", source, destination)
+        return destination
+
+    _merge_task_directory(source, destination)
+    archive = _archive_path(task_id)
+    source.rename(archive)
+    logger.warning("archived duplicate final task tree while preserving staging workspace: %s", archive)
+    return destination
+
+
+def reconcile_final_task_dirs(
+    all_tasks: list[dict], accepted_task_ids: set[str], logger: logging.Logger
+) -> set[str]:
+    """Relocate task directories that are not part of the current accepted corpus.
+
+    This prevents failed or demoted downloads from masquerading as final data. The
+    function only examines immediate task directories and never deletes them.
+    """
+    if not FINAL_DIR.exists():
+        return set()
+
+    known_task_ids = {task["task_id"] for task in all_tasks}
+    moved: set[str] = set()
+    for path in sorted(FINAL_DIR.iterdir()):
+        if not path.is_dir() or path.name.startswith(".") or path.name in accepted_task_ids:
+            continue
+        # All current top-level final directories are task ids. Restricting the
+        # migration to known candidates avoids touching an unrelated future cache.
+        if path.name not in known_task_ids:
+            logger.warning("unrecognized final directory left in place: %s", path)
+            continue
+        move_final_task_to_staging(path.name, logger)
+        moved.add(path.name)
+    if moved:
+        logger.info("relocated %d non-accepted task directory(ies) to staging", len(moved))
+    return moved
+
+
+def prepare_task_workspace(task: dict, logger: logging.Logger) -> Path:
+    """Choose the final cache or staging root for one task before downloading."""
+    if task_is_complete(task, FINAL_DIR):
+        return FINAL_DIR
+    if task_is_complete(task, DOWNLOADS_DIR):
+        return DOWNLOADS_DIR
+    if task_dir_at(FINAL_DIR, task["task_id"]).exists():
+        move_final_task_to_staging(task["task_id"], logger)
+    task_dir_at(DOWNLOADS_DIR, task["task_id"]).mkdir(parents=True, exist_ok=True)
+    return DOWNLOADS_DIR
+
+
+def promote_task_workspace(task: dict, workspace_root: Path, logger: logging.Logger) -> bool:
+    """Atomically promote a complete staged task into the final corpus."""
+    task_id = task["task_id"]
+    if not task_is_complete(task, workspace_root):
+        logger.warning("keeping incomplete task in staging: %s", task_id)
+        return False
+    if workspace_root == FINAL_DIR:
+        return True
+
+    source = task_dir_at(workspace_root, task_id)
+    destination = task_dir_at(FINAL_DIR, task_id)
+    if destination.exists():
+        logger.error("cannot promote %s: final destination already exists (%s)", task_id, destination)
+        return False
+    FINAL_DIR.mkdir(parents=True, exist_ok=True)
+    source.rename(destination)
+    logger.info("promoted complete task to final: %s", destination)
+    return True
+
+
+def process_document(
+    task_id: str,
+    role: str,
+    pdf_url: str,
+    logger: logging.Logger,
+    workspace_root: Path | None = None,
+) -> bool:
+    destination = (
+        document_pdf_path(task_id, role, pdf_url)
+        if workspace_root is None
+        else document_pdf_path_at(workspace_root, task_id, role, pdf_url)
+    )
     return download_pdf(pdf_url, destination, logger)
 
 
-def process_task(task: dict, logger: logging.Logger) -> list[str]:
+def process_task(task: dict, logger: logging.Logger, workspace_root: Path | None = None) -> list[str]:
     task_id = task["task_id"]
     failed = []
-    if not process_document(task_id, "overview", task["overview"]["pdf_url"], logger):
+    if not process_document(task_id, "overview", task["overview"]["pdf_url"], logger, workspace_root):
         failed.append(task["overview"]["pdf_url"])
     for participant in task["participants"]:
-        if not process_document(task_id, "participant", participant["pdf_url"], logger):
+        if not process_document(task_id, "participant", participant["pdf_url"], logger, workspace_root):
             failed.append(participant["pdf_url"])
     return failed
 
@@ -242,23 +383,27 @@ def document_jobs(tasks: list[dict]) -> list[tuple[str, str, str]]:
 
 
 def process_documents(
-    tasks: list[dict], logger: logging.Logger, workers: int
+    tasks: list[dict], logger: logging.Logger, workers: int, workspaces: dict[str, Path] | None = None
 ) -> list[str]:
     """Download documents concurrently while keeping each file atomic and resumable."""
     jobs = document_jobs(tasks)
     failed: list[str] = []
     completed = 0
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="pdf") as executor:
-        futures = {
-            executor.submit(
-                process_document,
-                task_id,
-                role,
-                pdf_url,
-                logger,
-            ): pdf_url
-            for task_id, role, pdf_url in jobs
-        }
+        futures = {}
+        for task_id, role, pdf_url in jobs:
+            if workspaces is None:
+                future = executor.submit(process_document, task_id, role, pdf_url, logger)
+            else:
+                future = executor.submit(
+                    process_document,
+                    task_id,
+                    role,
+                    pdf_url,
+                    logger,
+                    workspaces[task_id],
+                )
+            futures[future] = pdf_url
         for future in as_completed(futures):
             pdf_url = futures[future]
             completed += 1
@@ -360,9 +505,14 @@ def clear_recovered_failures(tasks: list[dict], logger: logging.Logger) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Download overview and notebook PDFs into the final task layout.")
+    parser = argparse.ArgumentParser(description="Download overview and notebook PDFs into staged task workspaces.")
     parser.add_argument("--confidence", choices=["high", "medium", "all"], default="high")
     parser.add_argument("--task-id", default=None, help="Process only one task id.")
+    parser.add_argument(
+        "--reconcile-only",
+        action="store_true",
+        help="Move non-accepted final task directories to intermediate/downloads without downloading.",
+    )
     parser.add_argument(
         "--workers",
         type=int,
@@ -377,22 +527,39 @@ def main() -> None:
     setup_logging()
     logger = logging.getLogger("download_papers")
     try:
-        tasks = load_tasks()
+        all_tasks = load_tasks()
     except (FileNotFoundError, json.JSONDecodeError) as exc:
         logger.error("%s", exc)
         sys.exit(1)
 
     if args.task_id is not None:
-        tasks = [task for task in tasks if task["task_id"] == args.task_id]
+        tasks = [task for task in all_tasks if task["task_id"] == args.task_id]
         if not tasks:
             logger.error("task_id %s not found", args.task_id)
             sys.exit(1)
     elif args.confidence != "all":
-        tasks = [task for task in tasks if task["provenance"]["confidence"] == args.confidence]
+        tasks = [task for task in all_tasks if task["provenance"]["confidence"] == args.confidence]
 
-    failed = process_documents(tasks, logger, args.workers)
+    if args.reconcile_only:
+        if args.task_id is not None:
+            parser.error("--reconcile-only cannot be combined with --task-id")
+        moved = reconcile_final_task_dirs(all_tasks, {task["task_id"] for task in tasks}, logger)
+        logger.info("reconciliation complete; moved %d task directorie(s)", len(moved))
+        return
+
+    # The normal full-corpus run accepts only the selected confidence level. Any
+    # other task directory is therefore either a stale release or a failed/demoted
+    # download and must not remain under data/final.
+    if args.task_id is None:
+        reconcile_final_task_dirs(all_tasks, {task["task_id"] for task in tasks}, logger)
+
+    workspaces = {
+        task["task_id"]: prepare_task_workspace(task, logger)
+        for task in tasks
+    }
+    failed = process_documents(tasks, logger, args.workers, workspaces)
     logger.info("processed %d tasks; %d PDFs failed", len(tasks), len(failed))
-    clear_recovered_failures(tasks, logger)
+    failed_task_ids: set[str] = set()
     if failed:
         failed_task_ids = demote_failed_tasks(tasks, failed, logger)
         logger.info("automatically moved %d incomplete task(s) to review", len(failed_task_ids))
@@ -401,6 +568,16 @@ def main() -> None:
         # A failed required document is a review decision, not a pipeline crash. The
         # affected task records are demoted before the next stage, so only complete
         # high-confidence tasks continue to parsing and final assembly.
+
+    promoted = 0
+    for task in tasks:
+        if task["task_id"] in failed_task_ids:
+            logger.warning("task remains staged after failed download: %s", task["task_id"])
+            continue
+        if promote_task_workspace(task, workspaces[task["task_id"]], logger):
+            promoted += 1
+    logger.info("promoted %d complete task(s) to final", promoted)
+    clear_recovered_failures(tasks, logger)
 
 
 if __name__ == "__main__":

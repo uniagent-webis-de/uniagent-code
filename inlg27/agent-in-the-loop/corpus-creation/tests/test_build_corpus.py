@@ -86,6 +86,31 @@ def test_null_coverage_ratio_is_allowed():
     assert validate(tasks, LOGGER) is True
 
 
+def test_final_task_directories_match_the_assembled_tasks(tmp_path, monkeypatch):
+    from src import build_corpus
+
+    final_dir = tmp_path / "final"
+    (final_dir / "t1").mkdir(parents=True)
+    (final_dir / "stale-task").mkdir()
+    monkeypatch.setattr(build_corpus, "FINAL_DIR", final_dir)
+
+    assert build_corpus.validate_final_task_directories(
+        [make_task("t1", "ov1.pdf", ["p1.pdf"])], LOGGER
+    ) is False
+
+
+def test_final_task_directory_validation_rejects_missing_directory(tmp_path, monkeypatch):
+    from src import build_corpus
+
+    final_dir = tmp_path / "final"
+    final_dir.mkdir()
+    monkeypatch.setattr(build_corpus, "FINAL_DIR", final_dir)
+
+    assert build_corpus.validate_final_task_directories(
+        [make_task("t1", "ov1.pdf", ["p1.pdf"])], LOGGER
+    ) is False
+
+
 def test_select_corpus_emits_all_candidates_without_a_target_cap():
     from src.build_corpus import select_corpus
 
