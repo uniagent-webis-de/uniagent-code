@@ -1,0 +1,190 @@
+"""Official FIRE editions and source pages used by the FIRE collector.
+
+FIRE has published open working notes in CEUR-WS from 2015 onward.  The
+official FIRE archive also lists the earlier editions; those editions are
+configured so the fetch stage records their availability even when a complete
+public proceedings page is no longer reachable.
+"""
+
+from __future__ import annotations
+
+
+FIRE_EDITIONS = [
+    {
+        "parent_venue": "FIRE",
+        "year": 2025,
+        "edition": 17,
+        "collection_id": "fire2025",
+        "ceur_volume": "4173",
+        "proceedings_url": "https://ceur-ws.org/Vol-4173/",
+        "official_url": "https://fire.irsi.org.in/fire/2025/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2025.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2024,
+        "edition": 16,
+        "collection_id": "fire2024",
+        "ceur_volume": "4054",
+        "proceedings_url": "https://ceur-ws.org/Vol-4054/",
+        "official_url": "https://fire.irsi.org.in/fire/2024/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2024.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2023,
+        "edition": 15,
+        "collection_id": "fire2023",
+        "ceur_volume": "3681",
+        "proceedings_url": "https://ceur-ws.org/Vol-3681/",
+        "official_url": "https://fire.irsi.org.in/fire/2023/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2023.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2022,
+        "edition": 14,
+        "collection_id": "fire2022",
+        "ceur_volume": "3395",
+        "proceedings_url": "https://ceur-ws.org/Vol-3395/",
+        "official_url": "https://fire.irsi.org.in/fire/2022/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2022.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2021,
+        "edition": 13,
+        "collection_id": "fire2021",
+        "ceur_volume": "3159",
+        "proceedings_url": "https://ceur-ws.org/Vol-3159/",
+        "official_url": "https://fire.irsi.org.in/fire/2021/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2021.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2020,
+        "edition": 12,
+        "collection_id": "fire2020",
+        "ceur_volume": "2826",
+        "proceedings_url": "https://ceur-ws.org/Vol-2826/",
+        "official_url": "https://fire.irsi.org.in/fire/2020/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2020.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2019,
+        "edition": 11,
+        "collection_id": "fire2019",
+        "ceur_volume": "2517",
+        "proceedings_url": "https://ceur-ws.org/Vol-2517/",
+        "official_url": "https://fire.irsi.org.in/fire/2019/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2019.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2018,
+        "edition": 10,
+        "collection_id": "fire2018",
+        "ceur_volume": "2266",
+        "proceedings_url": "https://ceur-ws.org/Vol-2266/",
+        "official_url": "https://fire.irsi.org.in/fire/2018/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2018.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2017,
+        "edition": 9,
+        "collection_id": "fire2017",
+        "ceur_volume": "2036",
+        "proceedings_url": "https://ceur-ws.org/Vol-2036/",
+        "official_url": "https://fire.irsi.org.in/fire/2017/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2017.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2016,
+        "edition": 8,
+        "collection_id": "fire2016",
+        "ceur_volume": "1737",
+        "proceedings_url": "https://ceur-ws.org/Vol-1737/",
+        "official_url": "https://fire.irsi.org.in/fire/2016/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2016.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2015,
+        "edition": 7,
+        "collection_id": "fire2015",
+        "ceur_volume": "1587",
+        "proceedings_url": "https://ceur-ws.org/Vol-1587/",
+        "official_url": "https://fire.irsi.org.in/fire/2015/home",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2015.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2014,
+        "edition": 6,
+        "collection_id": "fire2014",
+        "ceur_volume": None,
+        "proceedings_url": "https://dl.acm.org/doi/proceedings/10.1145/2824864",
+        "official_url": "https://www.isical.ac.in/~fire/2014/index.html",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2014.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2013,
+        "edition": 5,
+        "collection_id": "fire2013",
+        "ceur_volume": None,
+        "proceedings_url": "https://dl.acm.org/doi/proceedings/10.1145/2658292",
+        "official_url": "https://www.isical.ac.in/~fire/2013/index.html",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2013.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2012,
+        "edition": 4,
+        "collection_id": "fire2012",
+        "ceur_volume": None,
+        "proceedings_url": "https://dl.acm.org/doi/proceedings/10.1145/2393211",
+        "official_url": "https://www.isical.ac.in/~fire/2012/index.html",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2012.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2011,
+        "edition": 3,
+        "collection_id": "fire2011",
+        "ceur_volume": None,
+        "proceedings_url": "https://link.springer.com/book/10.1007/978-3-642-23160-5",
+        "official_url": "https://www.isical.ac.in/~fire/2011/index.html",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2011.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2010,
+        "edition": 2,
+        "collection_id": "fire2010",
+        "ceur_volume": None,
+        "proceedings_url": "https://link.springer.com/book/10.1007/978-3-642-23160-5",
+        "official_url": "https://www.isical.ac.in/~fire/2010/index.html",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2010.html",
+    },
+    {
+        "parent_venue": "FIRE",
+        "year": 2008,
+        "edition": 1,
+        "collection_id": "fire2008",
+        "ceur_volume": None,
+        "proceedings_url": "https://dl.acm.org/doi/proceedings/10.1145/1414694",
+        "official_url": "https://www.isical.ac.in/~fire/2008/index.html",
+        "dblp_url": "https://dblp.org/db/conf/fire/fire2008.html",
+    },
+]
+
+
+def selected_editions(year: int | None = None) -> list[dict]:
+    """Return all configured FIRE editions or the selected year."""
+    if year is None:
+        return list(FIRE_EDITIONS)
+    return [edition for edition in FIRE_EDITIONS if edition["year"] == year]
