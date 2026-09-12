@@ -30,6 +30,48 @@ def test_download_pdf_reuses_existing_cache_without_network(tmp_path, monkeypatc
     assert download_papers.download_pdf("https://example.test/paper.pdf", destination, logging.getLogger("test"))
 
 
+def test_download_pdf_retries_transient_request_failure(tmp_path, monkeypatch):
+    calls = []
+
+    def flaky_request(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise download_papers.requests.Timeout("temporary timeout")
+        return FakeResponse()
+
+    monkeypatch.setattr(download_papers.requests, "get", flaky_request)
+    monkeypatch.setattr(download_papers, "RETRY_DELAY_SECONDS", 0)
+    destination = tmp_path / "paper.pdf"
+
+    assert download_papers.download_pdf("https://example.test/paper.pdf", destination, logging.getLogger("test"))
+    assert len(calls) == 2
+
+
+def test_download_nii_pdf_uses_curl_and_writes_valid_cache(tmp_path, monkeypatch):
+    class FakeProcess:
+        returncode = 0
+        args = []
+
+        def __init__(self, command, **kwargs):
+            option = "--output-document" if "--output-document" in command else "-o"
+            output_path = command[command.index(option) + 1]
+            with open(output_path, "wb") as stream:
+                stream.write(FakeResponse.content)
+
+        def communicate(self, **kwargs):
+            return b"", b""
+
+    monkeypatch.setattr(download_papers.subprocess, "Popen", FakeProcess)
+    destination = tmp_path / "paper.pdf"
+
+    assert download_papers.download_pdf(
+        "https://research.nii.ac.jp/ntcir/workshop/OnlineProceedings18/paper.pdf",
+        destination,
+        logging.getLogger("test"),
+    )
+    assert download_papers.is_valid_pdf(destination)
+
+
 def test_process_document_uses_the_agreed_path(monkeypatch, tmp_path):
     destinations = []
     monkeypatch.setattr(download_papers, "download_pdf", lambda url, destination, logger: destinations.append(destination) or True)
@@ -96,3 +138,21 @@ def test_failed_required_pdf_demotes_task_and_records_failure(tmp_path, monkeypa
             "reason": "download_failed",
         },
     ]
+
+
+def test_recovered_failure_is_removed_after_successful_retry(tmp_path, monkeypatch):
+    failures_path = tmp_path / "download_failures.jsonl"
+    candidate = {
+        "task_id": "ntcir2025-demo",
+        "overview": {"pdf_url": "https://research.nii.ac.jp/overview.pdf"},
+        "participants": [],
+    }
+    write_jsonl([{"task_id": candidate["task_id"], "pdf_url": candidate["overview"]["pdf_url"]}], failures_path)
+    recovered_path = tmp_path / "overview.pdf"
+    recovered_path.write_bytes(FakeResponse.content)
+    monkeypatch.setattr(download_papers, "DOWNLOAD_FAILURES_PATH", failures_path)
+    monkeypatch.setattr(download_papers, "document_pdf_path", lambda *args: recovered_path)
+
+    download_papers.clear_recovered_failures([candidate], logging.getLogger("test"))
+
+    assert read_jsonl(failures_path) == []

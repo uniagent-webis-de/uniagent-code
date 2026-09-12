@@ -7,8 +7,8 @@ verification. The pipeline never uploads data automatically.
 
 A corpus of shared tasks where each entry links one **overview paper** (written by the
 organizers, summarising the whole task) to the **notebook papers** written by the teams
-that participated in it. The current corpus covers CLEF, SemEval, and TREC, with more
-high-precision source-specific collectors planned for other ACL/IR venues.
+that participated in it. The current corpus covers CLEF, NTCIR, SemEval, and TREC, with
+more high-precision source-specific collectors planned for other ACL/IR venues.
 
 The intended use is generation: the notebook papers are the inputs, the overview paper is
 the target output.
@@ -30,6 +30,8 @@ collectors use the same candidate contract and are merged before the paper-downl
 | [ACL Anthology](https://aclanthology.org) proceedings pages | Official SemEval collection pages, paper metadata, and source-provided PDF links |
 | [NIST TREC proceedings](https://trec.nist.gov/proceedings/proceedings.html) | Authoritative TREC track sections, overview papers, participant papers, and official PDF links |
 | [DBLP TREC records](https://dblp.org/db/conf/trec/index.html) and [TIRA](https://www.tira.io/tasks) | Supplemental TREC cross-checks; neither source creates a paper or task grouping |
+| [NII NTCIR proceedings](https://research.nii.ac.jp/ntcir/workshop/OnlineProceedings/index.html) | Authoritative NTCIR proceedings pages, task sections, overview papers, participant papers, and official PDF links |
+| [DBLP NTCIR records](https://dblp.org/db/conf/ntcir/index.html) and [TIRA](https://www.tira.io/tasks) | Supplemental NTCIR cross-checks; neither source creates a paper or task grouping |
 
 Twenty-six volumes, one per CLEF Working Notes edition from 2000 through 2025: volumes
 1166–1179 (2000–2013), 1180 (2014), 1391 (2015), 1609 (2016), 1866 (2017), and
@@ -40,10 +42,11 @@ what section they sit in; DBLP only corrects author spellings where the normaliz
 match. In the latest all-years run, DBLP served anti-bot challenge pages, so no DBLP
 matches contributed to the corpus and CEUR author metadata was retained.
 
-**Every `pdf_url` in the corpus was read from an `href` on a CEUR-WS index page.** None are
-constructed from a filename pattern — the patterns are not stable across volumes
-(`paper-199.pdf` in Vol-3497, `paper_281.pdf` in Vol-4038), so guessing them silently
-produces dead links.
+**Every `pdf_url` in the corpus was read from an `href` on the authoritative source page
+for its venue.** None are constructed from a filename pattern — the patterns are not
+stable across collections. One NTCIR-12 IMine-2 href is preserved as
+`source_url_original` because the official ToC uses a stale `SongX` filename while the
+served PDF is `SongM`; the correction is explicit and source-specific.
 
 ---
 
@@ -74,6 +77,15 @@ at least two unambiguous participant papers, official PDF links, unique PDFs, an
 participant listed under multiple tracks. DBLP and TIRA are retained as supplemental
 provenance only. Missing required PDFs automatically demote the affected task to the
 existing review queue; they do not stop the rest of the corpus from being built.
+
+The NTCIR collector scans the completed NII proceedings for NTCIR-1 through NTCIR-18
+(1999–2025), supporting modern sectioned ToCs and the older flat and numbered layouts.
+The official NII task section is authoritative; DBLP and TIRA are supplemental
+cross-checks only. A task is high confidence only when it has exactly one organizer
+overview, at least two unambiguous participant papers, official PDF links, unique PDFs,
+and no participant shared across task sections. NTCIR-19 is not included because its
+completed proceedings are not available in the configured official collection. Historical
+groups without sufficient organizer/participant evidence remain in the review queue.
 
 This is the part worth understanding before you trust an entry, because it is where the
 judgement lives.
@@ -207,7 +219,7 @@ the **same order**, so the columns align positionally.
 
 **`coverage_ratio`** = `notebook_papers / teams_claimed_in_overview`. Not every team that
 competes writes a paper, so a ratio below 1 is normal and expected, not a bug — Touché 2020
-reports 17 teams and 41 runs but published 10 notebook papers. **It is `null` for 166 of 269
+reports 17 teams and 41 runs but published 10 notebook papers. **It is `null` for 242 of 371
 tasks**, where the overview does not state a participation count in extractable prose. Team
 counts are only taken from statements about *actual participation*; registration counts
 ("98 teams registered") are deliberately refused, since they would inflate the ratio.
@@ -223,9 +235,9 @@ appeared beside an explicit code-release statement.
 **`is_umbrella`** is `true` when one overview serves several sub-tasks. Best-effort: a lab
 whose titles omit task numbers entirely reads as non-umbrella even if it ran several.
 
-**`team_name`** is extracted only from the two attribution shapes CEUR titles actually use
-(`TEAM at Venue Year: …`, `TEAM@Venue: …`), and is `null` rather than guessed otherwise —
-it was extracted for 3,184 of 3,947 participants in the current corpus.
+**`team_name`** is extracted only from the source-specific attribution shapes recognized by
+the collectors, and is `null` rather than guessed otherwise — it was extracted for 3,184
+of 4,880 participants in the current corpus.
 
 ---
 
@@ -235,18 +247,18 @@ Text comes from each PDF's own text layer via [liteparse](https://github.com/run
 output as Markdown to preserve heading structure. The PDF is parsed once for its text and
 Liteparse assets; later count and code-link stages read the generated Markdown. A separate
 PDFFigures2 pass detects captioned figures and tables, including many vector-rendered
-figures, and stores its outputs beside those assets. The current corpus contains 115.4M
-extracted characters across 4,216 documents.
+figures, and stores its outputs beside those assets. The current corpus contains 141.3M
+extracted characters across 5,251 documents.
 
-**OCR is opt-in.** Seven of the 4,216 PDFs have a thin or missing text layer and are flagged
-`needs_ocr` in `manifest.jsonl`; the other 4,209 were parsed without OCR. If you want to
+**OCR is opt-in.** Thirty-five of the 5,251 PDFs have a thin or missing text layer and are
+flagged `needs_ocr` in `manifest.jsonl`; the other 5,216 were parsed without OCR. If you want to
 retry those documents, liteparse delegates OCR over HTTP, so serve a model and point at it:
 
 ```bash
 ./src/parse_fulltext.py --ocr-server-url http://localhost:8080 --only-needs-ocr
 ```
 
-**Figures** (12,579 in the current corpus) are the raster images embedded in the
+**Figures** (16,843 in the current corpus) are the raster images embedded in the
 PDFs, referenced inline from the markdown so a document still reads as a whole. The
 PDFFigures2 pass adds captioned figure renderings, including figures drawn as *vector*
 graphics. Its files use the `pdffigures2-` prefix so both extractors' outputs remain
@@ -256,7 +268,7 @@ auditable and cannot overwrite each other.
 
 | View | Count | How it is produced |
 |---|---|---|
-| `tables/pdffigures2-*.png` | 16,732 | Captioned table renderings from PDFFigures2 |
+| `tables/pdffigures2-*.png` | 21,297 | Captioned table renderings from PDFFigures2 |
 
 The parsed Markdown still retains table content inline. The extraction stage removes the
 older standalone `table-NN.md` and cropped `pageNNN-tableNN.png` assets so the final
@@ -324,6 +336,8 @@ already there. Run from the project root:
 ./src/collect_semeval.py   # SemEval candidates    -> data/intermediate/candidates/semeval.jsonl
 ./src/fetch_trec.py        # NIST TREC pages       -> data/raw/trec/
 ./src/collect_trec.py      # TREC candidates       -> data/intermediate/candidates/trec.jsonl
+./src/fetch_ntcir.py       # NII NTCIR pages       -> data/raw/ntcir/
+./src/collect_ntcir.py     # NTCIR candidates      -> data/intermediate/candidates/ntcir.jsonl
 ./src/merge_candidates.py  # merged candidates     -> data/intermediate/all_candidates.jsonl
 ./src/download_papers.py   # PDFs                  -> data/final/{task_id}/
 ./src/parse_fulltext.py    # Markdown, figures, tables -> data/final/{task_id}/
@@ -359,13 +373,15 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
 ## 8. Known limitations
 
 1. **The initial screen is conservative.** The current released corpus contains 105
-   high-confidence CLEF tasks, 122 SemEval tasks, and 42 TREC tasks. The TREC collector
-   scanned all 34 configured editions from 1992–2025; two otherwise high-confidence TREC
-   groups were automatically moved to review because 25 required official PDFs were
-   unavailable. CLEF scans 2000–2025, but the 2000 volume currently has no
-   high-confidence grouping. The review file contains medium-confidence candidates and
-   unresolved records from all three sources. These numbers can change as more venues are
-   added or source pages are refreshed.
+   high-confidence CLEF tasks, 102 NTCIR tasks, 122 SemEval tasks, and 42 TREC tasks. The
+   TREC collector scanned all 34 configured editions from 1992–2025; two otherwise
+   high-confidence TREC groups were automatically moved to review because 25 required
+   official PDFs were unavailable. The NTCIR collector scanned NTCIR-1 through NTCIR-18;
+   historical groups without sufficient evidence and NTCIR-19 remain outside the released
+   corpus. CLEF scans 2000–2025, but the 2000 volume currently has no high-confidence
+   grouping. The review file contains medium-confidence candidates and unresolved records
+   from all four sources. These numbers can change as more venues are added or source pages
+   are refreshed.
 2. **`coverage_ratio` is source-dependent.** It is unknown where an overview's claimed
    team count cannot be extracted, so the plan's coverage-based ranking is only partially
    available until more source-specific count extractors are added.
@@ -374,13 +390,14 @@ candidate screening, and grouping logic against saved fixtures — with no netwo
    resumed after setup.
 4. **Markdown tables are unreliable for large tables.** Use the images.
 5. **Coverage is metadata-first.** The SemEval collector covers the configured ACL
-   Anthology editions, and the TREC collector covers the configured NIST proceedings
-   editions. Ambiguous historical records remain in review. NTCIR, FIRE, MediaEval, and
-   additional source pages can be added as source-specific collectors without changing
-   the downstream document pipeline.
+   Anthology editions, the TREC collector covers the configured NIST proceedings editions,
+   and the NTCIR collector covers NTCIR-1 through NTCIR-18 in the official NII collection.
+   Ambiguous historical records remain in review. FIRE, MediaEval, and additional source
+   pages can be added as source-specific collectors without changing the downstream
+   document pipeline.
 6. **Unassigned SemEval papers remain review material.** Papers whose title does not
    explicitly name a task are preserved in the SemEval review file rather than assigned by
    guesswork.
-7. **Seven documents have thin or missing text layers** and are flagged for optional OCR
-   (§5); four additional documents have a recorded PDFFigures2-specific failure while
+7. **Thirty-five documents have thin or missing text layers** and are flagged for optional
+   OCR (§5); five additional documents have a recorded PDFFigures2-specific failure while
    retaining their Liteparse assets.
