@@ -427,6 +427,46 @@ Target: organizer overview paper
 - `report.md`: corpus totals and quality checks
 - `{{task_id}}/metadata.json`: metadata for one task
 
+## CSV column guide
+
+Each row in `shared_tasks.csv` represents one shared task. Empty cells mean the value was
+not available or could not be extracted. Fields containing several values use `; ` as the
+separator.
+
+| Column | Meaning |
+|---|---|
+| `task_id` | Unique, filesystem-safe ID for the task |
+| `venue` | Task, track, or lab name, such as Touché or SemEval |
+| `parent_venue` | Main collection: CLEF, SemEval, TREC, NTCIR, FIRE, MediaEval, or SISAP |
+| `year` | Year of the shared task |
+| `task_name` | Human-readable task name |
+| `ceur_volume` | CEUR-WS volume number; empty for sources not hosted by CEUR |
+| `overview_title` | Title of the organizer overview paper |
+| `overview_pdf_url` | Original public URL of the overview PDF |
+| `overview_authors` | Overview authors, separated by `; ` |
+| `is_umbrella` | `True` when one overview covers several subtasks |
+| `notebook_papers` | Number of participant papers available for this task |
+| `teams_claimed_in_overview` | Participating-team count extracted from the overview |
+| `runs_claimed_in_overview` | Submitted-run count extracted from the overview |
+| `coverage_ratio` | `notebook_papers / teams_claimed_in_overview` |
+| `participant_pdf_urls` | Original participant PDF URLs, separated by `; ` |
+| `team_names` | Unique team names that could be extracted; not positionally aligned with PDF URLs |
+| `overview_pdf_path` | Local path to the downloaded overview PDF |
+| `participant_pdf_paths` | Local participant PDF paths, in the same order as `participant_pdf_urls` |
+| `overview_fulltext_path` | Local path to the overview Markdown |
+| `participant_fulltext_paths` | Local participant Markdown paths, in the same order as `participant_pdf_urls` |
+| `code_urls` | Unique code links found across all participant papers, including dead links |
+| `code_urls_live` | Subset of code links that returned HTTP status 200 when checked |
+| `tira_refs` | Unique TIRA links or container references found for the task |
+| `task_assignment_method` | Rule used to connect the overview with its participants |
+| `confidence` | Evidence level for the grouping: `high`, `medium`, or `low` |
+| `extracted_at` | Date when the candidate metadata was extracted |
+
+The three participant-list columns—`participant_pdf_urls`, `participant_pdf_paths`, and
+`participant_fulltext_paths`—are positionally aligned. Their first values describe the
+same paper, their second values describe the same paper, and so on. For complete per-paper
+metadata, use `shared_tasks.jsonl` instead of the flattened CSV.
+
 ## Files inside one task
 
 ```text
