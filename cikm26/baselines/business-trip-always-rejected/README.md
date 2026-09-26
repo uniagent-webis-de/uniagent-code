@@ -27,7 +27,7 @@ there are no tool calls or model calls worth tracing.
 tira-cli code-submission \
   --path . \
   --task uniagent-2026 \
-  --dataset business-trip-spot-check-20260805-training \
+  --dataset business-trip-spot-check-20260907-training \
   --command '/predict.py --input $inputDataset --output $outputDir' \
   --dry-run
 ```
