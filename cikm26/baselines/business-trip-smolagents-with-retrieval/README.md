@@ -166,7 +166,7 @@ docker run --rm \
 
 ## Submit to TIRA
 
-After the dataset has been uploaded, replace `DATASET-ID` with its TIRA ID:
+The following command can be used to submit the solution to TIRA (Please remove the `--dry-run` flag to submit to TIRA):
 
 ```bash
 tira-cli code-submission \
