@@ -1,4 +1,4 @@
-# Always-Rejected Business-Trip Baseline
+# Always-Rejected Solving Baseline
 
 This deterministic baseline emits `abgelehnt` for every application directory
 in the TIRA input dataset.
