@@ -12,7 +12,35 @@ from smolagents import Tool
 from event_logging import log_tool_calls
 
 
-POLICIES = {
+# Case IDs encode the antrag type in their directory-name prefix, e.g.
+# "dienstreiseantrag-03", "auslagenerstattung-03", or "beschaffungsantrag-03".
+# This maps each known prefix to a short internal case-type key used to pick
+# the matching policy set, system prompt, and search terms.
+CASE_TYPE_PREFIXES = {
+    "dienstreiseantrag": "business_trip",
+    "auslagenerstattung": "expense_reimbursement",
+    "beschaffungsantrag": "procurement",
+}
+
+
+def case_type_for(case_id: str) -> str:
+    """Return the case type ("business_trip", "expense_reimbursement", or
+    "procurement") encoded in a case directory name's prefix.
+
+    Raises ValueError for a case_id whose prefix does not match any known
+    antrag type, so an unrecognised input directory fails loudly instead of
+    silently falling back to the wrong policy set or prompt.
+    """
+    for prefix, case_type in CASE_TYPE_PREFIXES.items():
+        if case_id == prefix or case_id.startswith(f"{prefix}-"):
+            return case_type
+    raise ValueError(
+        f"Unknown case type for {case_id!r}; expected a directory name starting with one of "
+        f"{sorted(CASE_TYPE_PREFIXES)}."
+    )
+
+
+BUSINESS_TRIP_POLICIES = {
     "advance_approval": (
         "Dienstreiseanträge sind vor Reiseantritt einzureichen und zu genehmigen. "
         "Eine nachträgliche Genehmigung erfordert ein gesondertes Ausnahmeverfahren."
@@ -49,6 +77,75 @@ POLICIES = {
         "Nicht dienstlich erforderliche optionale Programmpunkte, etwa Abendveranstaltungen, "
         "dürfen nicht ohne gesonderte Begründung als erstattungsfähige Kosten beantragt werden."
     ),
+}
+
+EXPENSE_REIMBURSEMENT_POLICIES = {
+    "proof_of_purchase": (
+        "Für eine Erstattung ist ein ordnungsgemäßer Zahlungsbeleg erforderlich. Ein reiner "
+        "Kassenbon ohne Artikelbezeichnung ist zulässig, wenn der Verwendungszweck handschriftlich "
+        "oder anderweitig nachvollziehbar auf dem Beleg vermerkt ist."
+    ),
+    "invoice_recipient": (
+        "Rechnungen sollen an die Universität adressiert oder zumindest der dienstliche Bezug "
+        "erkennbar sein. Eine Rechnung an eine Privatperson ohne jeglichen dienstlichen Bezug "
+        "auf dem Beleg ist nicht erstattungsfähig."
+    ),
+    "proforma_documents": (
+        "Pro-forma-Rechnungen, Angebote oder Warenkörbe gelten nicht als Zahlungsbeleg. "
+        "Erforderlich ist die tatsächliche, als bezahlt gekennzeichnete Rechnung."
+    ),
+    "duplicate_claims": (
+        "Dieselbe Bestellung darf nicht mehrfach unter verschiedenen Belegen oder Rechnungsnummern "
+        "zur Erstattung eingereicht werden."
+    ),
+    "credit_notes": (
+        "Werden Teile einer Bestellung storniert oder gutgeschrieben, ist nur der Nettobetrag nach "
+        "Abzug der Gutschrift erstattungsfähig."
+    ),
+    "private_use_items": (
+        "Gegenstände oder Verbrauchsmaterialien ohne erkennbaren dienstlichen Bezug (z. B. für den "
+        "privaten Gebrauch oder mit einer Personenbezeichnung statt einer Artikelbeschreibung) sind "
+        "nicht erstattungsfähig, unabhängig vom Rechnungsempfänger."
+    ),
+    "foreign_currency": (
+        "Im Ausland oder in Fremdwährung entstandene Kosten sind erstattungsfähig, wenn Beleg und "
+        "Zahlungsnachweis (z. B. Kontoauszug) gemeinsam vorgelegt werden."
+    ),
+}
+
+PROCUREMENT_POLICIES = {
+    "direct_award_threshold": (
+        "Bestellungen bis 1.000 EUR netto können im Wege der Direktvergabe ohne Vergleichsangebote "
+        "erfolgen."
+    ),
+    "comparison_offers_required": (
+        "Ab 1.000 EUR netto sind grundsätzlich mindestens drei Vergleichsangebote einzuholen und im "
+        "Vergabevermerk zu dokumentieren; fehlt ein Angebot, ist eine nachvollziehbare Begründung "
+        "erforderlich."
+    ),
+    "framework_contracts": (
+        "Artikel aus einem bestehenden Rahmenvertrag (z. B. über das Warenwirtschafts-/Bestellsystem "
+        "WPS) sind ohne gesonderten Preisvergleich zu beschaffen; ein zusätzlicher Preisvergleich "
+        "außerhalb des Rahmenvertrags ist bei Rahmenvertragsartikeln nicht erforderlich."
+    ),
+    "cheapest_offer": (
+        "Den Zuschlag erhält grundsätzlich das wirtschaftlichste, in der Regel das günstigste, "
+        "Angebot bei gleicher technischer Eignung; Abweichungen sind im Vergabevermerk zu begründen."
+    ),
+    "consistency_check": (
+        "Die im Antrag oder Vergabevermerk genannten Beträge müssen mit der Summe der Einzelpositionen "
+        "und den vorgelegten Angebots- und Rechnungsdokumenten übereinstimmen."
+    ),
+    "invoice_matching": (
+        "Rechnungen müssen dem beauftragten Angebot entsprechen; mehrere Teilrechnungen müssen in "
+        "Summe dem gewählten Angebot entsprechen."
+    ),
+}
+
+POLICIES_BY_CASE_TYPE = {
+    "business_trip": BUSINESS_TRIP_POLICIES,
+    "expense_reimbursement": EXPENSE_REIMBURSEMENT_POLICIES,
+    "procurement": PROCUREMENT_POLICIES,
 }
 
 
@@ -95,11 +192,17 @@ class CaseTool(Tool):
 
 class ListCaseDocumentsTool(CaseTool):
     name = "list_case_documents"
-    description = "List the PDFs available for the current business-trip application."
+    description = (
+        "List the PDFs available for the current application (business trip, expense "
+        "reimbursement, or procurement)."
+    )
     inputs = {
         "case_id": {
             "type": "string",
-            "description": "Application ID, for example dienstreiseantrag-03.",
+            "description": (
+                "Application ID, for example dienstreiseantrag-03, auslagenerstattung-03, "
+                "or beschaffungsantrag-03."
+            ),
         }
     }
     output_type = "string"
@@ -139,7 +242,9 @@ class SearchCaseTool(CaseTool):
     name = "search_case"
     description = (
         "Search all PDFs in the current case for words or phrases. Returns ranked, cited "
-        "snippets. Use German and document-specific terms such as Rückreise, Finanzierung, A1, or privat."
+        "snippets. Use German and document-specific terms, such as Rückreise, Finanzierung, or A1 "
+        "for business trips; Rechnung, Gutschrift, or Kontoauszug for expense reimbursements; or "
+        "Vergabevermerk, Angebot, or Rahmenvertrag for procurement."
     )
     inputs = {
         "case_id": {"type": "string", "description": "Current application ID."},
@@ -181,29 +286,34 @@ class SearchCaseTool(CaseTool):
 class LookupPolicyTool(Tool):
     name = "lookup_policy"
     description = (
-        "Look up applicable business-trip rules. Search by topic or issue; use 'all' "
-        "to retrieve the complete compact policy set."
+        "Look up applicable rules for the current application type (business trip, expense "
+        "reimbursement, or procurement). Search by topic or issue; use 'all' to retrieve the "
+        "complete compact policy set for this case."
     )
     inputs = {
         "topic": {
             "type": "string",
-            "description": "Policy topic such as Auslandsreise, private Verlängerung, Rechnung, or Doppelfinanzierung.",
+            "description": (
+                "Policy topic such as Auslandsreise, private Verlängerung, Doppelfinanzierung, "
+                "Kassenbon, Rechnungsempfänger, Rahmenvertrag, or Vergleichsangebote."
+            ),
         }
     }
     output_type = "string"
 
-    def __init__(self):
+    def __init__(self, policies: dict[str, str]):
         super().__init__()
+        self.policies = policies
         self.call_count = 0
 
     def forward(self, topic: str) -> str:
         self.call_count += 1
         terms = [term.casefold() for term in re.findall(r"\w+", topic) if len(term) > 1]
         if topic.casefold().strip() == "all":
-            selected = POLICIES
+            selected = self.policies
         else:
             ranked = []
-            for key, policy in POLICIES.items():
+            for key, policy in self.policies.items():
                 haystack = f"{key} {policy}".casefold()
                 score = sum(haystack.count(term) for term in terms)
                 if score:
@@ -307,10 +417,11 @@ class CheckFactsTool(Tool):
 
 
 def build_tools(input_root: Path, case_id: str) -> list[Tool]:
+    policies = POLICIES_BY_CASE_TYPE[case_type_for(case_id)]
     return [
         log_tool_calls(ListCaseDocumentsTool(input_root, case_id)),
         log_tool_calls(ReadPdfTool(input_root, case_id)),
         log_tool_calls(SearchCaseTool(input_root, case_id)),
-        log_tool_calls(LookupPolicyTool()),
+        log_tool_calls(LookupPolicyTool(policies)),
         log_tool_calls(CheckFactsTool()),
     ]

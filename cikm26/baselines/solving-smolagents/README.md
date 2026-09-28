@@ -1,12 +1,29 @@
-# Smolagents Business-Trip Baseline
+# Smolagents Solving Baseline
 
 This baseline uses smolagents tools and `OpenAIModel` with an OpenAI-compatible
-endpoint to review every application independently. It exposes five tools:
+endpoint to review every application independently. It handles all three
+UNIAGENT'26 "solving" task areas from a single `predict.py`:
+
+| Directory prefix | Task | Example spot-check dataset |
+|---|---|---|
+| `dienstreiseantrag-XX` | business-trip approval | [`business-trip-spot-check`](../../datasets/business-trip-spot-check) |
+| `auslagenerstattung-XX` | reimbursement of privately advanced costs | [`task-2-expense-reimbursement-spot-check`](../../datasets/task-2-expense-reimbursement-spot-check) |
+| `beschaffungsantrag-XX` | internal procurement | [`task-2-procurement-spot-check`](../../datasets/task-2-procurement-spot-check) |
+
+Each application directory's name prefix (`case_type_for()` in
+`case_tools.py`) selects the matching policy set, system prompt, and
+evidence-collection search terms; an input directory with a name matching
+none of the three prefixes fails explicitly instead of being processed with
+the wrong rules. A single `--input` run may freely mix directories from
+different task types.
+
+It exposes five tools:
 
 1. `list_case_documents` inventories the PDFs.
 2. `read_pdf` extracts layout-preserving text.
 3. `search_case` returns cited snippets from all PDFs in the case.
-4. `lookup_policy` retrieves a compact set of business-trip rules.
+4. `lookup_policy` retrieves a compact set of rules for the current case's
+   task type (business trip, expense reimbursement, or procurement).
 5. `check_facts` performs deterministic date, amount, overlap, and
    completeness checks.
 
@@ -39,7 +56,7 @@ key. TIRA requires network access for this baseline.
 ## Run locally
 
 ```bash
-docker build --tag business-trip-smolagents .
+docker build --tag solving-smolagents .
 docker run --rm \
   --env OPENAI_BASE_URL \
   --env OPENAI_API_KEY \
@@ -47,10 +64,14 @@ docker run --rm \
   --env OPENAI_REASONING_EFFORT \
   --volume "$PWD/../../datasets/business-trip-spot-check/inputs:/input:ro" \
   --volume "$PWD/output:/output" \
-  business-trip-smolagents \
+  solving-smolagents \
   --input /input \
   --output /output
 ```
+
+Point `--volume` at any of the three datasets' `inputs/` directory (see the
+table above) to run the same image against expense-reimbursement or
+procurement cases instead; no other change is needed.
 
 ## Event-trace logging
 
@@ -117,17 +138,45 @@ tira-cli code-submission \
   --dry-run
 ```
 
-## Tests
+The same image and command work unchanged for the expense-reimbursement and
+procurement datasets; only `--dataset` needs to point at the target dataset's
+name.
 
-The tests exercise all five tools and output validation without calling an LLM:
+## Run the spot-check datasets for the solving task on your machine (for fast evaluation)
+
+`run_and_evaluate_all_tasks.py` automates the above for all three datasets in
+one go: for each, it runs the same `tira-cli code-submission --dry-run`
+command shown above in a subshell, extracts the local directory holding that
+run's results from tira-cli's output, evaluates it with
+`tira-cli evaluate` (as documented in
+[`../../datasets/README.md`](../../datasets/README.md)), and prints each
+task's accuracy:
 
 ```bash
-docker build --tag business-trip-smolagents .
+export OPENAI_BASE_URL=https://your-proxy.example/v1
+export OPENAI_API_KEY=...
+export OPENAI_MODEL=your-model
+./run_and_evaluate_all_tasks.py
+```
+
+It requires `tira-cli` (with network access to TIRA to fetch each dataset)
+and Docker; a failure on one dataset is reported but does not stop the
+others from being tried, and the script exits non-zero if any dataset
+failed.
+
+## Tests
+
+The tests exercise all five tools, the business-trip, expense-reimbursement,
+and procurement case types, and output validation without calling an LLM:
+
+```bash
+docker build --tag solving-smolagents .
 docker run --rm \
   --volume "$PWD/../..:/cikm26:ro" \
   --entrypoint python \
-  business-trip-smolagents \
+  solving-smolagents \
   -m unittest discover \
-  -s /cikm26/baselines/business-trip-smolagents \
+  -s /cikm26/baselines/solving-smolagents \
   -p 'test_*.py'
 ```
+

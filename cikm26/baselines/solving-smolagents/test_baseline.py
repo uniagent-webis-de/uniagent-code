@@ -3,20 +3,27 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from business_trip_tools import (
+from case_tools import (
+    BUSINESS_TRIP_POLICIES,
+    EXPENSE_REIMBURSEMENT_POLICIES,
+    PROCUREMENT_POLICIES,
     CheckFactsTool,
     ListCaseDocumentsTool,
     LookupPolicyTool,
     ReadPdfTool,
     SearchCaseTool,
+    case_type_for,
 )
 from event_logging import case_context, log_event, log_tool_calls, log_to_file, model_context, reset_state
 from predict import build_case_evidence, decide_case, input_cases, parse_decision
 
 
-DATASET = (
-    Path(__file__).parents[2] / "datasets" / "business-trip-spot-check" / "inputs"
+DATASETS_ROOT = (Path(__file__).parents[2] / "datasets").resolve()
+DATASET = (DATASETS_ROOT / "business-trip-spot-check" / "inputs").resolve()
+EXPENSE_DATASET = (
+    DATASETS_ROOT / "task-2-expense-reimbursement-spot-check" / "inputs"
 ).resolve()
+PROCUREMENT_DATASET = (DATASETS_ROOT / "task-2-procurement-spot-check" / "inputs").resolve()
 
 
 class BaselineTest(unittest.TestCase):
@@ -45,7 +52,9 @@ class BaselineTest(unittest.TestCase):
         self.assertEqual("email-stipendienzusage.pdf", matches[0]["document"])
 
     def test_policy_lookup(self):
-        result = json.loads(LookupPolicyTool()("Doppelfinanzierung Stipendium"))
+        result = json.loads(
+            LookupPolicyTool(BUSINESS_TRIP_POLICIES)("Doppelfinanzierung Stipendium")
+        )
         self.assertIn("double_funding", result["policies"])
 
     def test_deterministic_fact_checks(self):
@@ -105,6 +114,7 @@ class BaselineTest(unittest.TestCase):
         self.assertIn("antrag-dienstreisegenehmigung.pdf", evidence["documents"])
         self.assertTrue(evidence["document_completeness_check"]["complete"])
         self.assertIn("advance_approval", evidence["policies"]["policies"])
+
 
     def test_decides_from_preloaded_evidence_without_agent_protocol(self):
         class FakeModel:
@@ -219,6 +229,118 @@ class BaselineTest(unittest.TestCase):
         logged_ids = {entry["event_id"] for entry in entries}
         for entry in entries[1:]:
             self.assertIn(entry["parent_event_id"], logged_ids)
+
+
+class ExpenseReimbursementAndProcurementTest(unittest.TestCase):
+    """Covers the expense-reimbursement (auslagenerstattung-XX) and procurement
+    (beschaffungsantrag-XX) case types, alongside the business-trip
+    (dienstreiseantrag-XX) coverage in BaselineTest above."""
+
+    def test_case_type_is_derived_from_the_directory_name_prefix(self):
+        self.assertEqual("business_trip", case_type_for("dienstreiseantrag-01"))
+        self.assertEqual("expense_reimbursement", case_type_for("auslagenerstattung-01"))
+        self.assertEqual("procurement", case_type_for("beschaffungsantrag-01"))
+        with self.assertRaises(ValueError):
+            case_type_for("unbekannter-antrag-01")
+
+    def test_lists_all_expense_reimbursement_cases(self):
+        self.assertEqual(
+            input_cases(EXPENSE_DATASET),
+            [f"auslagenerstattung-0{index}" for index in range(1, 9)],
+        )
+
+    def test_lists_all_procurement_cases(self):
+        self.assertEqual(
+            input_cases(PROCUREMENT_DATASET),
+            [f"beschaffungsantrag-0{index}" for index in range(1, 9)],
+        )
+
+    def test_reads_expense_reimbursement_documents(self):
+        case_id = "auslagenerstattung-01"
+        listed = json.loads(ListCaseDocumentsTool(EXPENSE_DATASET, case_id)(case_id))
+        self.assertEqual(1, len(listed))
+        text = ReadPdfTool(EXPENSE_DATASET, case_id)(case_id, "rechnung-fachbuch.pdf")
+        self.assertIn("Utrecht", text)
+
+    def test_reads_procurement_documents(self):
+        case_id = "beschaffungsantrag-01"
+        listed = json.loads(ListCaseDocumentsTool(PROCUREMENT_DATASET, case_id)(case_id))
+        self.assertEqual(5, len(listed))
+        text = ReadPdfTool(PROCUREMENT_DATASET, case_id)(case_id, "vergabevermerk.pdf")
+        self.assertIn("Vergabevermerk", text)
+
+    def test_policy_lookup_is_scoped_to_the_case_type(self):
+        expense_policy = json.loads(
+            LookupPolicyTool(EXPENSE_REIMBURSEMENT_POLICIES)("Kassenbon Beleg")
+        )
+        self.assertIn("proof_of_purchase", expense_policy["policies"])
+        self.assertNotIn("framework_contracts", expense_policy["policies"])
+
+        procurement_policy = json.loads(
+            LookupPolicyTool(PROCUREMENT_POLICIES)("Rahmenvertrag WPS")
+        )
+        self.assertIn("framework_contracts", procurement_policy["policies"])
+        self.assertNotIn("proof_of_purchase", procurement_policy["policies"])
+
+    def test_builds_expense_reimbursement_evidence_with_matching_policies(self):
+        evidence = build_case_evidence(EXPENSE_DATASET, "auslagenerstattung-01")
+        self.assertIn("rechnung-fachbuch.pdf", evidence["documents"])
+        self.assertTrue(evidence["document_completeness_check"]["complete"])
+        self.assertIn("proof_of_purchase", evidence["policies"]["policies"])
+
+    def test_builds_procurement_evidence_with_matching_policies(self):
+        evidence = build_case_evidence(PROCUREMENT_DATASET, "beschaffungsantrag-01")
+        self.assertIn("vergabevermerk.pdf", evidence["documents"])
+        self.assertTrue(evidence["document_completeness_check"]["complete"])
+        self.assertIn("framework_contracts", evidence["policies"]["policies"])
+
+    def test_decides_an_expense_reimbursement_case_from_preloaded_evidence(self):
+        class FakeModel:
+            def generate(self, messages, **_kwargs):
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "antrag": "auslagenerstattung-01",
+                            "result": "angenommen",
+                            "begruendung": "Rechnung ist vollstaendig und an die Universitaet adressiert.",
+                        }
+                    ),
+                    raw=None,
+                )
+
+        import contextlib
+        import io
+
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("auslagenerstattung-01"), model_context("gpt-oss-20b"):
+                decision = decide_case(EXPENSE_DATASET, "auslagenerstattung-01", FakeModel())
+        self.assertEqual("angenommen", decision["result"])
+
+    def test_decides_a_procurement_case_from_preloaded_evidence(self):
+        class FakeModel:
+            def generate(self, messages, **_kwargs):
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "antrag": "beschaffungsantrag-01",
+                            "result": "angenommen",
+                            "begruendung": "Drei Vergleichsangebote liegen vor, das guenstigste wurde beauftragt.",
+                        }
+                    ),
+                    raw=None,
+                )
+
+        import contextlib
+        import io
+
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("beschaffungsantrag-01"), model_context("gpt-oss-20b"):
+                decision = decide_case(PROCUREMENT_DATASET, "beschaffungsantrag-01", FakeModel())
+        self.assertEqual("angenommen", decision["result"])
 
 
 class EventLoggingTest(unittest.TestCase):
