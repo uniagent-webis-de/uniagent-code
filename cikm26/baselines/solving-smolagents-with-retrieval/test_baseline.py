@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from predict import (
+    aspect_system_prompt_for,
     build_case_evidence,
     build_retrieval_query,
     decide_case,
@@ -12,7 +13,9 @@ from predict import (
     input_cases,
     parse_aspect_response,
     parse_decision,
+    system_prompt_for,
 )
+from case_tools import case_type_for
 from retrieval_tools import (
     build_retrieval_tools,
     discover_corpora,
@@ -23,9 +26,12 @@ from retrieval_tools import (
 from event_logging import case_context, log_event, log_tool_calls, log_to_file, model_context, reset_state
 
 
-DATASET = (
-    Path(__file__).parents[2] / "datasets" / "business-trip-spot-check" / "inputs"
+DATASETS_ROOT = (Path(__file__).parents[2] / "datasets").resolve()
+DATASET = (DATASETS_ROOT / "business-trip-spot-check" / "inputs").resolve()
+EXPENSE_DATASET = (
+    DATASETS_ROOT / "task-2-expense-reimbursement-spot-check" / "inputs"
 ).resolve()
+PROCUREMENT_DATASET = (DATASETS_ROOT / "task-2-procurement-spot-check" / "inputs").resolve()
 
 
 class InputScanningTest(unittest.TestCase):
@@ -34,6 +40,116 @@ class InputScanningTest(unittest.TestCase):
             input_cases(DATASET),
             [f"dienstreiseantrag-0{index}" for index in range(1, 6)],
         )
+
+
+class ExpenseReimbursementAndProcurementTest(unittest.TestCase):
+    """Covers the expense-reimbursement (auslagenerstattung-XX) and procurement
+    (beschaffungsantrag-XX) case types, alongside the business-trip
+    (dienstreiseantrag-XX) coverage exercised elsewhere in this file. The
+    same retrieval corpora ship for all three datasets, so only the case-
+    type-specific parts of the pipeline (evidence, queries, prompts) differ
+    here; retrieval discovery/tooling is already covered generically above.
+    """
+
+    def test_case_type_is_derived_from_the_directory_name_prefix(self):
+        self.assertEqual("business_trip", case_type_for("dienstreiseantrag-01"))
+        self.assertEqual("expense_reimbursement", case_type_for("auslagenerstattung-01"))
+        self.assertEqual("procurement", case_type_for("beschaffungsantrag-01"))
+        with self.assertRaises(ValueError):
+            case_type_for("unbekannter-antrag-01")
+
+    def test_lists_all_expense_reimbursement_cases(self):
+        self.assertEqual(
+            input_cases(EXPENSE_DATASET),
+            [f"auslagenerstattung-0{index}" for index in range(1, 9)],
+        )
+
+    def test_lists_all_procurement_cases(self):
+        self.assertEqual(
+            input_cases(PROCUREMENT_DATASET),
+            [f"beschaffungsantrag-0{index}" for index in range(1, 9)],
+        )
+
+    def test_builds_expense_reimbursement_evidence_with_amounts(self):
+        evidence = build_case_evidence(EXPENSE_DATASET, "auslagenerstattung-01")
+        self.assertIn("rechnung-fachbuch.pdf", evidence["documents"])
+        self.assertTrue(evidence["document_completeness_check"]["complete"])
+        self.assertIn("proof_of_purchase", evidence["policies"]["policies"])
+        self.assertIn("rechnung-fachbuch.pdf", evidence["amounts_by_document"])
+
+    def test_builds_procurement_evidence_with_amounts(self):
+        evidence = build_case_evidence(PROCUREMENT_DATASET, "beschaffungsantrag-01")
+        self.assertIn("vergabevermerk.pdf", evidence["documents"])
+        self.assertTrue(evidence["document_completeness_check"]["complete"])
+        self.assertIn("framework_contracts", evidence["policies"]["policies"])
+        self.assertIn("vergabevermerk.pdf", evidence["amounts_by_document"])
+
+    def test_retrieval_query_uses_the_case_types_own_keywords(self):
+        expense_query = build_retrieval_query(
+            build_case_evidence(EXPENSE_DATASET, "auslagenerstattung-01")
+        )
+        self.assertIn("Doppeleinreichung", expense_query)
+        procurement_query = build_retrieval_query(
+            build_case_evidence(PROCUREMENT_DATASET, "beschaffungsantrag-01")
+        )
+        self.assertIn("Rahmenvertrag", procurement_query)
+
+    def test_system_prompts_are_specialized_per_case_type(self):
+        self.assertIn("Auslagenerstattungsanträge", system_prompt_for("expense_reimbursement"))
+        self.assertIn("Beschaffungsanträge", system_prompt_for("procurement"))
+        self.assertIn("Beschaffungsantrag", aspect_system_prompt_for("procurement"))
+
+    def test_decides_an_expense_reimbursement_case_from_preloaded_evidence(self):
+        class FakeModel:
+            def generate(self, messages, **_kwargs):
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "antrag": "auslagenerstattung-01",
+                            "result": "angenommen",
+                            "begruendung": "Rechnung ist vollstaendig und an die Universitaet adressiert.",
+                        }
+                    ),
+                    raw=None,
+                )
+
+        evidence = build_case_evidence(EXPENSE_DATASET, "auslagenerstattung-01")
+
+        import contextlib
+        import io
+
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("auslagenerstattung-01"), model_context("gpt-oss-20b"):
+                decision = decide_case("auslagenerstattung-01", evidence, [], [], FakeModel())
+        self.assertEqual("angenommen", decision["result"])
+
+    def test_decides_a_procurement_case_from_preloaded_evidence(self):
+        class FakeModel:
+            def generate(self, messages, **_kwargs):
+                return SimpleNamespace(
+                    content=json.dumps(
+                        {
+                            "antrag": "beschaffungsantrag-01",
+                            "result": "abgelehnt",
+                            "begruendung": "Die Summe der Angebotspositionen weicht vom Antrag ab.",
+                        }
+                    ),
+                    raw=None,
+                )
+
+        evidence = build_case_evidence(PROCUREMENT_DATASET, "beschaffungsantrag-01")
+
+        import contextlib
+        import io
+
+        reset_state()
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with case_context("beschaffungsantrag-01"), model_context("gpt-oss-20b"):
+                decision = decide_case("beschaffungsantrag-01", evidence, [], [], FakeModel())
+        self.assertEqual("abgelehnt", decision["result"])
 
 
 class CorpusDiscoveryTest(unittest.TestCase):
@@ -99,10 +215,22 @@ class RetrievalToolsTest(unittest.TestCase):
 
 class RetrievalQueryTest(unittest.TestCase):
     def test_combines_application_text_with_fixed_keywords(self):
-        evidence = {"documents": {"antrag-dienstreisegenehmigung.pdf": "Lyon, FRANKREICH"}}
+        evidence = {
+            "case_id": "dienstreiseantrag-01",
+            "documents": {"antrag-dienstreisegenehmigung.pdf": "Lyon, FRANKREICH"},
+        }
         query = build_retrieval_query(evidence)
         self.assertIn("Lyon, FRANKREICH", query)
         self.assertIn("Doppelfinanzierung", query)
+
+    def test_combines_all_documents_for_case_types_without_a_fixed_application_file(self):
+        evidence = {
+            "case_id": "auslagenerstattung-01",
+            "documents": {"rechnung-fachbuch.pdf": "Fachbuch 94,40 EUR"},
+        }
+        query = build_retrieval_query(evidence)
+        self.assertIn("Fachbuch 94,40 EUR", query)
+        self.assertIn("Kostenerstattung", query)
 
     def test_gathers_and_ranks_knowledge_across_corpora(self):
         class FakeTool:

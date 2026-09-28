@@ -135,7 +135,7 @@ class CorpusRetrievalTool(Tool):
 
     name/description/inputs are set as class attributes per corpus by
     build_retrieval_tools() (via a dynamic subclass), following the same
-    pattern as the static class-level Tool attributes in business_trip_tools.py.
+    pattern as the static class-level Tool attributes in case_tools.py.
     """
 
     output_type = "string"

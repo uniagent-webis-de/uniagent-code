@@ -1,6 +1,6 @@
-# Smolagents Business-Trip Baseline with Retrieval
+# Smolagents Solving Baseline with Retrieval
 
-This baseline extends `../business-trip-smolagents/` with retrieval-augmented
+This baseline extends `../solving-smolagents/` with retrieval-augmented
 context from the background corpora shipped under
 `inputs/retrieval-corpora/` (see the dataset README). It builds one BM25
 retrieval tool per corpus using the same PyTerrier indexing approach as
@@ -8,13 +8,34 @@ retrieval tool per corpus using the same PyTerrier indexing approach as
 tokeniser), then folds the retrieved knowledge into the evidence package
 handed to the model.
 
+It handles all three UNIAGENT'26 "solving" task areas from a single
+`predict.py`:
+
+| Directory prefix | Task | Example spot-check dataset |
+|---|---|---|
+| `dienstreiseantrag-XX` | business-trip approval | [`business-trip-spot-check`](../../datasets/business-trip-spot-check) |
+| `auslagenerstattung-XX` | reimbursement of privately advanced costs | [`task-2-expense-reimbursement-spot-check`](../../datasets/task-2-expense-reimbursement-spot-check) |
+| `beschaffungsantrag-XX` | internal procurement | [`task-2-procurement-spot-check`](../../datasets/task-2-procurement-spot-check) |
+
+Each application directory's name prefix (`case_type_for()` in
+`case_tools.py`) selects the matching policy set, system prompt, and
+retrieval/search keywords; an input directory with a name matching none of
+the three prefixes fails explicitly instead of being processed with the
+wrong rules. A single `--input` run may freely mix directories from
+different task types. The same three retrieval corpora ship with all three
+datasets, so `build_retrieval_tools()` and the retrieval loop are shared
+unchanged across case types; only the case-type-specific prompts, policies,
+and keywords (`CASE_TYPE_INFO` in `predict.py`, `POLICIES_BY_CASE_TYPE` in
+`case_tools.py`) differ.
+
 ## Pipeline
 
 `predict.py` runs in three phases:
 
-1. **Scan all tasks.** `input_cases()` lists every `dienstreiseantrag-XX`
-   application directory under `--input` (the `retrieval-corpora/` folder is
-   excluded automatically since it has no PDFs directly inside it).
+1. **Scan all tasks.** `input_cases()` lists every application directory
+   under `--input` matching one of the three prefixes above (the
+   `retrieval-corpora/` folder is excluded automatically since it has no
+   PDFs directly inside it).
 2. **Identify the key accept/reject aspects via retrieval, for every case.**
    `build_retrieval_tools()` discovers every
    `retrieval-corpora/<name>/documents.jsonl.gz`, and builds a dedicated tool
@@ -151,7 +172,7 @@ key. TIRA requires network access for this baseline.
 ## Run locally
 
 ```bash
-docker build --tag business-trip-smolagents-with-retrieval .
+docker build --tag solving-smolagents-with-retrieval .
 docker run --rm \
   --env OPENAI_BASE_URL \
   --env OPENAI_API_KEY \
@@ -159,10 +180,14 @@ docker run --rm \
   --env OPENAI_REASONING_EFFORT \
   --volume "$PWD/../../datasets/business-trip-spot-check/inputs:/input:ro" \
   --volume "$PWD/output:/output" \
-  business-trip-smolagents-with-retrieval \
+  solving-smolagents-with-retrieval \
   --input /input \
   --output /output
 ```
+
+Point `--volume` at any of the three datasets' `inputs/` directory (see the
+table above) to run the same image against expense-reimbursement or
+procurement cases instead; no other change is needed.
 
 ## Submit to TIRA
 
@@ -178,20 +203,48 @@ tira-cli code-submission \
   --dry-run
 ```
 
+The same image and command work unchanged for the expense-reimbursement and
+procurement datasets; only `--dataset` needs to point at the target dataset's
+name.
+
+## Run the spot-check datasets for the solving task on your machine (for fast evaluation)
+
+`run_and_evaluate_all_tasks.py` automates the above for all three datasets in
+one go: for each, it runs the same `tira-cli code-submission --dry-run`
+command shown above in a subshell, extracts the local directory holding that
+run's results from tira-cli's output, evaluates it with
+`tira-cli evaluate` (as documented in
+[`../../datasets/README.md`](../../datasets/README.md)), and prints each
+task's accuracy:
+
+```bash
+export OPENAI_BASE_URL=https://your-proxy.example/v1
+export OPENAI_API_KEY=...
+export OPENAI_MODEL=your-model
+./run_and_evaluate_all_tasks.py
+```
+
+It requires `tira-cli` (with network access to TIRA to fetch each dataset)
+and Docker; a failure on one dataset is reported but does not stop the
+others from being tried, and the script exits non-zero if any dataset
+failed.
+
 ## Tests
 
 The tests build real BM25 indices over the shipped corpora and exercise the
-full retrieval and evidence pipeline without calling an LLM. They require
+full retrieval and evidence pipeline for all three case types (business-trip,
+expense-reimbursement, procurement) without calling an LLM. They require
 Java/PyTerrier, so run them inside the Docker image, as for
 `../retrieval-baseline-pyterrier/`:
 
 ```bash
-docker build --tag business-trip-smolagents-with-retrieval .
+docker build --tag solving-smolagents-with-retrieval .
 docker run --rm \
   --volume "$PWD/../..:/cikm26:ro" \
   --entrypoint python3 \
-  business-trip-smolagents-with-retrieval \
+  solving-smolagents-with-retrieval \
   -m unittest discover \
-  -s /cikm26/baselines/business-trip-smolagents-with-retrieval \
+  -s /cikm26/baselines/solving-smolagents-with-retrieval \
   -p 'test_*.py'
 ```
+
