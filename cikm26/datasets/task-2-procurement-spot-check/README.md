@@ -25,7 +25,7 @@ tira_configs:
       required_fields: ["antrag", "result"]
       minimum_lines: 8
   baseline:
-    link: "../../baselines/business-trip-always-rejected"
+    link: "../../baselines/solving-always-rejected"
     command: "/predict.py --input $inputDataset --output $outputDir"
     format:
       name: "*.jsonl"
@@ -62,7 +62,7 @@ law, which is not in the corpora; they are decided on the documents alone.
 ## Task
 
 This set covers internal procurement, one of the three task areas of UNIAGENT 2026; the other two have
-spot-check sets of the same size: [`business-travel-spot-check`](../business-travel-spot-check), [`expense-reimbursement-spot-check`](../expense-reimbursement-spot-check). Each case under `inputs/beschaffungsantrag-XX/` is a procurement request, as a form or as an e-mail to the procurement office, with offers, baskets or invoices.
+spot-check sets of the same size: [`business-trip-spot-check`](../business-trip-spot-check), [`task-2-expense-reimbursement-spot-check`](../task-2-expense-reimbursement-spot-check). Each case under `inputs/beschaffungsantrag-XX/` is a procurement request, as a form or as an e-mail to the procurement office, with offers, baskets or invoices.
 
 The task is to check each case for **completeness and rule compliance** and decide:
 **angenommen** (accepted) or **abgelehnt** (rejected). If rejected, it should be possible
@@ -71,7 +71,7 @@ to state what is missing or does not comply with the rules.
 ## Structure
 
 ```
-procurement-spot-check/
+task-2-procurement-spot-check/
   README.md
   ground-truth.jsonl          # gold answer per case
   inputs/
@@ -151,10 +151,10 @@ Systems write `predictions.jsonl` with exactly one line per application:
 Valid values for `result` are `angenommen` and `abgelehnt`. Accuracy is
 evaluated via TIRA's Hugging Face evaluator.
 
-The preliminary baseline in `../../baselines/business-trip-always-rejected/`
+The preliminary baseline in `../../baselines/solving-always-rejected/`
 predicts `abgelehnt` for every application.
 
-The advanced baseline in `../../baselines/business-trip-smolagents/` uses
+The advanced baseline in `../../baselines/solving-smolagents/` uses
 smolagents tools for listing, reading, and searching PDFs, looking up policies,
 and checking dates, amounts, overlaps, and required fields deterministically
 before an `OpenAIModel` makes the decision. It is documented as a separate code submission
