@@ -8,8 +8,9 @@ participant system) in this repository.
 This repository hosts multiple, independent UniAgent shared tasks. Each has
 its own subdirectory at the repo root:
 
-- `cikm26/` — UniAgent 2026 (CIKM'26): business-trip application review and
-  retrieval sub-tasks.
+- `cikm26/` — UniAgent 2026 (CIKM'26): retrieval (Task 1) and
+  application-solving (Task 2: business trips, expense reimbursements,
+  procurements) sub-tasks.
   - `cikm26/baselines/` — reference submissions.
   - `cikm26/datasets/` — task datasets (spot-check inputs, qrels, retrieval
     corpora).
@@ -18,14 +19,19 @@ its own subdirectory at the repo root:
     prepare corpora.
   - `cikm26/event-logging-contract/` — tool-call logging contract (see
     below).
+  - `cikm26/evaluation/` — shared submission evaluator (`evaluate_submission.py`).
+  - `cikm26/near-duplicate-detection/` — near-duplicate detection tooling for
+    retrieval corpora.
 - `clef27/` — placeholder task (`README.md` is currently `TBD`).
 - `inlg27/agent-in-the-loop/` — shared-task-overview generation task, with
   its own `baselines/`, `corpora/`, `corpus-creation/`, and `evaluation/`
   subdirectories.
-- `thesis-raspberry-pi/` — unrelated thesis artifacts, not a shared task.
 
-Each task's baselines are self-contained: their own `requirements.txt`,
-`Dockerfile`, `README.md`, and (for cikm26 baselines) a `test_baseline.py`.
+Each task's baselines are self-contained: their own `Dockerfile` and
+`README.md`, plus a `requirements.txt` and `test_baseline.py` for baselines
+with dependencies/logic worth testing (the purely deterministic cikm26
+baselines `solving-always-rejected`/`solving-always-allow` have neither,
+since there is nothing to install or unit-test beyond a fixed output).
 There is no repo-wide build system; work inside the relevant baseline's
 directory using its own tooling.
 
@@ -34,8 +40,11 @@ directory using its own tooling.
 1. **Ask the participant which task/track they want to submit to. Also ask if Docker should be used (which is recommended, see step 5)** before
    writing any code. Do not assume — the tasks have different input
    formats, tools, and evaluation criteria. Current options:
-   - `cikm26` business-trip review (accept/reject applications)
-   - `cikm26` retrieval (German/English document retrieval)
+   - `cikm26` retrieval (Task 1: German/English document retrieval)
+   - `cikm26` solving (Task 2: accept/reject business-trip,
+     expense-reimbursement, and procurement applications — the application
+     type is determined by its directory name, e.g. `dienstreiseantrag...`,
+     `auslagenerstattung...`, `beschaffungsantrag...`)
    - `clef27` (not yet defined — check `clef27/README.md` for updates
      before proceeding)
    - `inlg27` agent-in-the-loop (shared-task-overview generation from
@@ -48,10 +57,11 @@ directory using its own tooling.
    `Dockerfile`/`requirements.txt` conventions a new submission should
    follow. Prefer extending or copying the structure of the closest
    existing baseline over inventing a new layout. For cikm26, note the
-   spectrum from deterministic baselines (`business-trip-always-rejected`)
-   to tool-using agents (`business-trip-smolagents`,
-   `business-trip-smolagents-with-retrieval`) to retrieval-only baselines
-   (`retrieval-baseline-pyterrier`, `retrieval-baseline-pyserini`).
+   spectrum from deterministic baselines (`solving-always-rejected`,
+   `solving-always-allow`) to tool-using agents (`solving-smolagents`,
+   `solving-smolagents-with-retrieval`) to retrieval-only baselines
+   (`retrieval-baseline-pyterrier`, `retrieval-baseline-pyterrier-smolagent`,
+   `retrieval-baseline-pyserini`).
 
 3. **If the submission exposes tools to a model** (any cikm26 agent
    baseline, and any similar tool-using baseline in other tasks), read
@@ -59,7 +69,7 @@ directory using its own tooling.
    tool call as one JSON-Lines object (`case_id`, `tool`, `arguments`,
    `status`, `error`, `timestamp`), including failures, with arguments
    bound by name and truncated per the contract's rules. Reuse or mirror
-   `cikm26/baselines/business-trip-smolagents-with-retrieval/tool_logging.py`
+   `cikm26/baselines/solving-smolagents-with-retrieval/event_logging.py`
    as the reference implementation for a new agent framework, and cite the
    contract from the new baseline's README.
 
@@ -83,7 +93,11 @@ directory using its own tooling.
    `<task>/datasets/` (or `corpora/` for inlg27), confirm the output format
    matches, then use the `tira-cli code-submission ... --dry-run` command
    shown in that baseline's README as the template for the real
-   submission.
+   submission. For cikm26 solving baselines, `run_and_evaluate_all_tasks.py`
+   (present in `solving-smolagents` and `solving-smolagents-with-retrieval`)
+   automates this end-to-end across all three solving spot-check datasets
+   and prints per-dataset accuracy — prefer it, or mirror it into new
+   solving baselines, over checking each dataset by hand.
 
 ## Conventions observed across baselines
 
