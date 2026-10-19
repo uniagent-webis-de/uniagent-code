@@ -153,23 +153,39 @@ class NarrativeJudgeTest(unittest.TestCase):
         dataset = Dataset()
         request = build_topic_request(dataset.query, ["a"], dataset.documents)
         inner = Mock()
-        inner.judge.return_value = [{"judgment": 1}]
+        inner.prompt_template = PROMPT_FILE.read_text(encoding="utf-8").strip()
+        seen = {}
 
-        self.assertEqual([{"judgment": 1}], NarrativeJudge(inner).judge(request))
+        def judge(prompt_request):
+            seen["template"] = inner.prompt_template
+            seen["request"] = prompt_request
+            return [{"judgment": 1}]
 
-        sent = inner.judge.call_args.args[0]
-        self.assertEqual(
-            "Title: query title\nDescription: A detailed question\n"
-            "Narrative: Relevant documents answer the question.",
-            sent["query"]["text"],
+        inner.judge.side_effect = judge
+        wrapper = NarrativeJudge(inner)
+
+        self.assertEqual([{"judgment": 1}], wrapper.judge(request))
+
+        self.assertIn("Description: A detailed question", seen["template"])
+        self.assertIn(
+            "Narrative: Relevant documents answer the question.", seen["template"]
         )
-        self.assertEqual(request["candidates"], sent["candidates"])
+        self.assertIn("{query}", seen["template"])
+        self.assertIn("{passage}", seen["template"])
+        self.assertEqual("query title", seen["request"]["query"]["text"])
+        self.assertEqual(request["candidates"], seen["request"]["candidates"])
+        self.assertIn("{description}", inner.prompt_template)
 
-    def test_prompt_template_has_umbrela_placeholders(self) -> None:
+    def test_prompt_template_has_explicit_fields(self) -> None:
         template = PROMPT_FILE.read_text(encoding="utf-8")
-        for placeholder in ("{examples}", "{query}", "{passage}"):
+        for placeholder in (
+            "{examples}",
+            "{query}",
+            "{description}",
+            "{narrative}",
+            "{passage}",
+        ):
             self.assertIn(placeholder, template)
-        self.assertIn("narrative", template)
 
     def test_rejects_query_without_narrative(self) -> None:
         dataset = Dataset()

@@ -42,26 +42,28 @@ def get_openai_configuration() -> dict[str, str]:
 PROMPT_FILE = Path(__file__).parent / "umbrela_prompt_with_narrative.txt"
 
 
-def format_query(query: dict) -> str:
-    return (
-        f"Title: {query['text']}\n"
-        f"Description: {query['description']}\n"
-        f"Narrative: {query['narrative']}"
-    )
-
-
 class NarrativeJudge:
-    """Runs UMBRELA with a prompt that includes the topic's description and narrative."""
+    """Runs UMBRELA with a prompt that has explicit description and narrative fields.
+
+    UMBRELA only fills {examples}, {query}, and {passage}, so {description} and
+    {narrative} are filled per topic in the judge's prompt template.
+    """
 
     def __init__(self, judge) -> None:
         self.judge_ = judge
+        self.template = judge.prompt_template
 
     def judge(self, request: dict) -> list[dict]:
-        prompt_request = {
-            "query": {"text": format_query(request["query"])},
-            "candidates": request["candidates"],
-        }
-        return self.judge_.judge(prompt_request)
+        query = request["query"]
+        self.judge_.prompt_template = self.template.replace(
+            "{description}", query["description"]
+        ).replace("{narrative}", query["narrative"])
+        try:
+            return self.judge_.judge(
+                {"query": {"text": query["text"]}, "candidates": request["candidates"]}
+            )
+        finally:
+            self.judge_.prompt_template = self.template
 
 
 def create_umbrela_judge():

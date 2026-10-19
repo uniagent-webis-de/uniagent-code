@@ -8,6 +8,10 @@
 /inlg27/agent-in-the-loop/corpus-creation/third_party/
 corpora-in-progress
 conf27/inductive-nlg-for-shared-tasks/corpus-creation/raw-data/
+cikm26/datasets/business-trip-spot-check/inputs/retrieval-corpora/retrieval-kassel-intranet-de/
+cikm26/text-processing/uni-kassel-internal/
+cikm26/dataset-construction/query-mining/query-candidates.jsonl
+cikm26/dataset-construction/query-mining/query-candidates.provenance.md
 
 
 # Byte-compiled / optimized / DLL files

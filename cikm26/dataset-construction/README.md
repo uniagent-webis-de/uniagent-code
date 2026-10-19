@@ -38,8 +38,8 @@ python create_qrels.py \
 ```
 
 The judging prompt is `umbrela_prompt_with_narrative.txt`, UMBRELA's default
-prompt extended so that the query block contains the topic's title, description
-and narrative (taken from `original_query` in the dataset's `queries.jsonl`).
+prompt extended with explicit `Description:` and `Narrative:` fields next to the
+query title (taken from `original_query` in the dataset's `queries.jsonl`).
 The command fails if a topic lacks a description or narrative. The persisted
 requests contain description and narrative, so earlier output directories
 created with the title-only prompt are rejected as stale; use a new output
