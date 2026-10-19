@@ -39,6 +39,31 @@ def get_openai_configuration() -> dict[str, str]:
     return configuration
 
 
+PROMPT_FILE = Path(__file__).parent / "umbrela_prompt_with_narrative.txt"
+
+
+def format_query(query: dict) -> str:
+    return (
+        f"Title: {query['text']}\n"
+        f"Description: {query['description']}\n"
+        f"Narrative: {query['narrative']}"
+    )
+
+
+class NarrativeJudge:
+    """Runs UMBRELA with a prompt that includes the topic's description and narrative."""
+
+    def __init__(self, judge) -> None:
+        self.judge_ = judge
+
+    def judge(self, request: dict) -> list[dict]:
+        prompt_request = {
+            "query": {"text": format_query(request["query"])},
+            "candidates": request["candidates"],
+        }
+        return self.judge_.judge(prompt_request)
+
+
 def create_umbrela_judge():
     configuration = get_openai_configuration()
     os.environ["OPEN_AI_API_KEY"] = configuration["OPENAI_API_KEY"]
@@ -53,10 +78,13 @@ def create_umbrela_judge():
             "UMBRELA is required. Install requirements-umbrela.txt with Python 3.12."
         ) from error
 
-    return GPTJudge(
-        qrel="dl19-passage",
-        engine=configuration["OPENAI_MODEL"],
-        few_shot_count=0,
+    return NarrativeJudge(
+        GPTJudge(
+            qrel="dl19-passage",
+            prompt_file=str(PROMPT_FILE),
+            engine=configuration["OPENAI_MODEL"],
+            few_shot_count=0,
+        )
     )
 
 
@@ -73,10 +101,19 @@ def build_topic_request(query, document_ids: list[str], documents) -> dict:
             }
         )
 
+    original_query = getattr(query, "original_query", None)
+    if not isinstance(original_query, dict):
+        raise ValueError(f"Query {query.query_id} has no original_query dictionary.")
+    for field in ("description", "narrative"):
+        if not original_query.get(field):
+            raise ValueError(f"Query {query.query_id} has no {field}.")
+
     return {
         "query": {
             "qid": str(query.query_id),
             "text": query.default_text(),
+            "description": original_query["description"],
+            "narrative": original_query["narrative"],
         },
         "candidates": candidates,
     }

@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 from click.testing import CliRunner
 
 from create_qrels import (
+    NarrativeJudge,
+    PROMPT_FILE,
     build_topic_request,
     create_topic_judgments,
     create_umbrela_judge,
@@ -94,7 +96,7 @@ class ConfigurationTest(unittest.TestCase):
                 get_openai_configuration()
 
     def test_creates_umbrela_judge_from_environment(self) -> None:
-        judge = object()
+        judge = Mock()
         constructor = Mock(return_value=judge)
         module = ModuleType("umbrela.gpt_judge")
         module.GPTJudge = constructor
@@ -107,7 +109,9 @@ class ConfigurationTest(unittest.TestCase):
         with patch.dict(os.environ, environment, clear=True), patch.dict(
             "sys.modules", {"umbrela.gpt_judge": module}
         ):
-            self.assertIs(judge, create_umbrela_judge())
+            created = create_umbrela_judge()
+            self.assertIsInstance(created, NarrativeJudge)
+            self.assertIs(judge, created.judge_)
             self.assertEqual("key", os.environ["OPEN_AI_API_KEY"])
             self.assertEqual("", os.environ["AZURE_OPENAI_API_VERSION"])
             self.assertEqual("", os.environ["AZURE_OPENAI_API_BASE"])
@@ -115,6 +119,7 @@ class ConfigurationTest(unittest.TestCase):
 
         constructor.assert_called_once_with(
             qrel="dl19-passage",
+            prompt_file=str(PROMPT_FILE),
             engine="model",
             few_shot_count=0,
         )
@@ -132,11 +137,45 @@ class RequestTest(unittest.TestCase):
 
         self.assertEqual("1", request["query"]["qid"])
         self.assertEqual("query title", request["query"]["text"])
+        self.assertEqual("A detailed question", request["query"]["description"])
+        self.assertEqual(
+            "Relevant documents answer the question.", request["query"]["narrative"]
+        )
         self.assertEqual(["a", "b"], [item["docid"] for item in request["candidates"]])
         self.assertEqual(
             "Document A",
             request["candidates"][0]["doc"]["segment"],
         )
+
+
+class NarrativeJudgeTest(unittest.TestCase):
+    def test_prompt_contains_title_description_and_narrative(self) -> None:
+        dataset = Dataset()
+        request = build_topic_request(dataset.query, ["a"], dataset.documents)
+        inner = Mock()
+        inner.judge.return_value = [{"judgment": 1}]
+
+        self.assertEqual([{"judgment": 1}], NarrativeJudge(inner).judge(request))
+
+        sent = inner.judge.call_args.args[0]
+        self.assertEqual(
+            "Title: query title\nDescription: A detailed question\n"
+            "Narrative: Relevant documents answer the question.",
+            sent["query"]["text"],
+        )
+        self.assertEqual(request["candidates"], sent["candidates"])
+
+    def test_prompt_template_has_umbrela_placeholders(self) -> None:
+        template = PROMPT_FILE.read_text(encoding="utf-8")
+        for placeholder in ("{examples}", "{query}", "{passage}"):
+            self.assertIn(placeholder, template)
+        self.assertIn("narrative", template)
+
+    def test_rejects_query_without_narrative(self) -> None:
+        dataset = Dataset()
+        dataset.query.original_query = {"description": "d"}
+        with self.assertRaisesRegex(ValueError, "narrative"):
+            build_topic_request(dataset.query, ["a"], dataset.documents)
 
 
 class TopicJudgmentsTest(unittest.TestCase):

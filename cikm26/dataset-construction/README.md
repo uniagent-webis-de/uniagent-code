@@ -37,6 +37,14 @@ python create_qrels.py \
   --output qrels/retrieval-de-spot-check/gpt-oss-20b
 ```
 
+The judging prompt is `umbrela_prompt_with_narrative.txt`, UMBRELA's default
+prompt extended so that the query block contains the topic's title, description
+and narrative (taken from `original_query` in the dataset's `queries.jsonl`).
+The command fails if a topic lacks a description or narrative. The persisted
+requests contain description and narrative, so earlier output directories
+created with the title-only prompt are rejected as stale; use a new output
+directory (e.g. `qrels/retrieval-en-spot-check/gpt-oss-20b-narrative`).
+
 The command creates `pools/`, `requests/`, and `responses/` below the output
 directory and writes `qrels.txt`. Each topic is judged independently. A topic
 is skipped when its persisted request and response both match the current
