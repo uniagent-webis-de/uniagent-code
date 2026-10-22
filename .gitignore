@@ -246,3 +246,5 @@ INSTRUCTIONS.md
 # Query mining downloads and intermediate files
 /cikm26/dataset-construction/query-mining/submissions/
 /cikm26/dataset-construction/query-mining/work/
+
+.DS_Store
