@@ -91,6 +91,7 @@ def _fetch_sources(
         "methodology_url": "methodology.html",
         "evaluation_url": "evaluation.html",
         "proceedings_url": "proceedings.html",
+        "proceedings_continuation_url": "proceedings_2.html",
         "conference_url": "conference.html",
         "overview_url": "overview_page.html",
         "leaderboard_url": "leaderboard.html",

@@ -68,33 +68,6 @@ def test_merge_demotes_duplicate_pdf_urls(tmp_path, monkeypatch):
     assert len(review) == 2
 
 
-def test_merge_allows_explicitly_shared_sisap_documents(tmp_path, monkeypatch):
-    import src.merge_candidates as merger
-
-    candidates_dir = tmp_path / "candidates"
-    screening_dir = tmp_path / "screening"
-    candidates_dir.mkdir()
-    screening_dir.mkdir()
-    left = make_candidate("sisap2024-task-1")
-    right = make_candidate("sisap2024-task-2")
-    for candidate in (left, right):
-        candidate["parent_venue"] = "SISAP"
-        candidate["overview"]["pdf_url"] = "https://example.org/shared-overview.pdf"
-        candidate["overview"]["shared_document_id"] = "sisap2024:overview"
-        candidate["overview"]["shared_document_group"] = "sisap2024"
-        candidate["participants"][0]["pdf_url"] = "https://example.org/shared-paper.pdf"
-        candidate["participants"][0]["shared_document_id"] = "sisap2024:paper"
-        candidate["participants"][0]["shared_document_group"] = "sisap2024"
-    write_jsonl(candidates_dir / "sisap.jsonl", [left, right])
-    monkeypatch.setattr(merger, "CANDIDATES_DIR", candidates_dir)
-    monkeypatch.setattr(merger, "SCREENING_DIR", screening_dir)
-
-    candidates, review, _ = merge(LOGGER)
-
-    assert all(candidate["provenance"]["confidence"] == "high" for candidate in candidates)
-    assert review == []
-
-
 def test_merge_ignores_stale_failure_for_replaced_pdf_url(tmp_path, monkeypatch):
     import src.merge_candidates as merger
 

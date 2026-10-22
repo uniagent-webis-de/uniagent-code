@@ -75,25 +75,6 @@ def demote_duplicates(candidates: list[dict], logger: logging.Logger) -> None:
     for pdf_url, matches in by_pdf_url.items():
         task_ids = {candidate.get("task_id") for candidate in matches}
         if pdf_url and len(task_ids) > 1:
-            documents = []
-            for candidate in matches:
-                candidate_documents = [candidate.get("overview") or {}, *candidate.get("participants", [])]
-                documents.extend(
-                    document for document in candidate_documents
-                    if document.get("pdf_url") == pdf_url
-                )
-            shared_ids = {document.get("shared_document_id") for document in documents}
-            shared_groups = {document.get("shared_document_group") for document in documents}
-            explicitly_shared = (
-                len(shared_ids) == 1
-                and None not in shared_ids
-                and len(shared_groups) == 1
-                and None not in shared_groups
-                and all(candidate.get("parent_venue") == "SISAP" for candidate in matches)
-            )
-            if explicitly_shared:
-                logger.info("allowing explicitly shared SISAP document across tasks: %s", pdf_url)
-                continue
             reason = f"PDF URL appears in multiple tasks: {pdf_url}"
             logger.warning(reason)
             for candidate in matches:

@@ -1,23 +1,22 @@
 #!/usr/bin/env python
 """Collect SISAP Indexing Challenge task candidates from official sources.
 
-SISAP publishes one annual challenge with several task units.  A system paper
-may cover more than one unit, so candidate documents carry a stable shared
-document id.  The common pipeline can therefore retain task-level records
-without treating an explicitly shared paper as an accidental duplicate.
+SISAP publishes one annual challenge with several sub-tasks and a single organizer
+overview covering all of them.  Each edition therefore becomes one umbrella task
+whose participants carry the sub-task numbers they addressed, so no document is
+stored in more than one task.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
-import json
 import logging
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -36,7 +35,6 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 PDF_TEMPLATE = "https://link.springer.com/content/pdf/{doi}.pdf"
 SPRINGER_DOI_RE = re.compile(r"10\.1007/[0-9A-Za-z.\-]+_[0-9]+")
 TASK_RE = re.compile(r"\btask\s*([A-C]|[1-9][0-9]*)\b", re.IGNORECASE)
-BASELINE_RE = re.compile(r"\b(?:baseline|organizers?|brute[- ]?force|bl[- ]|bl$)\b", re.IGNORECASE)
 
 
 def setup_logging() -> Path:
@@ -115,7 +113,8 @@ def parse_springer_indexing_challenge(raw_html: str, base_url: str) -> list[dict
     section_heading = next(
         (
             heading for heading in soup.find_all(re.compile(r"^h[1-6]$"))
-            if clean_text(heading.get_text(" ", strip=True)).casefold() == "indexing challenge"
+            # 2025 titles the part "SISAP Indexing Challenge"; other years omit "SISAP".
+            if clean_text(heading.get_text(" ", strip=True)).casefold() in {"indexing challenge", "sisap indexing challenge"}
         ),
         None,
     )
@@ -206,38 +205,6 @@ def parse_2025_results(raw_html: str) -> tuple[list[dict], dict[str, list[dict]]
     return participants, result_tables
 
 
-def parse_registration_issues(raw_json: str) -> dict[str, set[int]]:
-    """Extract explicit 2024 task registrations from the GitHub issue archive."""
-    try:
-        records = json.loads(raw_json)
-    except json.JSONDecodeError:
-        return {}
-    registrations: dict[str, set[int]] = {}
-    for issue in records if isinstance(records, list) else []:
-        body = str(issue.get("body", ""))
-        team_match = re.search(r"###\s*team\s*\n+\s*([^\n]+)", body, re.IGNORECASE)
-        tasks_match = re.search(r"###\s*tasks\s*\n+\s*([^\n]+)", body, re.IGNORECASE)
-        if not team_match or not tasks_match:
-            continue
-        tasks = {int(value) for value in re.findall(r"\b([123])\b", tasks_match.group(1))}
-        if tasks:
-            registrations[clean_text(team_match.group(1))] = tasks
-    return registrations
-
-
-def parse_2026_teams(raw_text: str) -> dict[str, dict]:
-    """Parse the leaderboard's JSON-with-trailing-commas team registry."""
-    cleaned = re.sub(r",\s*([}\]])", r"\1", raw_text)
-    try:
-        payload = json.loads(cleaned)
-    except json.JSONDecodeError:
-        return {}
-    return {
-        key: value for key, value in payload.items()
-        if isinstance(value, dict) and not value.get("is-baseline") and value.get("paper")
-    }
-
-
 def parse_csv_records(path: Path) -> list[dict]:
     """Read a cached challenge CSV without adding pandas as a dependency."""
     if not path.exists():
@@ -262,124 +229,61 @@ def result_records_for_edition(edition: dict, edition_dir: Path, task_number: st
             return []
         _, tables = parse_2025_results(evaluation_path.read_text(encoding="utf-8"))
         return tables.get(task_number, [])
+    if year == 2026:
+        return [row for path in sorted(edition_dir.glob(f"github_task{task_number}_*test.csv")) for row in parse_csv_records(path)]
     return []
 
 
-def _team_hint(paper: dict, edition: dict) -> str | None:
-    doi = paper.get("doi", "")
-    hint = edition.get("paper_team_hints", {}).get(doi)
-    if hint:
-        return hint
-    title = paper.get("title", "").casefold()
-    patterns = {
-        "utokyo": "UTokyo",
-        "learned metric": "LMI",
-        "lsh-tries": "SWANN",
-        "hnsw": "HIOB",
-        "cranberry": "CRANBERRY",
-        "exploration graph": "HTW",
-        "grouping sketches": "HIOB",
-        "top-down construction": "HSP",
-    }
-    for marker, team in patterns.items():
-        if marker in title:
-            return team
-    return None
-
-
-def _task_key(number: object) -> str:
-    return str(number).upper()
-
-
-def _resolved_pdf_url(paper: dict, edition: dict) -> tuple[str, str]:
-    """Return the best known PDF URL and its provenance.
-
-    The Springer landing page remains the canonical paper source.  A
-    configured fallback is used only when it is an explicitly verified,
-    lawful author manuscript; unknown or merely guessed URLs are never
-    synthesized here.
-    """
-    publisher_pdf_url = paper.get("pdf_url", "")
-    fallbacks = edition.get("paper_pdf_fallbacks", {}).get(paper.get("doi", ""), [])
-    if fallbacks:
-        return fallbacks[0], "open_access_fallback"
-    return publisher_pdf_url, "publisher_pdf"
-
-
-def _paper_record(paper: dict, edition: dict, task_name: str, tira_url: str | None = None) -> dict:
-    pdf_url, pdf_source = _resolved_pdf_url(paper, edition)
-    publisher_pdf_url = paper.get("pdf_url", "")
-    tira_refs = [tira_url] if tira_url else []
-    record = {
-        "title": paper.get("title") or paper.get("paper_title") or "",
+def _paper_record(paper: dict, edition: dict, task_name: str) -> dict:
+    return {
+        "title": paper["title"],
         "authors": paper.get("authors", []),
-        "pdf_url": pdf_url,
-        "team_name": paper.get("team_name") or _team_hint(paper, edition),
-        "code_urls": sorted(set(paper.get("code_urls", []))),
-        "tira_refs": tira_refs,
-        "source_id": paper.get("source_id") or Path(urlparse(pdf_url).path).stem,
-        "paper_url": paper.get("paper_url") or pdf_url,
+        "pdf_url": paper["pdf_url"],
+        "team_name": paper.get("team_name"),
+        "code_urls": [],
+        "tira_refs": [edition["tira_url"]] if edition.get("tira_url") else [],
+        "source_id": paper["source_id"],
+        "paper_url": paper["paper_url"],
         "source_format": "pdf",
         "track_name": task_name,
         "source_collection_id": edition["collection_id"],
         "paper_type": "organizer_overview" if paper.get("role") == "overview" else "participant_notebook",
-        "shared_document_id": f"{edition['collection_id']}:{paper.get('source_id') or Path(urlparse(pdf_url).path).stem}",
-        "shared_document_group": edition["collection_id"],
     }
-    if publisher_pdf_url and publisher_pdf_url != pdf_url:
-        record["publisher_pdf_url"] = publisher_pdf_url
-        record["pdf_source"] = pdf_source
-    return record
 
 
-def _task_result_key(task_number: object, year: int) -> str:
-    return _task_key(task_number) if year == 2023 else str(task_number)
-
-
-def build_task_candidate(
+def build_edition_candidate(
     edition: dict,
-    task: dict,
-    task_page: dict,
+    subtasks: list[dict],
     overview: dict | None,
     participants: list[dict],
-    result_records: list[dict],
+    unpublished_configured: list[str],
     logger: logging.Logger,
 ) -> dict:
-    """Build one task-level candidate and automatically demote weak evidence."""
-    task_key = _task_key(task["number"])
-    task_name = task["name"]
-    task_id = f"sisap{edition['year']}-{slugify(task_key)}-{slugify(task_name)}"
+    """Build the one umbrella task of an edition: its overview covers every sub-task."""
+    task_id = f"sisap{edition['year']}-indexing-challenge"
+    task_name = f"SISAP {edition['year']} Indexing Challenge"
     reasons: list[str] = []
     if overview is None:
-        reasons.append("no published organizer overview PDF found")
+        reasons.append("no published organizer overview found in the proceedings")
     if len(participants) < 2:
         reasons.append(f"found only {len(participants)} published participant paper(s)")
-    if not task_page.get("found"):
-        reasons.append("official task heading was not found in cached task page")
+    missing_headings = [str(subtask["number"]) for subtask in subtasks if not subtask["task_metadata"].get("found")]
+    if missing_headings:
+        reasons.append(f"official task heading not found for sub-task(s) {', '.join(missing_headings)}")
+    unmapped = [paper["doi"] for paper in participants if not paper.get("team_name") or not paper.get("task_numbers")]
+    if unmapped:
+        reasons.append(f"participant paper(s) without a configured team/sub-task mapping: {', '.join(unmapped)}")
+    if unpublished_configured:
+        reasons.append(f"configured paper(s) missing from the proceedings: {', '.join(unpublished_configured)}")
+    confidence = "medium" if reasons else "high"
     participant_urls = [paper["pdf_url"] for paper in participants]
-    if len(participant_urls) != len(set(participant_urls)):
-        reasons.append("duplicate participant PDF URL within task")
-    if any(not paper.get("team_name") for paper in participants):
-        reasons.append("one or more participant papers lack an explicit team mapping")
-    confidence = "high" if overview and len(participants) >= 2 and not reasons else "medium"
-    overview_record = _paper_record(
-        overview or {
-            "title": f"SISAP {edition['year']} Indexing Challenge overview unavailable",
-            "pdf_url": "",
-            "source_id": "overview-unavailable",
-            "paper_url": edition.get("overview_url", ""),
-            "role": "overview",
-        },
-        edition,
-        task_name,
-        edition.get("tira_url"),
-    )
     candidate = {
         "task_id": task_id,
-        "venue": f"SISAP {edition['year']} Indexing Challenge",
+        "venue": task_name,
         "parent_venue": "SISAP",
         "year": edition["year"],
         "task_name": task_name,
+        "ceur_volume": None,
         "source": {
             "provider": "sisap_indexing_challenge",
             "collection_id": edition["collection_id"],
@@ -391,13 +295,20 @@ def build_task_candidate(
             "conference_url": edition.get("conference_url"),
             "dblp_url": edition.get("dblp_url"),
             "tira_refs": [edition["tira_url"]] if edition.get("tira_url") else [],
-            "task_number": task["number"],
-            "task_metadata": task_page,
-            "result_records": result_records,
+            "subtasks": subtasks,
         },
-        "overview": {**overview_record, "is_umbrella": True},
+        "overview": {
+            **_paper_record(overview or {
+                "title": f"SISAP {edition['year']} Indexing Challenge overview unavailable",
+                "pdf_url": "",
+                "source_id": "overview-unavailable",
+                "paper_url": edition.get("overview_url", ""),
+                "role": "overview",
+            }, edition, task_name),
+            "is_umbrella": len(subtasks) > 1,
+        },
         "participants": [
-            {**_paper_record(paper, edition, task_name, edition.get("tira_url")), "task_numbers": paper.get("task_numbers", [])}
+            {**_paper_record(paper, edition, task_name), "task_numbers": paper["task_numbers"]}
             for paper in participants
         ],
         "counts": {
@@ -407,64 +318,35 @@ def build_task_candidate(
             "coverage_ratio": None,
         },
         "provenance": {
-            "task_assignment_method": "official_task_page_and_published_proceedings",
+            "task_assignment_method": "edition_umbrella_overview_with_configured_subtasks",
             "confidence": confidence,
             "confidence_reasons": reasons,
             "extracted_at": datetime.now().date().isoformat(),
-            "official_task_evidence": bool(task_page.get("found")),
+            "official_task_evidence": not missing_headings,
             "official_proceedings_evidence": bool(overview or participants),
-            "result_evidence_rows": len(result_records),
+            "result_evidence_rows": sum(len(subtask["result_records"]) for subtask in subtasks),
         },
         "screening": {
             "decision": "include" if confidence == "high" else "review",
             "checks": {
                 "one_overview": overview is not None,
-                "official_task_section": bool(task_page.get("found")),
+                "official_task_section": not missing_headings,
                 "minimum_participants": len(participants) >= 2,
                 "official_pdf_links": bool(overview and overview.get("pdf_url")) and all(participant_urls),
                 "unique_pdf_urls": len(participant_urls) == len(set(participant_urls)),
-                "explicit_task_mapping": all(paper.get("task_numbers") is not None for paper in participants),
+                "explicit_task_mapping": not unmapped,
             },
         },
     }
     logger.info(
-        "%s: %s (%d participant papers; %d result rows; confidence=%s)",
-        task_id,
-        candidate["screening"]["decision"],
-        len(participants),
-        len(result_records),
-        confidence,
+        "%s: %s (%d participant papers over %d sub-tasks; confidence=%s)",
+        task_id, candidate["screening"]["decision"], len(participants), len(subtasks), confidence,
     )
     return candidate
 
 
-def _overview_for_edition(edition: dict, proceedings: list[dict]) -> dict | None:
-    if edition.get("overview_pdf_url"):
-        return {
-            "title": f"Overview of the SISAP {edition['year']} Indexing Challenge",
-            "authors": [],
-            "paper_url": edition.get("overview_url", ""),
-            "pdf_url": edition["overview_pdf_url"],
-            "source_id": f"sisap{edition['year']}-overview",
-            "role": "overview",
-        }
-    return next((paper for paper in proceedings if paper.get("role") == "overview"), None)
-
-
-def _collect_2025_participants(edition_dir: Path, task_key: str) -> list[dict]:
-    path = edition_dir / "evaluation.html"
-    if not path.exists():
-        return []
-    participants, _ = parse_2025_results(path.read_text(encoding="utf-8"))
-    return [
-        paper for paper in participants
-        if str(task_key) in {str(number) for number in paper.get("task_numbers", [])}
-        and paper.get("paper_url") and paper.get("pdf_url") and not BASELINE_RE.search(paper.get("team_name", ""))
-    ]
-
-
 def collect_edition(edition: dict, logger: logging.Logger) -> tuple[list[dict], list[dict], list[dict]]:
-    """Collect one SISAP edition from cached pages and result sources."""
+    """Collect one SISAP edition as a single umbrella task from cached sources."""
     edition_dir = RAW_DIR / "editions" / edition["collection_id"]
     tasks_path = edition_dir / "tasks.html"
     if not tasks_path.exists():
@@ -475,88 +357,41 @@ def collect_edition(edition: dict, logger: logging.Logger) -> tuple[list[dict], 
         tasks_path.read_text(encoding="utf-8") if tasks_path.exists() else "",
         edition["tasks"],
     )
-    proceedings_path = edition_dir / "proceedings.html"
-    proceedings = parse_springer_indexing_challenge(
-        proceedings_path.read_text(encoding="utf-8") if proceedings_path.exists() else "",
-        edition.get("proceedings_url", "https://link.springer.com/"),
-    )
-    overview = _overview_for_edition(edition, proceedings)
-    candidates: list[dict] = []
-    review: list[dict] = []
-    excluded: list[dict] = []
-
-    if edition["year"] == 2026:
-        teams_path = edition_dir / "github_teams.json"
-        teams = parse_2026_teams(teams_path.read_text(encoding="utf-8") if teams_path.exists() else "")
-        for task in edition["tasks"]:
-            task_key = _task_key(task["number"])
-            task_page = task_page_data.get(task_key, task)
-            task_teams = [
-                name for name, data in teams.items()
-                if any(task_key.casefold() == str(item).replace("task", "").upper() for submission in data.get("submissions", []) if isinstance(submission, dict) for item in submission.get("tasks", []))
-            ]
-            review.append({
-                "record_type": "unresolved_sisap_task",
-                "venue": "SISAP",
-                "year": edition["year"],
-                "collection_id": edition["collection_id"],
-                "task_number": task["number"],
-                "task_name": task["name"],
-                "decision": "review",
-                "reason": "2026 participant paper PDFs and organizer overview are not publicly linked yet",
-                "official_task_url": edition["tasks_url"],
-                "official_leaderboard_url": edition.get("leaderboard_url"),
-                "teams_with_result_metadata": task_teams,
-                "task_metadata": task_page,
-            })
-        return candidates, review, excluded
-
-    if edition["year"] in {2023, 2024}:
-        registrations: dict[str, set[int]] = {}
-        registration_path = edition_dir / "github_api_registrations.json"
-        if registration_path.exists():
-            registrations = parse_registration_issues(registration_path.read_text(encoding="utf-8"))
-        for paper in proceedings:
-            if paper.get("role") == "participant":
-                team = _team_hint(paper, edition)
-                paper["team_name"] = team
-                if edition["year"] == 2023:
-                    doi = paper.get("doi", "")
-                    paper["task_numbers"] = edition.get("paper_task_hints", {}).get(doi, [])
-                else:
-                    paper["task_numbers"] = sorted(registrations.get(team or "", {1, 2, 3}))
-                    if not team:
-                        paper["task_numbers"] = []
-                if paper["task_numbers"]:
-                    paper["code_urls"] = []
-        for task in edition["tasks"]:
-            task_key = _task_key(task["number"])
-            participants = [paper for paper in proceedings if task_key in {_task_key(value) for value in paper.get("task_numbers", [])}]
-            result_records = result_records_for_edition(edition, edition_dir, task_key)
-            candidate = build_task_candidate(
-                edition, task, task_page_data.get(task_key, task), overview, participants, result_records, logger
+    proceedings: list[dict] = []
+    for filename in ("proceedings.html", "proceedings_2.html"):
+        proceedings_path = edition_dir / filename
+        if proceedings_path.exists():
+            known = {paper["doi"] for paper in proceedings}
+            proceedings.extend(
+                paper for paper in parse_springer_indexing_challenge(
+                    proceedings_path.read_text(encoding="utf-8"),
+                    edition.get("proceedings_url", "https://link.springer.com/"),
+                )
+                if paper["doi"] not in known
             )
-            candidates.append(candidate)
-            if candidate["provenance"]["confidence"] != "high":
-                review.append(candidate)
-        return candidates, review, excluded
-
-    for task in edition["tasks"]:
-        task_key = str(task["number"])
-        participants = _collect_2025_participants(edition_dir, task_key)
-        candidate = build_task_candidate(
-            edition,
-            task,
-            task_page_data.get(task_key, task),
-            overview,
-            participants,
-            result_records_for_edition(edition, edition_dir, task_key),
-            logger,
-        )
-        candidates.append(candidate)
-        if candidate["provenance"]["confidence"] != "high":
-            review.append(candidate)
-    return candidates, review, excluded
+    overview = next((paper for paper in proceedings if paper["role"] == "overview"), None)
+    configured = edition.get("papers", {})
+    participants = []
+    for paper in proceedings:
+        if paper["role"] != "participant":
+            continue
+        mapping = configured.get(paper["doi"], {})
+        participants.append({**paper, "team_name": mapping.get("team"), "task_numbers": mapping.get("tasks", [])})
+    published = {paper["doi"] for paper in participants}
+    subtasks = [
+        {
+            "number": task["number"],
+            "name": task["name"],
+            "task_metadata": task_page_data.get(str(task["number"]), task),
+            "result_records": result_records_for_edition(edition, edition_dir, str(task["number"])),
+        }
+        for task in edition["tasks"]
+    ]
+    candidate = build_edition_candidate(
+        edition, subtasks, overview, participants, sorted(set(configured) - published), logger
+    )
+    review = [candidate] if candidate["provenance"]["confidence"] != "high" else []
+    return [candidate], review, []
 
 
 def write_screening_report(candidates: list[dict], review: list[dict], excluded: list[dict], path: Path) -> None:

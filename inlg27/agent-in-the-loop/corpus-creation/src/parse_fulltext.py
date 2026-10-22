@@ -605,9 +605,9 @@ def main() -> None:
                 previous = previous_by_key.get(key) or previous_by_url.get(pdf_url)
                 records.append(preserve_extractor_fields(record, previous))
 
-    if retry_only and MANIFEST_PATH.exists():
-        # Merge into the existing manifest so a targeted OCR re-run does not discard the
-        # entries it did not touch.
+    if (retry_only or args.task_id) and MANIFEST_PATH.exists():
+        # Merge into the existing manifest so a targeted OCR or single-task re-run does
+        # not discard the entries it did not touch.
         by_key = {
             (record.get("task_id"), record["pdf_url"]): record
             for record in (

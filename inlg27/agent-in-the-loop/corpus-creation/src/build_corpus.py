@@ -5,6 +5,7 @@ import csv
 import json
 import logging
 import random
+import shutil
 import sys
 from collections import Counter
 from datetime import datetime
@@ -20,6 +21,8 @@ from src.corpus_paths import (
     document_markdown_path,
     document_pdf_path,
     document_tables_dir,
+    paper_id_for,
+    task_dir,
     task_metadata_path,
 )
 
@@ -124,9 +127,8 @@ def join_fulltext_paths(task: dict, manifest: dict, logger: logging.Logger) -> N
         document["n_tables"] = record.get("n_tables", 0) if record else 0
 
     def lookup(pdf_url: str) -> dict | None:
-        # New manifests are keyed by (task_id, pdf_url), which permits an explicitly
-        # shared SISAP document to have a path in each task directory.  The URL-only
-        # fallback keeps this helper compatible with older manifests and unit fixtures.
+        # Manifests are keyed by (task_id, pdf_url).  The URL-only fallback keeps this
+        # helper compatible with older manifests and unit fixtures.
         return manifest.get((task["task_id"], pdf_url)) or manifest.get(pdf_url)
 
     overview_record = lookup(task["overview"]["pdf_url"])
@@ -217,19 +219,8 @@ def validate(tasks: list[dict], logger: logging.Logger) -> bool:
         for document in documents:
             url = document["pdf_url"]
             if url in pdf_urls and pdf_urls[url][0] != t["task_id"]:
-                previous_task_id, previous_document = pdf_urls[url]
-                explicitly_shared = (
-                    t.get("parent_venue") == "SISAP"
-                    and previous_document.get("shared_document_id")
-                    and previous_document.get("shared_document_id") == document.get("shared_document_id")
-                    and previous_document.get("shared_document_group")
-                    and previous_document.get("shared_document_group") == document.get("shared_document_group")
-                )
-                if explicitly_shared:
-                    logger.info("allowing explicitly shared SISAP document across tasks: %s", url)
-                else:
-                    logger.error("VALIDATION FAILED: duplicate pdf_url %s across %s and %s", url, previous_task_id, t["task_id"])
-                    ok = False
+                logger.error("VALIDATION FAILED: duplicate pdf_url %s across %s and %s", url, pdf_urls[url][0], t["task_id"])
+                ok = False
             pdf_urls[url] = (t["task_id"], document)
 
     for t in tasks:
@@ -305,6 +296,41 @@ def write_task_metadata(task: dict) -> None:
     path = task_metadata_path(task["task_id"])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(task, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def write_subtask_indexes(task: dict) -> None:
+    """Write ``subtasks/task-<n>.json`` listing the papers of each sub-task.
+
+    Umbrella tasks (one overview covering several sub-tasks, e.g. SISAP) store each
+    paper once under ``papers/``; these small indexes show which papers belong to
+    which sub-task without copying papers that address several sub-tasks.
+    """
+    subtasks_dir = task_dir(task["task_id"]) / "subtasks"
+    shutil.rmtree(subtasks_dir, ignore_errors=True)
+    subtasks = task.get("source", {}).get("subtasks")
+    if not subtasks:
+        return
+    subtasks_dir.mkdir(parents=True)
+    for subtask in subtasks:
+        papers = [
+            {
+                "paper_dir": f"papers/{paper_id_for(paper['pdf_url'])}",
+                "team_name": paper.get("team_name"),
+                "title": paper["title"],
+            }
+            for paper in task["participants"]
+            if str(subtask["number"]) in {str(number) for number in paper.get("task_numbers", [])}
+        ]
+        index = {
+            "task_id": task["task_id"],
+            "subtask": subtask["number"],
+            "name": subtask["name"],
+            "overview_dir": "overview",
+            "papers": papers,
+        }
+        (subtasks_dir / f"task-{str(subtask['number']).lower()}.json").write_text(
+            json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
 
 
 def write_jsonl(tasks: list[dict], path: Path) -> None:
@@ -467,6 +493,7 @@ def main() -> None:
     FINAL_DIR.mkdir(parents=True, exist_ok=True)
     for task in tasks:
         write_task_metadata(task)
+        write_subtask_indexes(task)
     write_jsonl(tasks, FINAL_DIR / "shared_tasks.jsonl")
     write_csv(tasks, FINAL_DIR / "shared_tasks.csv")
     write_report(tasks, FINAL_DIR / "report.md")

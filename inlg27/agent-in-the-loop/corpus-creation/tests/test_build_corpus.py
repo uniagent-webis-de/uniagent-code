@@ -48,23 +48,6 @@ def test_duplicate_pdf_url_across_tasks_fails(caplog):
     assert any("duplicate pdf_url" in m for m in caplog.messages)
 
 
-def test_explicitly_shared_sisap_document_is_allowed(caplog):
-    tasks = [
-        make_task("sisap-task-1", "shared-overview.pdf", ["shared-paper.pdf"]),
-        make_task("sisap-task-2", "shared-overview.pdf", ["shared-paper.pdf"]),
-    ]
-    for task in tasks:
-        task["parent_venue"] = "SISAP"
-        task["overview"]["shared_document_id"] = "sisap:overview"
-        task["overview"]["shared_document_group"] = "sisap2025"
-        task["participants"][0]["shared_document_id"] = "sisap:paper"
-        task["participants"][0]["shared_document_group"] = "sisap2025"
-    with caplog.at_level(logging.ERROR):
-        result = validate(tasks, LOGGER)
-    assert result is True
-    assert not any("duplicate pdf_url" in m for m in caplog.messages)
-
-
 def test_zero_participants_fails(caplog):
     tasks = [make_task("t1", "ov1.pdf", [])]
     with caplog.at_level(logging.ERROR):
@@ -172,3 +155,27 @@ def test_fulltext_join_is_a_no_op_when_stage_7_has_not_run():
     task = make_task("t1", "https://x/ov.pdf", ["https://x/p1.pdf"])
     join_fulltext_paths(task, {}, LOGGER)
     assert "fulltext_path" not in task["overview"]
+
+
+def test_subtask_indexes_list_multi_subtask_papers_in_each_subtask(tmp_path, monkeypatch):
+    import json
+    import src.corpus_paths as corpus_paths
+    from src.build_corpus import write_subtask_indexes
+
+    monkeypatch.setattr(corpus_paths, "FINAL_DIR", tmp_path)
+    task = make_task("sisap2026-indexing-challenge", "ov.pdf", ["https://x.org/a_1.pdf", "https://x.org/b_2.pdf"])
+    task["participants"][0]["task_numbers"] = [1, 2]
+    task["participants"][1]["task_numbers"] = [2]
+    task["source"] = {"subtasks": [{"number": 1, "name": "One"}, {"number": 2, "name": "Two"}]}
+    write_subtask_indexes(task)
+
+    subtasks = tmp_path / "sisap2026-indexing-challenge" / "subtasks"
+    one = json.loads((subtasks / "task-1.json").read_text())
+    two = json.loads((subtasks / "task-2.json").read_text())
+    assert [paper["paper_dir"] for paper in one["papers"]] == ["papers/a_1"]
+    assert [paper["paper_dir"] for paper in two["papers"]] == ["papers/a_1", "papers/b_2"]
+
+    plain = make_task("clef2024-lab", "ov.pdf", ["https://x.org/c.pdf"])
+    plain["source"] = {}
+    write_subtask_indexes(plain)
+    assert not (tmp_path / "clef2024-lab" / "subtasks").exists()

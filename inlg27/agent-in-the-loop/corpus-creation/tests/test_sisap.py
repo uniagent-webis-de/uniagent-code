@@ -2,11 +2,8 @@ import logging
 from pathlib import Path
 
 from src.collect_sisap import (
-    build_task_candidate,
-    _paper_record,
+    build_edition_candidate,
     parse_2025_results,
-    parse_2026_teams,
-    parse_registration_issues,
     parse_springer_indexing_challenge,
     parse_task_page,
 )
@@ -68,6 +65,9 @@ def test_parse_springer_indexing_challenge_extracts_roles_dois_and_authors():
     assert papers[1]["doi"] == "10.1007/978-3-031-00000-0_22"
     assert papers[1]["pdf_url"].endswith("978-3-031-00000-0_22.pdf")
     assert papers[1]["authors"] == ["Participant One, Participant Two"]
+    # 2025 titles the part "SISAP Indexing Challenge".
+    renamed = raw.replace("<h3>Indexing Challenge</h3>", "<h3>SISAP Indexing Challenge</h3>")
+    assert len(parse_springer_indexing_challenge(renamed, "https://link.springer.com/book/")) == 2
 
 
 def test_parse_2025_results_preserves_paper_repo_and_task_assignments():
@@ -91,57 +91,50 @@ def test_parse_2025_results_preserves_paper_repo_and_task_assignments():
     assert result_tables["1"] == [{"Team": "Team A", "Recall": "0.81"}]
 
 
-def test_parse_2024_registration_archive_extracts_explicit_task_sets():
-    raw = '[{"body":"### team\\n\\nHIOB\\n\\n### tasks\\n\\n1, 2, and 3"}]'
-    assert parse_registration_issues(raw) == {"HIOB": {1, 2, 3}}
+def test_configured_papers_map_to_real_subtasks_of_their_edition():
+    for edition in SISAP_EDITIONS:
+        subtasks = {task["number"] for task in edition["tasks"]}
+        assert len(edition["papers"]) >= 2, edition["year"]
+        for doi, mapping in edition["papers"].items():
+            assert doi.startswith("10.1007/"), doi
+            assert mapping["team"], doi
+            assert mapping["tasks"] and set(mapping["tasks"]) <= subtasks, doi
 
 
-def test_parse_2026_leaderboard_json_with_trailing_commas_excludes_baseline():
-    raw = '{"Organizers":{"is-baseline":true},"team-a":{"paper":43,"submissions":[{"tasks":["task1"]}],},}'
-    parsed = parse_2026_teams(raw)
-    assert list(parsed) == ["team-a"]
-    assert parsed["team-a"]["paper"] == 43
+def _paper(number: int, team: str | None, tasks: list[int]) -> dict:
+    return {
+        "title": f"Paper {number}",
+        "authors": [],
+        "paper_url": f"https://example.org/{number}",
+        "pdf_url": f"https://example.org/{number}.pdf",
+        "doi": f"10.1007/x_{number}",
+        "source_id": str(number),
+        "role": "participant",
+        "team_name": team,
+        "task_numbers": tasks,
+    }
 
 
-def test_sisap_candidate_marks_shared_documents_and_review_reasons():
+def test_edition_becomes_one_umbrella_task_keeping_each_papers_subtasks():
     edition = {
         "year": 2025,
         "collection_id": "sisap2025",
         "official_url": "https://example.org/sisap2025",
-        "tasks_url": "https://example.org/tasks",
         "tira_url": "https://www.tira.io/tasks",
     }
-    task = {"number": 1, "name": "Resource-limited indexing", "short_name": "Task 1"}
-    overview = {
-        "title": "Overview",
-        "authors": [],
-        "paper_url": "https://example.org/overview",
-        "pdf_url": "https://example.org/overview.pdf",
-        "source_id": "overview",
-        "role": "overview",
-    }
-    participants = [
-        {"title": "Paper 1", "authors": [], "paper_url": "https://example.org/1", "pdf_url": "https://example.org/1.pdf", "source_id": "1", "team_name": "A", "task_numbers": [1]},
-        {"title": "Paper 2", "authors": [], "paper_url": "https://example.org/2", "pdf_url": "https://example.org/2.pdf", "source_id": "2", "team_name": "B", "task_numbers": [1]},
+    subtasks = [
+        {"number": 1, "name": "One", "task_metadata": {"found": True}, "result_records": [{"Recall": "0.8"}]},
+        {"number": 2, "name": "Two", "task_metadata": {"found": True}, "result_records": []},
     ]
-    candidate = build_task_candidate(edition, task, {"found": True}, overview, participants, [{"Recall": "0.8"}], LOGGER)
+    overview = {"title": "Overview", "paper_url": "https://example.org/ov", "pdf_url": "https://example.org/ov.pdf", "source_id": "ov", "role": "overview"}
+    candidate = build_edition_candidate(edition, subtasks, overview, [_paper(1, "A", [1, 2]), _paper(2, "B", [2])], [], LOGGER)
+    assert candidate["task_id"] == "sisap2025-indexing-challenge"
     assert candidate["provenance"]["confidence"] == "high"
-    assert candidate["overview"]["shared_document_id"] == "sisap2025:overview"
-    assert all(p["shared_document_group"] == "sisap2025" for p in candidate["participants"])
+    assert candidate["ceur_volume"] is None
+    assert candidate["overview"]["is_umbrella"] is True
+    assert [p["task_numbers"] for p in candidate["participants"]] == [[1, 2], [2]]
+    assert [s["number"] for s in candidate["source"]["subtasks"]] == [1, 2]
 
-
-def test_sisap_uses_verified_open_access_pdf_fallback_but_keeps_publisher_identity():
-    edition = next(edition for edition in SISAP_EDITIONS if edition["year"] == 2023)
-    paper = {
-        "title": "General and Practical Tuning Method",
-        "authors": [],
-        "paper_url": "https://link.springer.com/chapter/10.1007/978-3-031-46994-7_23",
-        "pdf_url": "https://link.springer.com/content/pdf/10.1007/978-3-031-46994-7_23.pdf",
-        "doi": "10.1007/978-3-031-46994-7_23",
-        "source_id": "10.1007_978-3-031-46994-7_23",
-        "role": "participant",
-    }
-    record = _paper_record(paper, edition, "Task A")
-    assert record["pdf_url"] == "https://arxiv.org/pdf/2309.00472"
-    assert record["publisher_pdf_url"].endswith("978-3-031-46994-7_23.pdf")
-    assert record["pdf_source"] == "open_access_fallback"
+    unmapped = build_edition_candidate(edition, subtasks, overview, [_paper(1, "A", [1]), _paper(2, None, [])], [], LOGGER)
+    assert unmapped["provenance"]["confidence"] == "medium"
+    assert any("10.1007/x_2" in reason for reason in unmapped["provenance"]["confidence_reasons"])

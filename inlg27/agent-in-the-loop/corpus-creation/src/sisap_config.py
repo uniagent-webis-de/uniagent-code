@@ -4,6 +4,10 @@ The challenge website is the authority for task definitions and the SISAP
 proceedings are the authority for published organizer and participant papers.
 GitHub/TIRA/DBLP sources below are supplemental evidence and statistics; they
 must not create a participant paper without a corresponding published paper.
+
+Each edition becomes one corpus task: its single organizer overview covers all
+sub-tasks.  ``papers`` maps every participant chapter DOI to its team and the
+sub-tasks it addressed, as stated in that edition's overview paper.
 """
 
 from __future__ import annotations
@@ -20,7 +24,6 @@ SISAP_EDITIONS = [
         "proceedings_url": "https://link.springer.com/book/10.1007/978-3-031-46994-7?page=2",
         "conference_url": "https://sisap.org/2023/program.html",
         "overview_url": "https://link.springer.com/chapter/10.1007/978-3-031-46994-7_21",
-        "overview_pdf_url": "https://pure.itu.dk/ws/portalfiles/portal/102355149/Overview_of_the_LAION_challenge_sisap_2023.pdf",
         "github_repo_url": "https://github.com/sisap-challenges/challenge2023",
         "github_files": {
             "preliminary_results": "https://raw.githubusercontent.com/sisap-challenges/challenge2023/main/results/RESULTS.md",
@@ -28,14 +31,6 @@ SISAP_EDITIONS = [
         },
         "dblp_url": "https://dblp.org/db/conf/sisap/sisap2023.html",
         "tira_url": "https://www.tira.io/tasks",
-        # Springer chapter PDFs are not consistently downloadable by an
-        # unattended client.  Keep the publisher landing page as the paper
-        # identity, but use a verified author manuscript when one exists.
-        "paper_pdf_fallbacks": {
-            "10.1007/978-3-031-46994-7_23": [
-                "https://arxiv.org/pdf/2309.00472",
-            ],
-        },
         "tasks": [
             {
                 "number": "A",
@@ -56,14 +51,13 @@ SISAP_EDITIONS = [
                 "short_name": "Task C",
             },
         ],
-        # These mappings are backed by the official 2023 results labels and
-        # the published Indexing Challenge section of the proceedings.
-        "paper_task_hints": {
-            "10.1007/978-3-031-46994-7_22": ["C"],
-            "10.1007/978-3-031-46994-7_23": ["A"],
-            "10.1007/978-3-031-46994-7_24": ["A"],
-            "10.1007/978-3-031-46994-7_25": ["A"],
-            "10.1007/978-3-031-46994-7_26": ["A"],
+        # Overview Sect. 4.2.  HIOB (Tasks A-C) has no paper in the proceedings.
+        "papers": {
+            "10.1007/978-3-031-46994-7_22": {"team": "SWANN", "tasks": ["C"]},
+            "10.1007/978-3-031-46994-7_23": {"team": "UTokyo", "tasks": ["A"]},
+            "10.1007/978-3-031-46994-7_24": {"team": "LMI", "tasks": ["A"]},
+            "10.1007/978-3-031-46994-7_25": {"team": "HSP", "tasks": ["A"]},
+            "10.1007/978-3-031-46994-7_26": {"team": "CRANBERRY", "tasks": ["A"]},
         },
     },
     {
@@ -76,11 +70,7 @@ SISAP_EDITIONS = [
         "proceedings_url": "https://link.springer.com/book/10.1007/978-3-031-75823-2?page=2",
         "conference_url": "https://sisap.org/2024/program.html",
         "overview_url": "https://link.springer.com/chapter/10.1007/978-3-031-75823-2_21",
-        "overview_pdf_url": "https://pure.itu.dk/ws/portalfiles/portal/108573625/Overview_of_the_SISAP_2024_Implementation_Challenge.pdf",
         "github_repo_url": "https://github.com/sisap-challenges/challenge2024",
-        "github_api_urls": {
-            "registrations": "https://api.github.com/repos/sisap-challenges/challenge2024/issues?state=all&per_page=100",
-        },
         "github_files": {
             "task1_results": "https://raw.githubusercontent.com/sisap-challenges/challenge2024/main/sisap24-task1.csv",
             "task2_results": "https://raw.githubusercontent.com/sisap-challenges/challenge2024/main/sisap24-task2.csv",
@@ -89,11 +79,6 @@ SISAP_EDITIONS = [
         },
         "dblp_url": "https://dblp.org/db/conf/sisap/sisap2024.html",
         "tira_url": "https://www.tira.io/tasks",
-        "paper_pdf_fallbacks": {
-            "10.1007/978-3-031-75823-2_23": [
-                "https://arxiv.org/pdf/2405.18401",
-            ],
-        },
         "tasks": [
             {
                 "number": 1,
@@ -114,11 +99,13 @@ SISAP_EDITIONS = [
                 "short_name": "Task 3",
             },
         ],
-        "paper_team_hints": {
-            "978-3-031-75823-2_22": "LMI",
-            "978-3-031-75823-2_23": "HIOB",
-            "978-3-031-75823-2_24": "HTW",
-            "978-3-031-75823-2_25": "HSP",
+        # Overview Sect. 3.2: DEGLIB and LMI solved Tasks 1 and 3 (LMI's Task 2
+        # run was terminated after 24 h), HIOB all three, HSP Task 1.
+        "papers": {
+            "10.1007/978-3-031-75823-2_22": {"team": "LMI", "tasks": [1, 3]},
+            "10.1007/978-3-031-75823-2_23": {"team": "HIOB", "tasks": [1, 2, 3]},
+            "10.1007/978-3-031-75823-2_24": {"team": "DEGLIB", "tasks": [1, 3]},
+            "10.1007/978-3-031-75823-2_25": {"team": "HSP", "tasks": [1]},
         },
     },
     {
@@ -131,7 +118,6 @@ SISAP_EDITIONS = [
         "proceedings_url": "https://link.springer.com/book/10.1007/978-3-032-06069-3?page=3",
         "conference_url": "https://sisap.org/2025/program.html",
         "overview_url": "https://link.springer.com/chapter/10.1007/978-3-032-06069-3_33",
-        "overview_pdf_url": "https://pure.itu.dk/ws/portalfiles/portal/113473061/2025-sisap-overview.pdf",
         "github_repo_url": "https://github.com/sisap-challenges/challenge2025",
         "dblp_url": "https://dblp.org/db/conf/sisap/sisap2025.html",
         "tira_url": "https://www.tira.io/tasks",
@@ -149,6 +135,14 @@ SISAP_EDITIONS = [
                 "short_name": "Task 2",
             },
         ],
+        # Overview Table 1.  hforest and JLapeyra submitted without a paper.
+        "papers": {
+            "10.1007/978-3-032-06069-3_34": {"team": "cm-lll", "tasks": [1]},
+            "10.1007/978-3-032-06069-3_35": {"team": "TeamDoubleFiltering", "tasks": [1]},
+            "10.1007/978-3-032-06069-3_36": {"team": "DCC-UChile", "tasks": [2]},
+            "10.1007/978-3-032-06069-3_37": {"team": "Crusty Coders", "tasks": [1, 2]},
+            "10.1007/978-3-032-06069-3_38": {"team": "BrownCICESE", "tasks": [1, 2]},
+        },
     },
     {
         "parent_venue": "SISAP",
@@ -159,7 +153,9 @@ SISAP_EDITIONS = [
         "evaluation_url": "https://sisap-challenges.github.io/2026/evaluation/",
         "leaderboard_url": "https://sisap-challenges.github.io/sisap26-leaderboard/",
         "accepted_url": "https://sisap.org/2026/accepted.html",
-        "proceedings_url": "https://sisap.org/2026/indexingchallenge.html",
+        # The Indexing Challenge section spans two pages of the Springer ToC.
+        "proceedings_url": "https://link.springer.com/book/10.1007/978-3-032-42224-8?page=2",
+        "proceedings_continuation_url": "https://link.springer.com/book/10.1007/978-3-032-42224-8?page=3",
         "conference_url": "https://sisap.org/2026/indexingchallenge.html",
         "github_repo_url": "https://github.com/sisap-challenges/challenge2026",
         "github_leaderboard_url": "https://github.com/sisap-challenges/sisap26-leaderboard",
@@ -196,6 +192,23 @@ SISAP_EDITIONS = [
                 "short_name": "Task 3",
             },
         ],
+        # Overview Table 2 (13 teams with papers).  Six further teams, including
+        # wh-team, submitted runs without a paper in the proceedings.
+        "papers": {
+            "10.1007/978-3-032-42224-8_30": {"team": "seed-42", "tasks": [3]},
+            "10.1007/978-3-032-42224-8_31": {"team": "baremetal-vectors", "tasks": [1]},
+            "10.1007/978-3-032-42224-8_32": {"team": "Crusty Coders", "tasks": [1, 2, 3]},
+            "10.1007/978-3-032-42224-8_33": {"team": "ketchup-needs-nuggets", "tasks": [1]},
+            "10.1007/978-3-032-42224-8_34": {"team": "deglib", "tasks": [1, 2]},
+            "10.1007/978-3-032-42224-8_35": {"team": "plain-local-search", "tasks": [1]},
+            "10.1007/978-3-032-42224-8_36": {"team": "tusKANNy", "tasks": [3]},
+            "10.1007/978-3-032-42224-8_37": {"team": "dream-team", "tasks": [1, 2]},
+            "10.1007/978-3-032-42224-8_38": {"team": "pipnn", "tasks": [1]},
+            "10.1007/978-3-032-42224-8_39": {"team": "basque-invaders", "tasks": [3]},
+            "10.1007/978-3-032-42224-8_40": {"team": "luis", "tasks": [1, 2, 3]},
+            "10.1007/978-3-032-42224-8_41": {"team": "hanswurst", "tasks": [1, 2, 3]},
+            "10.1007/978-3-032-42224-8_42": {"team": "lzen402", "tasks": [1]},
+        },
     },
 ]
 
