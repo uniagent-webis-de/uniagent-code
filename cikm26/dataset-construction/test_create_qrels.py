@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 from click.testing import CliRunner
 
 from create_qrels import (
+    MAX_DOCUMENT_CHARACTERS,
     NarrativeJudge,
     PROMPT_FILE,
     build_topic_request,
@@ -221,21 +222,26 @@ class TopicJudgmentsTest(unittest.TestCase):
         self.assertEqual(["a", "b"], [item["docid"] for item in request["candidates"]])
         self.assertEqual([1, 2], [item["judgment"] for item in response["judgments"]])
 
-    def test_rejects_stale_request(self) -> None:
+    def test_rejudges_stale_request(self) -> None:
         dataset = Dataset()
+        judge = FakeJudge()
         with tempfile.TemporaryDirectory() as temporary_directory:
             output = Path(temporary_directory)
             request_path = topic_path(output / "requests", "1")
+            response_path = topic_path(output / "responses", "1")
             request_path.parent.mkdir()
+            response_path.parent.mkdir()
             request_path.write_text('{"stale": true}\n', encoding="utf-8")
+            response_path.write_text('{"stale": true}\n', encoding="utf-8")
 
-            with self.assertRaisesRegex(ValueError, "stale"):
-                create_topic_judgments(
-                    dataset,
-                    {"1": ["a"]},
-                    output,
-                    FakeJudge,
-                )
+            create_topic_judgments(dataset, {"1": ["a"]}, output, lambda: judge)
+
+            request = json.loads(request_path.read_text(encoding="utf-8"))
+            response = json.loads(response_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(1, len(judge.calls))
+        self.assertEqual(["a"], [item["docid"] for item in request["candidates"]])
+        self.assertEqual("1", response["qid"])
 
     def test_rejects_response_without_request(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -339,10 +345,10 @@ class MainTest(unittest.TestCase):
         get_relevance_label_distribution,
         report_relevance_label_distribution,
     ) -> None:
-        dataset = object()
+        dataset = Dataset()
         distributions = {"1": {0: 1, 1: 0, 2: 0, 3: 0}}
         load.return_value = dataset
-        get_pool.return_value = {"1": ["a"]}
+        get_pool.return_value = {"1": ["a", "missing"], "unknown": ["a"]}
         write_qrels.return_value = Path("output/qrels.txt")
         get_relevance_label_distribution.return_value = distributions
         runner = CliRunner()
@@ -373,6 +379,17 @@ class MainTest(unittest.TestCase):
             {"1": ["a"]}, Path("output")
         )
         report_relevance_label_distribution.assert_called_once_with(distributions)
+        self.assertIn("1 pooled queries could not be found", result.output)
+        self.assertIn("1 pooled documents could not be found", result.output)
+
+
+class TruncationTest(unittest.TestCase):
+    def test_truncates_documents(self) -> None:
+        documents = Documents({"a": Document("x" * (MAX_DOCUMENT_CHARACTERS + 5))})
+        request = build_topic_request(Query("1"), ["a"], documents)
+        self.assertEqual(
+            MAX_DOCUMENT_CHARACTERS, len(request["candidates"][0]["doc"]["segment"])
+        )
 
 
 if __name__ == "__main__":

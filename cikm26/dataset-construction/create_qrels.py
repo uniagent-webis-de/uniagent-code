@@ -10,6 +10,8 @@ from tira.third_party_integrations import ir_datasets
 
 from create_pool import get_pool
 
+MAX_DOCUMENT_CHARACTERS = 50000
+
 
 def atomic_write_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,7 +101,7 @@ def build_topic_request(query, document_ids: list[str], documents) -> dict:
         candidates.append(
             {
                 "docid": document_id,
-                "doc": {"segment": document.default_text()},
+                "doc": {"segment": document.default_text()[:MAX_DOCUMENT_CHARACTERS]},
             }
         )
 
@@ -172,6 +174,30 @@ def create_topic_response(request: dict, judgments: list[dict]) -> dict:
     return response
 
 
+def remove_unknown_queries(
+    pool: dict[str, list[str]], dataset
+) -> tuple[dict[str, list[str]], int]:
+    query_ids = {str(query.query_id) for query in dataset.queries_iter()}
+    known_pool = {qid: ids for qid, ids in pool.items() if qid in query_ids}
+    return known_pool, len(pool) - len(known_pool)
+
+
+def remove_unknown_documents(
+    pool: dict[str, list[str]], documents
+) -> tuple[dict[str, list[str]], int]:
+    known_pool = {}
+    unknown_count = 0
+    for qid, document_ids in pool.items():
+        known_ids = []
+        for document_id in document_ids:
+            if documents.get(document_id) is None:
+                unknown_count += 1
+            else:
+                known_ids.append(document_id)
+        known_pool[qid] = known_ids
+    return known_pool, unknown_count
+
+
 def topic_path(directory: Path, qid: str) -> Path:
     return directory / f"{quote(qid, safe='')}.json"
 
@@ -200,10 +226,11 @@ def create_topic_judgments(
         if response_path.is_file() and not request_path.is_file():
             raise ValueError(f"Response exists without request for query {qid}.")
 
-        if request_path.is_file():
-            if load_json(request_path) != request:
-                raise ValueError(f"Persisted request is stale for query {qid}.")
-        else:
+        if request_path.is_file() and load_json(request_path) != request:
+            click.echo(f"Persisted request is stale for query {qid}; re-judging.")
+            response_path.unlink(missing_ok=True)
+            atomic_write_json(request_path, request)
+        elif not request_path.is_file():
             atomic_write_json(request_path, request)
 
         if response_path.is_file():
@@ -305,6 +332,20 @@ def main(dataset: str, runs: Path, output: Path, k: int) -> None:
     try:
         loaded_dataset = ir_datasets.load(dataset)
         pool = get_pool(runs, k, output / "pools")
+        pool, unknown_query_count = remove_unknown_queries(pool, loaded_dataset)
+        if unknown_query_count:
+            click.echo(
+                f"Warning: {unknown_query_count} pooled queries could not be found "
+                "in the dataset and were skipped."
+            )
+        pool, unknown_count = remove_unknown_documents(
+            pool, loaded_dataset.docs_store()
+        )
+        if unknown_count:
+            click.echo(
+                f"Warning: {unknown_count} pooled documents could not be found "
+                "in the dataset and were excluded from judging."
+            )
         create_topic_judgments(loaded_dataset, pool, output)
         qrels_path = write_qrels(pool, output)
         distributions = get_relevance_label_distribution(pool, output)

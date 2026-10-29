@@ -41,9 +41,10 @@ The judging prompt is `umbrela_prompt_with_narrative.txt`, UMBRELA's default
 prompt extended with explicit `Description:` and `Narrative:` fields next to the
 query title (taken from `original_query` in the dataset's `queries.jsonl`).
 The command fails if a topic lacks a description or narrative. The persisted
-requests contain description and narrative, so earlier output directories
-created with the title-only prompt are rejected as stale; use a new output
-directory (e.g. `qrels/retrieval-en-spot-check/gpt-oss-20b-narrative`).
+requests contain description and narrative, so topics from earlier output
+directories created with the title-only prompt are detected as stale and
+re-judged automatically (a stale request is rewritten and its response
+discarded). Documents are truncated to 50,000 characters in the requests.
 
 The command creates `pools/`, `requests/`, and `responses/` below the output
 directory and writes `qrels.txt`. Each topic is judged independently. A topic
