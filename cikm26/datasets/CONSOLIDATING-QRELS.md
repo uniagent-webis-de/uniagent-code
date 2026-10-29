@@ -66,3 +66,39 @@ Also log, as separate lines with `"type": "flag"`, `single-relevant` documents t
 - All doc_ids exist in `documents.jsonl.gz`; all qids exist in `queries.jsonl`.
 - Every line of `qrels.txt` and the log parses, and every candidate has a line in `qrels.txt` (including 0s), every line of `qrels.txt` has a matching log entry (or is a `single-relevant` document).
 - Report summary statistics: number of queries, and number of documents per score (including 0).
+
+# Some examples from executions:
+
+I did run those four instructions to consolidate the relevance judgments for our four test datasets:
+
+```
+Please run the "cikm26/datasets/CONSOLIDATING-QRELS.md" protocol on cikm26/datasets/in-progress/retrieval-hessian-law-de
+```
+Result: Started at 15 AIC, ended at:870 AIC.
+
+```
+Please run the "cikm26/datasets/CONSOLIDATING-QRELS.md" protocol on cikm26/datasets/in-progress/retrieval-kassel-intranet-de
+```
+Result: Started at 870 AIC, ended at 1167 AIC.
+
+```
+Please run the "cikm26/datasets/CONSOLIDATING-QRELS.md" protocol on cikm26/datasets/in-progress/retrieval-kassel-web-de
+```
+Result: Started at 1167 AIC, ended at 1412 AIC.
+
+```
+Please run the "cikm26/datasets/CONSOLIDATING-QRELS.md" protocol on cikm26/datasets/in-progress/retrieval-kassel-web-en
+```
+Result: Started at 1412 AIC, ended at  AIC.
+
+It started multiple judgment subagents in parallel:
+
+<img width="1555" height="867" alt="Screenshot_20261029_094845" src="https://github.com/user-attachments/assets/c6896d73-6242-4503-bc54-24f756231a64" />
+
+
+The self-reports seem reasonable:
+
+
+<img width="1881" height="711" alt="Screenshot_20261029_095445" src="https://github.com/user-attachments/assets/d993d05c-2dbb-4341-aaa6-0042758526ff" />
+
+<img width="1880" height="210" alt="Screenshot_20261029_100802" src="https://github.com/user-attachments/assets/3b4a6893-83a9-490b-ab13-938a4654c15d" />
