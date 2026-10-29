@@ -89,7 +89,7 @@ Result: Started at 1167 AIC, ended at 1412 AIC.
 ```
 Please run the "cikm26/datasets/CONSOLIDATING-QRELS.md" protocol on cikm26/datasets/in-progress/retrieval-kassel-web-en
 ```
-Result: Started at 1412 AIC, ended at  AIC.
+Result: Started at 1412 AIC, ended at 1904 AIC.
 
 It started multiple judgment subagents in parallel:
 
