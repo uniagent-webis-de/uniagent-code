@@ -14,6 +14,27 @@ Everything is invented: the University of Wernstadt, all people, companies, even
 
 Each expense claim belongs to the trip with the same number (`claim-07` is the claim of `trip-07`). In the travel requests, 30 trips are approved and 10 are refused; four trips go abroad. All texts are in English.
 
+## Ideas
+
+The data serves the two tracks of the hackathon. Some starting points:
+
+**Build (Track 1).**
+
+- A travel assistant that turns the traveller's message into the filled request, asks only for what is missing, and warns before a trip that the rules refuse (`travel-request`: form accuracy, F1 of the missing items, decision accuracy).
+- A claim checker that reads the receipts and computes the refund line by line, with the rule behind every line (`expense-claim`: amounts to the cent; the ground truth's `lines` show the rules).
+- An assistant for the examination office that answers a student with a decision and the new deadline, the recognised credits, or the attempts left (`teaching`).
+- An agent that asks instead of guessing: the ground truth leaves unknown values empty, so invented values cost points.
+- A small model that does the job: compare an open model on your laptop with gpt-oss-120b in accuracy, time, and cost.
+- A reply to the applicant that explains a refusal with its rule. The package has no evaluation for it yet, so design one.
+
+**Understand (Track 2).**
+
+- Where agents fail: find the rule behind every wrong answer in the 98 traces, for example a late claim, a holiday inside a deadline, or a shared taxi.
+- How agents use tools: which documents they read, whether they read the rules, and when they compute or guess.
+- Better rules: find the rules the agents misread, rewrite the rule sheet, rerun `agent.py`, and measure the change; then ask whether you needed a domain expert for it.
+- How models differ: compare the 120b and 20b agents in steps, reasoning, errors, and time, or add a third model.
+- A trace viewer that shows the steps of a case at a glance.
+
 ## Files
 
 ```
