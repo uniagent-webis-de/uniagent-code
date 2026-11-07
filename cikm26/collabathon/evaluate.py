@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Score predictions for the UniAgent hackathon data against the ground truth.
+"""Score predictions for the UniAgent collabathon data against the ground truth.
 
     python evaluate.py travel-request/dev/ground-truth.jsonl predictions.jsonl
     python evaluate.py expense-claim/test/ground-truth.jsonl predictions.jsonl --details

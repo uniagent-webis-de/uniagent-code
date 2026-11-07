@@ -1,6 +1,6 @@
-# UniAgent Hackathon Data: The University of the Future
+# UniAgent Collabathon Data: The University of the Future
 
-This package is the material for Track 2 of the open UniAgent hackathon on 8 November 2026 (CIKM 2026, Rome and online), "Understand Your Agents". It contains the traces of two agents, model A (gpt-oss-120b) and model B (gpt-oss-20b), on invented cases from the administration of a fictional university, together with the cases, the right answers, and the agents' scores. Track 2 is a creative contest, not a ranking: teams explore the data and show what can be done with it, from judging traces to keeping agents within rules to building agents. Track 1, idea finding and discussion, needs no data.
+This package is the optional part of the open UniAgent collabathon on 8 November 2026 (CIKM 2026, Rome and online), "Understand Your Agents". It contains the traces of two agents, model A (gpt-oss-120b) and model B (gpt-oss-20b), on invented cases from the administration of a fictional university, together with the cases, the right answers, and the agents' scores. The collabathon itself is a discussion and needs no data. This package is for everyone who wants to explore how agents behave, from judging traces to keeping agents within rules to building agents.
 
 Everything is invented: the University of Wernstadt, all people, companies, events, addresses, and numbers. No case is taken from or modelled on a real case. The travel cases follow the real rules of the University of Kassel and the Hessian travel expenses act, summarised in `rules/travel-rules.md`. The teaching cases follow an invented examination regulation in `rules/examination-regulations.md`.
 
@@ -28,9 +28,9 @@ The traces cover the dev cases only. The 49 test cases come with right answers b
 
 Each expense claim belongs to the trip with the same number (`claim-07` is the claim of `trip-07`). In the travel requests, 30 trips are approved and 10 are refused; four trips go abroad. All texts are in English.
 
-## Ideas for Track 2
+## Ideas
 
-Track 2 is a creative contest: explore the data, then show what you can do with it. Some starting points:
+Explore the data, then show what you can do with it. Some starting points:
 
 - Judge traces: score each step of an agent, beyond its final answer. Did it read the right document, apply the right rule, compute correctly?
 - Follow rules: keep an agent within a rule set, for example with a checker that stops an answer that breaks a rule, or with a rule sheet the agent follows more reliably.
@@ -202,7 +202,7 @@ At about 30 requests per minute, a dev split of 20 cases runs in a few minutes. 
 
 ## How to take part
 
-- Track 2 is a creative contest, not a ranking: there is no leaderboard, and your demo shows your idea, prototype, or finding.
+- There is no leaderboard: your report shows your idea, prototype, or finding.
 - The dev and the test cases come with right answers. The traces cover the dev cases; the test cases suit trying an idea on cases no agent has seen yet.
 - Say which model and which tools your system uses, and whether it reads the rule sheets or retrieves the rules itself. The shared task's public corpora (University of Kassel web pages and Hessian law) are in the UniAgent repository and may be used.
 - The travel decisions correspond to the decisions of UniAgent Task 2: `approve` is `angenommen`, `reject` is `abgelehnt`.

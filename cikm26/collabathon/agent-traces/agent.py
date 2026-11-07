@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A tool-calling agent for the hackathon data, with one trace file per case.
+"""A tool-calling agent for the collabathon data, with one trace file per case.
 
     python agent-traces/agent.py travel-request/dev --model gpt-oss:20b \
         --base-url http://localhost:11434/v1 --out agent-traces/gpt-oss-20b
