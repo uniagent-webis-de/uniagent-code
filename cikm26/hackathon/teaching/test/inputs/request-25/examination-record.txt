@@ -1,0 +1,17 @@
+University of Wernstadt
+Examination portal
+
+
+Record of examinations (extract)
+Student                                     Johanna Krautwurst
+Matriculation number                        9338456
+Programme                                   B.Sc. Mechanical Engineering
+
+Module                             Date                        Attempt   Result         Note
+Thermodynamics I                   18 February 2026            1         5.0 (failed)
+Thermodynamics I                   23 July 2026                2         5.0 (failed)   absent without an accepted
+                                                                                        reason
+
+
+Printed from the examination portal of the University of Wernstadt.
+

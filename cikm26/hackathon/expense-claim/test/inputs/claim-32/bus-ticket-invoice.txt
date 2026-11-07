@@ -1,0 +1,23 @@
+Dr. Leonie Brandauer                                                                  Fernlinie Express GmbH
+                                                                                   Long-distance coach services
+University of Wernstadt
+                                                                  Zentraler Omnibusbahnhof 2, 35291 Wernstadt
+Institute of Sociology                                                        tickets@fernlinie-express.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                    Invoice no. FX-R-27-81335
+                                                                                             Date 22 Apr 2027
+                                                                                  Passenger Leonie Brandauer
+
+
+
+Invoice
+ Date                                            Route    Dep.                     Ticket            Amount
+ 12 May 2027              Wernstadt ZOB to Würzburg ZOB   08:20   Coach, standard fare                  14.99
+ 12 May 2027              Würzburg ZOB to Wernstadt ZOB   15:15   Coach, standard fare                  14.99
+
+                                                                         Total (EUR)                    29.98
+Paid by credit card.
+

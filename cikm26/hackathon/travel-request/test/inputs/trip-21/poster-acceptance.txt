@@ -1,0 +1,11 @@
+From        TML-PA 2027 <workshop@tml-pa.example>
+Sent        Friday, 29 January 2027, 16:44
+To          Amira Haddad <amira.haddad@uni-wernstadt.de>
+Subject     Poster accepted: Workshop on Trustworthy Machine Learning in Public Administration
+
+Dear Dr. Haddad,
+your poster has been accepted for the Workshop on Trustworthy Machine Learning in Public Administration,
+Thursday 18 March (09:30) to Friday 19 March 2027 (15:00), Leibniz-Ufer 3, 30169 Hannover.
+Workshop fee: EUR 60.00, including lunch on both days.
+Kind regards, the organisers (Lower Saxony AI Network)
+

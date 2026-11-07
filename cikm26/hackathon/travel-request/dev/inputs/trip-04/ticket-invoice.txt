@@ -1,0 +1,23 @@
+Prof. Dr. Ingrid Vollmer-Saak                                                                        Kestrel Travel GmbH
+                                                                    Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                       Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Sociology                                                                     service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                              Invoice no. KT-R-27-10561
+                                                                                                       Date 09 Feb 2027
+                                                                                           Passenger Ingrid Vollmer-Saak
+
+
+
+Invoice
+ Date                                                  Route     Dep.                         Ticket            Amount
+ 11 Feb 2027                    Wernstadt Hbf to Bielefeld Hbf   07:08     IC, 2nd class, flex fare                 34.50
+ 11 Feb 2027                    Bielefeld Hbf to Wernstadt Hbf   17:05     IC, 2nd class, flex fare                 34.50
+
+                                                                                    Total (EUR)                     69.00
+Paid by credit card.
+

@@ -1,0 +1,26 @@
+Katharina Seebach                                                                                                  Kestrel Travel GmbH
+                                                                                  Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                                     Bahnhofstrasse 6, 35291 Wernstadt
+University Library                                                                                       service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                                  Offer no. KT-27-18456
+                                                                                                                        Date 08 Jul 2027
+                                                                                                                  Valid until 15 Jul 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.     Arr.                      Service                  Fare
+ 25 Aug 2027                      Wernstadt Hbf to Kiel Hbf            05:55   11:10      ICE, 2nd class, saver                   59.90
+                                                                                                           fare
+ 01 Sep 2027                      Kiel Hbf to Wernstadt Hbf            14:58   20:15      ICE, 2nd class, saver                   59.90
+                                                                                                           fare
+
+                                                                                                  Total (EUR)                   119.80
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+For comparison: return on Thursday 26 August 2027 at 16:58, Kiel Hbf to Wernstadt Hbf, 2nd class, saver fare EUR 64.90.
+

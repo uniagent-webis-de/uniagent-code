@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                             University of Wernstadt
+                                                                                                                        Am Lindenhang 40
+Travel Office
+                                                                                                                         35291 Wernstadt
+                                                                                                                                  Germany
+
+
+ Request no. WR-27-4324                                                  Status: approved on 21.04.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Dr. Leonie Brandauer
+Position                                        Lecturer
+Unit                                            Institute of Sociology
+Trip type                                       domestic
+Destination                                     Würzburg, Germany
+Purpose                                         Editorial board meeting of the Rural Sociology Review
+Departure                                       Wednesday, 12 May 2027, 08:00
+Return                                          Wednesday, 12 May 2027, 16:00
+Means of transport                              Long-distance bus
+Cost centre                                     1102 0031
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                      Amount
+ Transport                                                                                                                    EUR 29.98
+ Accommodation                                                                                                                 EUR 0.00
+ Registration fee                                                                                                              EUR 0.00
+ Total                                                                                                                        EUR 29.98
+

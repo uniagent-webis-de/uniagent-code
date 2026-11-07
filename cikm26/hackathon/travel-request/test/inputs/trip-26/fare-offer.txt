@@ -1,0 +1,25 @@
+Dr. Rafael Moreira                                                                                                 Kestrel Travel GmbH
+                                                                                  Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                                     Bahnhofstrasse 6, 35291 Wernstadt
+Department of Physics                                                                                    service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                                 Offer no. KT-27-17703
+                                                                                                                       Date 29 Jul 2027
+                                                                                                                 Valid until 05 Aug 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.     Arr.                      Service                  Fare
+ 07 Sep 2027                         Wernstadt Hbf to Jülich           06:41   09:45          RE/RB, 2nd class,                   46.90
+                                                                                                     saver fare
+ 09 Sep 2027                         Jülich to Wernstadt Hbf           15:20   18:27          RB/RE, 2nd class,                   46.90
+                                                                                                     saver fare
+
+                                                                                                  Total (EUR)                     93.80
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+

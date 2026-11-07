@@ -1,0 +1,15 @@
+{"request_type": "exam_withdrawal", "decision": "grant", "key_value": null, "case_id": "request-01"}
+{"request_type": "credit_recognition", "decision": "grant", "key_value": 21, "case_id": "request-02"}
+{"request_type": "illness", "decision": "deny", "key_value": null, "case_id": "request-03"}
+{"request_type": "thesis_extension", "decision": "grant", "key_value": "2027-08-02", "case_id": "request-04"}
+{"request_type": "late_registration", "decision": "deny", "key_value": null, "case_id": "request-05"}
+{"request_type": "repeat_attempt", "decision": "grant", "key_value": 2, "case_id": "request-06"}
+{"request_type": "exam_withdrawal", "decision": "grant", "key_value": null, "case_id": "request-07"}
+{"request_type": "credit_recognition", "decision": "deny", "key_value": null, "case_id": "request-08"}
+{"request_type": "thesis_extension", "decision": "deny", "key_value": null, "case_id": "request-09"}
+{"request_type": "illness", "decision": "grant", "key_value": null, "case_id": "request-10"}
+{"request_type": "late_registration", "decision": "grant", "key_value": null, "case_id": "request-11"}
+{"request_type": "repeat_attempt", "decision": "deny", "key_value": 0, "case_id": "request-12"}
+{"request_type": "credit_recognition", "decision": "grant", "key_value": 6, "case_id": "request-13"}
+{"request_type": "thesis_extension", "decision": "grant", "key_value": "2027-05-17", "case_id": "request-14"}
+{"request_type": "exam_withdrawal", "decision": "deny", "key_value": null, "case_id": "request-15"}

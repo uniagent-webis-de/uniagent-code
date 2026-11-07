@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                              University of Wernstadt
+                                                                                                                         Am Lindenhang 40
+Travel Office
+                                                                                                                          35291 Wernstadt
+                                                                                                                                   Germany
+
+
+ Request no. WR-27-4268                                         Status: approved by office (domestic trip of a professor of up to seven days)
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Prof. Dr. Miriam Castellanos
+Position                                        Professor
+Unit                                            Department of Architecture
+Trip type                                       domestic
+Destination                                     Görlitz, Germany
+Purpose                                         International Summer Academy on Heritage Conservation
+Departure                                       Sunday, 11 July 2027, 09:10
+Return                                          Saturday, 17 July 2027, 18:20
+Means of transport                              Train
+Cost centre                                     5520 1050
+Third-party benefits                            meals
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                        Amount
+ Transport                                                                                                                   EUR 139.80
+ Accommodation                                                                                                               EUR 348.00
+ Registration fee                                                                                                               EUR 0.00
+ Total                                                                                                                       EUR 487.80
+

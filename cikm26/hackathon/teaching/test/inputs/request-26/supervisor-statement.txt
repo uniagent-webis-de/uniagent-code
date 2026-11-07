@@ -1,0 +1,13 @@
+University of Wernstadt
+Data Analytics Group
+Dr. Bastian Rehwinkel
+
+
+Statement of the supervisor
+Mr Tariq Benali (matriculation number 9549203) is writing his Master's thesis under my supervision with vibration data
+from our industry partner Kerbach Sensor Systems.
+The partner had agreed to deliver the data set on Monday, 1 March 2027. It delivered the data set on Monday, 22 March
+2027. Mr Benali could not start the main analysis of his thesis before that day.
+Wernstadt, 23 March 2027
+Dr. Bastian Rehwinkel
+

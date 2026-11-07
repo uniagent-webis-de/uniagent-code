@@ -1,0 +1,19 @@
+Dr. Anouk de Vries                                                                                           Kestrel Travel GmbH
+                                                                            Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                               Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Music                                                                                 service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                            Offer no. KT-27-17188
+                                                                                                                  Date 29 Jul 2027
+
+
+
+Flight offer
+ Route                                                        Outbound              Return             Class                Price
+ FRA to TBS via Istanbul                                    05 Oct, 09:35   09 Oct, 13:10         Economy                 412.70
+Price per person for the return trip. Valid for 72 hours.
+

@@ -1,0 +1,23 @@
+Annika Strobel                                                                                             Fernlinie Express GmbH
+                                                                                                        Long-distance coach services
+University of Wernstadt
+                                                                                       Zentraler Omnibusbahnhof 2, 35291 Wernstadt
+Data Centre                                                                                        tickets@fernlinie-express.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                              Offer no. FX-27-88140
+                                                                                                                  Date 08 May 2027
+                                                                                                             Valid until 15 May 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.     Arr.                  Service                 Fare
+ 14 Jun 2027                  Wernstadt ZOB to Köln ZOB                05:40   08:35   Coach, standard fare                  19.99
+ 16 Jun 2027                  Köln ZOB to Wernstadt ZOB                17:30   20:25   Coach, standard fare                  19.99
+
+                                                                                              Total (EUR)                    39.98
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+

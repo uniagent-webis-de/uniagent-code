@@ -1,0 +1,36 @@
+University of Wernstadt                                                                                          University of Wernstadt
+                                                                                                                     Am Lindenhang 40
+Travel Office
+                                                                                                                      35291 Wernstadt
+                                                                                                                               Germany
+
+
+ Request no. WR-27-4114                                               Status: approved on 02.04.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Tobias Engelhardt
+Position                                        Lab Engineer
+Unit                                            Department of Mechanical Engineering
+Trip type                                       domestic
+Destination                                     Göttingen, Germany
+Purpose                                         RotorSense joint test campaign
+Departure                                       Tuesday, 20 April 2027, 07:00
+Return                                          Wednesday, 21 April 2027, 18:30
+Means of transport                              Private car
+Cost centre                                     5310 0482
+Third-party benefits                            none
+Private stay                                    none
+Private car                                     approved for valid reasons: transport of a 40 kg shaker and sensor cases
+
+Estimated costs
+ Cost type                                                                                                                   Amount
+ Transport                                                                                                               EUR 103.60
+ Accommodation                                                                                                             EUR 62.00
+ Registration fee                                                                                                           EUR 0.00
+ Total                                                                                                                   EUR 165.60
+

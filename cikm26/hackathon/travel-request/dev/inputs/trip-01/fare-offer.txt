@@ -1,0 +1,25 @@
+Marta Kowalczyk                                                                                                    Kestrel Travel GmbH
+                                                                                  Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                                     Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Hydraulic Engineering                                                                       service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                                  Offer no. KT-27-10442
+                                                                                                                       Date 29 Jan 2027
+                                                                                                                  Valid until 05 Feb 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.     Arr.                      Service                  Fare
+ 08 Mar 2027                Wernstadt Hbf to Dresden Hbf               15:12   20:08      ICE, 2nd class, saver                   49.90
+                                                                                                           fare
+ 11 Mar 2027                Dresden Hbf to Wernstadt Hbf               13:46   18:41      ICE, 2nd class, saver                   49.90
+                                                                                                           fare
+
+                                                                                                  Total (EUR)                     99.80
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+

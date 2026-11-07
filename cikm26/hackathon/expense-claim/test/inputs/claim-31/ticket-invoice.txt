@@ -1,0 +1,25 @@
+Emre Kaya                                                                                     Kestrel Travel GmbH
+                                                             Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Psychology                                                             service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                         Invoice no. KT-R-27-39102
+                                                                                                  Date 21 Oct 2027
+                                                                                             Passenger Emre Kaya
+
+
+
+Invoice
+ Date                                            Route    Dep.                         Ticket            Amount
+ 15 Nov 2027              Wernstadt Hbf to Mannheim Hbf   07:12      ICE, 2nd class, saver                   33.90
+                                                                                      fare
+ 17 Nov 2027              Mannheim Hbf to Wernstadt Hbf   16:50      ICE, 2nd class, saver                   33.90
+                                                                                      fare
+
+                                                                             Total (EUR)                     67.80
+Paid by credit card.
+

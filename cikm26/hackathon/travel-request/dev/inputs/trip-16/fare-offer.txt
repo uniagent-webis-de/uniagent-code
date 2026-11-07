@@ -1,0 +1,25 @@
+Dr. Sofia Lindqvist                                                                                                Kestrel Travel GmbH
+                                                                                  Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                                     Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Music                                                                                       service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                                  Offer no. KT-27-24418
+                                                                                                                       Date 08 Oct 2027
+                                                                                                                  Valid until 15 Oct 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.     Arr.                      Service                  Fare
+ 15 Nov 2027                  Wernstadt Hbf to Lübeck Hbf              13:20   19:10      ICE, 2nd class, saver                   64.90
+                                                                                                           fare
+ 18 Nov 2027                  Lübeck Hbf to Wernstadt Hbf              12:40   18:30      ICE, 2nd class, saver                   64.90
+                                                                                                           fare
+
+                                                                                                  Total (EUR)                   129.80
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+

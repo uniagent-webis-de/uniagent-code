@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                         University of Wernstadt
+                                                                                                                    Am Lindenhang 40
+Travel Office
+                                                                                                                     35291 Wernstadt
+                                                                                                                              Germany
+
+
+ Request no. WR-27-4156                                              Status: approved on 09.06.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Mateo Fernández Ruiz
+Position                                        Research Associate
+Unit                                            Department of Agricultural Sciences
+Trip type                                       domestic
+Destination                                     Freiburg, Germany
+Purpose                                         Field Days on Agroforestry in the Upper Rhine Valley
+Departure                                       Thursday, 8 July 2027, 06:50
+Return                                          Sunday, 18 July 2027, 19:35
+Means of transport                              Train
+Cost centre                                     7420 0661
+Third-party benefits                            none
+Private stay                                    2027-07-10 to 2027-07-18
+
+Estimated costs
+ Cost type                                                                                                                  Amount
+ Transport                                                                                                                EUR 99.80
+ Accommodation                                                                                                            EUR 78.00
+ Registration fee                                                                                                         EUR 95.00
+ Total                                                                                                                  EUR 272.80
+

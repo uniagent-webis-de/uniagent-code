@@ -1,0 +1,21 @@
+University of Wernstadt
+Examination office
+Am Lindenhang 40, 35291 Wernstadt
+
+
+Learning agreement for a stay abroad
+Student                             Sara Holmgren
+Matriculation number                9395061
+Programme                           B.Sc. Computer Science
+Partner university                  Politecnico di Castelvaro (Italy)
+Period of stay                      Monday, 22 February 2027 to Wednesday, 30 June 2027
+
+ Module at the partner university           ECTS      Replaces module at Wernstadt        ECTS
+ Computer Networks                          6         Computer Networks                   6
+ Computer Graphics                          6         Visual Computing                    6
+ Italian Language A2                        3         Elective: Language Course           3
+ Software Testing                           6         Software Quality                    6
+
+Approved by the examination office on Friday, 20 November 2026.
+Credits recognized so far in this programme: 0.
+

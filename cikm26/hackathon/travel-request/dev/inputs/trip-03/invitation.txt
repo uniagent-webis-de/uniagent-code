@@ -1,0 +1,11 @@
+From         Nordlicht Data Lab <events@nordlicht-data.example>
+Sent         Wednesday, 2 December 2026, 11:20
+To           Jonas Brettschneider <jonas.brettschneider@uni-wernstadt.de>
+Subject      Invitation: Nordlicht Data Lab partner hackathon, 28 and 29 January 2027
+
+Dear project partners,
+we invite you to our two-day partner hackathon in Hamburg on 28 and 29 January 2027 (Thursday 11:30 to
+Friday 15:30) at our office, Kehrwieder 4, 20457 Hamburg.
+Please bring one data set from your work package. There is no fee; drinks and snacks are on us.
+Best wishes, the Nordlicht Data Lab team
+

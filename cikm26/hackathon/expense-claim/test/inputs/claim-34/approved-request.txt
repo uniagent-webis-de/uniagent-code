@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                             University of Wernstadt
+                                                                                                                        Am Lindenhang 40
+Travel Office
+                                                                                                                         35291 Wernstadt
+                                                                                                                                  Germany
+
+
+ Request no. WR-27-4338                                                  Status: approved on 11.08.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Prof. Dr. Volker Imhof
+Position                                        Professor
+Unit                                            Institute of Applied Mathematics
+Trip type                                       domestic
+Destination                                     Rostock, Germany
+Purpose                                         Annual Meeting of the German Association for Numerical Mathematics
+Departure                                       Monday, 13 September 2027, 05:40
+Return                                          Friday, 17 September 2027, 20:15
+Means of transport                              Train
+Cost centre                                     2010 0112
+Third-party benefits                            registration
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                      Amount
+ Transport                                                                                                                  EUR 159.80
+ Accommodation                                                                                                              EUR 316.00
+ Registration fee                                                                                                              EUR 0.00
+ Total                                                                                                                      EUR 475.80
+

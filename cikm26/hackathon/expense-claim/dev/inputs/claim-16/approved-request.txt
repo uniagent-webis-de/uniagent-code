@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                          University of Wernstadt
+                                                                                                                     Am Lindenhang 40
+Travel Office
+                                                                                                                      35291 Wernstadt
+                                                                                                                               Germany
+
+
+ Request no. WR-27-4212                                               Status: approved on 14.10.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Dr. Sofia Lindqvist
+Position                                        Postdoctoral Researcher
+Unit                                            Institute of Music
+Trip type                                       domestic
+Destination                                     Lübeck, Germany
+Purpose                                         Research visit Hanseatic Music Archive
+Departure                                       Monday, 15 November 2027, 12:55
+Return                                          Thursday, 18 November 2027, 18:35
+Means of transport                              Train
+Cost centre                                     3710 0546
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                   Amount
+ Transport                                                                                                               EUR 129.80
+ Accommodation                                                                                                           EUR 204.00
+ Registration fee                                                                                                           EUR 0.00
+ Total                                                                                                                   EUR 333.80
+

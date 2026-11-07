@@ -1,0 +1,25 @@
+Mateo Fernández Ruiz                                                                              Kestrel Travel GmbH
+                                                                 Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                    Bahnhofstrasse 6, 35291 Wernstadt
+Department of Agricultural Sciences                                                     service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                           Invoice no. KT-R-27-25120
+                                                                                                    Date 10 Jun 2027
+                                                                                     Passenger Mateo Fernández Ruiz
+
+
+
+Invoice
+ Date                                               Route     Dep.                         Ticket            Amount
+ 08 Jul 2027                  Wernstadt Hbf to Freiburg Hbf   07:15      ICE, 2nd class, saver                   49.90
+                                                                                          fare
+ 18 Jul 2027                  Freiburg Hbf to Wernstadt Hbf   15:05      ICE, 2nd class, saver                   49.90
+                                                                                          fare
+
+                                                                                 Total (EUR)                     99.80
+Paid by credit card.
+

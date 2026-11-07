@@ -1,0 +1,25 @@
+Dr. Kwame Asante                                                                             Kestrel Travel GmbH
+                                                            Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                               Bahnhofstrasse 6, 35291 Wernstadt
+Department of Chemistry                                                            service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                        Invoice no. KT-R-27-21544
+                                                                                                 Date 18 Mar 2027
+                                                                                         Passenger Kwame Asante
+
+
+
+Invoice
+ Date                                           Route    Dep.                         Ticket            Amount
+ 13 Apr 2027              Wernstadt Hbf to München Hbf   06:58      ICE, 2nd class, saver                   59.90
+                                                                                     fare
+ 15 Apr 2027              München Hbf to Wernstadt Hbf   16:28      ICE, 2nd class, saver                   59.90
+                                                                                     fare
+
+                                                                            Total (EUR)                   119.80
+Paid by credit card.
+

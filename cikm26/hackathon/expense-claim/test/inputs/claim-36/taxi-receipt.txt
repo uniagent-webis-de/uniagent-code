@@ -1,0 +1,14 @@
+ Taxi Saarbrücken
+ Taxi receipt
+ 22 Jun 2027, 10:21
+ From: Saarbrücken Hbf
+ To: Campus Saar C7
+
+Fare                             18.60
+
+TOTAL EUR                        18.60
+
+ Paid in cash
+
+ Thank you for riding with us.
+

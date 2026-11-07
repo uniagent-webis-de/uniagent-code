@@ -1,0 +1,25 @@
+Jonas Brettschneider                                                                         Kestrel Travel GmbH
+                                                            Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                               Bahnhofstrasse 6, 35291 Wernstadt
+Department of Computer Science                                                     service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                      Invoice no. KT-R-27-10033
+                                                                                               Date 25 Jan 2027
+                                                                                  Passenger Jonas Brettschneider
+
+
+
+Invoice
+ Date                                           Route    Dep.                         Ticket            Amount
+ 28 Jan 2027              Wernstadt Hbf to Hamburg Hbf   06:52      ICE, 2nd class, saver                   39.90
+                                                                                     fare
+ 29 Jan 2027              Hamburg Hbf to Wernstadt Hbf   16:16      ICE, 2nd class, saver                   39.90
+                                                                                     fare
+
+                                                                            Total (EUR)                     79.80
+Paid by credit card.
+

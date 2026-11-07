@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                         University of Wernstadt
+                                                                                                                    Am Lindenhang 40
+Travel Office
+                                                                                                                     35291 Wernstadt
+                                                                                                                              Germany
+
+
+ Request no. WR-27-4282                                              Status: approved on 04.08.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Dr. Rafael Moreira
+Position                                        Research Associate
+Unit                                            Department of Physics
+Trip type                                       domestic
+Destination                                     Jülich, Germany
+Purpose                                         German Workshop on Neutron Scattering 2027
+Departure                                       Tuesday, 7 September 2027, 06:15
+Return                                          Thursday, 9 September 2027, 18:50
+Means of transport                              Train
+Cost centre                                     2208 3402
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                  Amount
+ Transport                                                                                                                EUR 93.80
+ Accommodation                                                                                                          EUR 160.00
+ Registration fee                                                                                                       EUR 140.00
+ Total                                                                                                                  EUR 393.80
+

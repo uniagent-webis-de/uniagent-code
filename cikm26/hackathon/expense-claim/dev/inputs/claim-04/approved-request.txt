@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                               University of Wernstadt
+                                                                                                                          Am Lindenhang 40
+Travel Office
+                                                                                                                           35291 Wernstadt
+                                                                                                                                    Germany
+
+
+ Request no. WR-27-4128                                          Status: approved by office (domestic trip of a professor of up to seven days)
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Prof. Dr. Ingrid Vollmer-Saak
+Position                                        Professor
+Unit                                            Institute of Sociology
+Trip type                                       domestic
+Destination                                     Bielefeld, Germany
+Purpose                                         Doctoral examination
+Departure                                       Thursday, 11 February 2027, 06:45
+Return                                          Thursday, 11 February 2027, 20:30
+Means of transport                              Train
+Cost centre                                     1102 0007
+Third-party benefits                            meals
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                         Amount
+ Transport                                                                                                                      EUR 69.00
+ Accommodation                                                                                                                   EUR 0.00
+ Registration fee                                                                                                                EUR 0.00
+ Total                                                                                                                          EUR 69.00
+

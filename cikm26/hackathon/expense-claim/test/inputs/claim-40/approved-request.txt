@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                         University of Wernstadt
+                                                                                                                    Am Lindenhang 40
+Travel Office
+                                                                                                                     35291 Wernstadt
+                                                                                                                              Germany
+
+
+ Request no. WR-27-4380                                              Status: approved on 04.11.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Dr. Mirela Popescu
+Position                                        Research Associate
+Unit                                            Department of Economics
+Trip type                                       domestic
+Destination                                     Münster, Germany
+Purpose                                         Workshop on Housing Economics
+Departure                                       Monday, 29 November 2027, 05:45
+Return                                          Wednesday, 1 December 2027, 19:50
+Means of transport                              Long-distance bus
+Cost centre                                     4120 3417
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                  Amount
+ Transport                                                                                                                EUR 35.98
+ Accommodation                                                                                                          EUR 144.00
+ Registration fee                                                                                                         EUR 50.00
+ Total                                                                                                                  EUR 229.98
+

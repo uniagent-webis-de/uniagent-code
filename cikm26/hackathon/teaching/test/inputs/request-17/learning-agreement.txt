@@ -1,0 +1,21 @@
+University of Wernstadt
+Examination office
+Am Lindenhang 40, 35291 Wernstadt
+
+
+Learning agreement for a stay abroad
+Student                             Amira Haddad
+Matriculation number                9533619
+Programme                           M.Sc. Data Science
+Partner university                  Université de Saint-Orvel (France)
+Period of stay                      Tuesday, 1 September 2026 to Sunday, 31 January 2027
+
+ Module at the partner university           ECTS     Replaces module at Wernstadt          ECTS
+ Convex Optimization                        8        Optimization                          6
+ Deep Learning                              6        Deep Learning                         6
+ Text Data Analysis                         5        Text Mining                           5
+ French as a Foreign Language B2            3        Elective: Language Course             3
+
+Approved by the examination office on Tuesday, 30 June 2026.
+Credits recognized so far in this programme: 0.
+

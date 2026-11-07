@@ -1,0 +1,16 @@
+University of Wernstadt
+Examination office
+Am Lindenhang 40, 35291 Wernstadt
+
+
+Registration of the Bachelor's thesis
+Student                             Daniel Okonkwo
+Matriculation number                9367048
+Programme                           B.Sc. Computer Science
+Title                               Energy-aware scheduling in sensor networks
+Supervisor                          Prof. Dr. Gregor Altenhain
+Processing time                     12 weeks
+Start                               Monday, 8 February 2027
+Submission deadline                 Monday, 3 May 2027
+Extensions so far                   none
+

@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                         University of Wernstadt
+                                                                                                                    Am Lindenhang 40
+Travel Office
+                                                                                                                     35291 Wernstadt
+                                                                                                                              Germany
+
+
+ Request no. WR-27-4184                                              Status: approved on 25.08.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Dr. Yuki Matsumoto
+Position                                        Postdoctoral Researcher
+Unit                                            Department of Architecture
+Trip type                                       domestic
+Destination                                     Karlsruhe, Germany
+Purpose                                         Karlsruhe Colloquium on Timber Construction 2027
+Departure                                       Wednesday, 22 September 2027, 07:40
+Return                                          Friday, 24 September 2027, 16:40
+Means of transport                              Train
+Cost centre                                     5520 1009
+Third-party benefits                            accommodation, meals
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                  Amount
+ Transport                                                                                                                EUR 89.80
+ Accommodation                                                                                                             EUR 0.00
+ Registration fee                                                                                                          EUR 0.00
+ Total                                                                                                                    EUR 89.80
+

@@ -1,0 +1,26 @@
+Mateo Fernández Ruiz                                                                                                Kestrel Travel GmbH
+                                                                                   Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                                      Bahnhofstrasse 6, 35291 Wernstadt
+Department of Agricultural Sciences                                                                       service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                                   Offer no. KT-27-15210
+                                                                                                                        Date 03 Jun 2027
+                                                                                                                   Valid until 10 Jun 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.      Arr.                       Service                 Fare
+ 08 Jul 2027                Wernstadt Hbf to Freiburg Hbf              07:15   11:20        ICE, 2nd class, saver                  49.90
+                                                                                                             fare
+ 18 Jul 2027                Freiburg Hbf to Wernstadt Hbf              15:05   19:10        ICE, 2nd class, saver                  49.90
+                                                                                                             fare
+
+                                                                                                    Total (EUR)                    99.80
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+For comparison: return on Friday 9 July 2027 at 17:05, Freiburg Hbf to Wernstadt Hbf, ICE, 2nd class, saver fare EUR 54.90.
+

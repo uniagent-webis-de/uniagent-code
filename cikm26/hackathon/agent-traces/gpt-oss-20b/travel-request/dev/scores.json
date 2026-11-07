@@ -1,0 +1,32 @@
+{
+  "scenario": "travel-request",
+  "cases": 20,
+  "predicted": 20,
+  "unknown_case_ids": [],
+  "form_accuracy": 0.9618,
+  "missing_precision": 0.3846,
+  "missing_recall": 1.0,
+  "missing_f1": 0.5556,
+  "decision_accuracy": 0.9,
+  "rule_accuracy_on_rejected": 0.6,
+  "field_accuracy": {
+    "traveler_name": 1.0,
+    "position": 1.0,
+    "trip_type": 1.0,
+    "destination_city": 1.0,
+    "destination_country": 1.0,
+    "purpose": 0.95,
+    "departure_date": 1.0,
+    "return_date": 1.0,
+    "transport": 1.0,
+    "cost_centre": 1.0,
+    "private_stay_start": 0.95,
+    "private_stay_end": 0.95,
+    "third_party": 0.9,
+    "cost_transport": 1.0,
+    "cost_accommodation": 0.85,
+    "cost_registration": 0.85,
+    "cost_total": 0.9
+  },
+  "model": "gpt-oss:20b"
+}

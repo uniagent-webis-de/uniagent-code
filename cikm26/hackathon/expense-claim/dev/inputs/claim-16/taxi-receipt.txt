@@ -1,0 +1,14 @@
+ Taxi Lübeck
+ Taxi receipt
+ 15 Nov 2027, 23:46
+ From: Lübeck Hbf
+ To: Mühlenteich 6
+
+Fare                             14.80
+
+TOTAL EUR                        14.80
+
+ Paid in cash
+
+ Thank you for riding with us.
+

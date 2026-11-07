@@ -1,0 +1,23 @@
+Nils Bergström                                                                                 Kestrel Travel GmbH
+                                                              Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                 Bahnhofstrasse 6, 35291 Wernstadt
+Department of Physics                                                                service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                          Invoice no. KT-R-27-11804
+                                                                                                   Date 28 Jan 2027
+                                                                                           Passenger Nils Bergström
+
+
+
+Invoice
+ Date                                             Route    Dep.                         Ticket            Amount
+ 18 Feb 2027              Wernstadt Hbf to Darmstadt Hbf   07:42               RE, 2nd class                  24.60
+ 18 Feb 2027              Darmstadt Hbf to Wernstadt Hbf   16:52               RE, 2nd class                  24.60
+
+                                                                              Total (EUR)                     49.20
+Paid by credit card.
+

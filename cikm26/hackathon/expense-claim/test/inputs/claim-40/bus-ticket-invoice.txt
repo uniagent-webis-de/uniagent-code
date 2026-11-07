@@ -1,0 +1,23 @@
+Dr. Mirela Popescu                                                                   Fernlinie Express GmbH
+                                                                                  Long-distance coach services
+University of Wernstadt
+                                                                 Zentraler Omnibusbahnhof 2, 35291 Wernstadt
+Department of Economics                                                      tickets@fernlinie-express.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                    Invoice no. FX-R-27-99310
+                                                                                             Date 05 Nov 2027
+                                                                                    Passenger Mirela Popescu
+
+
+
+Invoice
+ Date                                           Route    Dep.                     Ticket            Amount
+ 29 Nov 2027              Wernstadt ZOB to Münster ZOB   06:10   Coach, standard fare                  17.99
+ 01 Dec 2027              Münster ZOB to Wernstadt ZOB   16:30   Coach, standard fare                  17.99
+
+                                                                        Total (EUR)                    35.98
+Paid by credit card.
+

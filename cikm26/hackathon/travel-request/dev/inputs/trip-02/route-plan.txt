@@ -1,0 +1,16 @@
+Tobias Engelhardt                                         Route planner printout
+                                                             printed 30 Mar 2027
+
+
+                                          From Am Lindenhang 40, 35291 Wernstadt
+                                                To Am Messweg 7, 37079 Göttingen
+
+
+
+Route
+ Leg                                               Distance                Time
+ Wernstadt to Göttingen (fastest route)              148 km        1 h 52 min
+ Göttingen to Wernstadt                              148 km        1 h 55 min
+
+                                             Total distance             296 km
+

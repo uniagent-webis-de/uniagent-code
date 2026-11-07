@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                         University of Wernstadt
+                                                                                                                    Am Lindenhang 40
+Travel Office
+                                                                                                                     35291 Wernstadt
+                                                                                                                              Germany
+
+
+ Request no. WR-27-4296                                              Status: approved on 22.09.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Daniel Wójcik
+Position                                        Research Associate
+Unit                                            Department of Mechanical Engineering
+Trip type                                       domestic
+Destination                                     Chemnitz, Germany
+Purpose                                         Industry Day of the Saxon Robotics Cluster
+Departure                                       Thursday, 21 October 2027, 08:40
+Return                                          Friday, 22 October 2027, 21:05
+Means of transport                              Train
+Cost centre                                     5310 0533
+Third-party benefits                            meals, transport
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                  Amount
+ Transport                                                                                                                 EUR 0.00
+ Accommodation                                                                                                            EUR 69.00
+ Registration fee                                                                                                          EUR 0.00
+ Total                                                                                                                    EUR 69.00
+

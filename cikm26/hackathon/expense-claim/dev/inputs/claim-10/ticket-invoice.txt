@@ -1,0 +1,25 @@
+Benedikt Rauschenbach                                                                       Kestrel Travel GmbH
+                                                           Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                              Bahnhofstrasse 6, 35291 Wernstadt
+Department of Education                                                           service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                     Invoice no. KT-R-27-25871
+                                                                                              Date 03 Jun 2027
+                                                                              Passenger Benedikt Rauschenbach
+
+
+
+Invoice
+ Date                                         Route     Dep.                         Ticket            Amount
+ 05 Jul 2027              Wernstadt Hbf to Berlin Hbf   05:48      ICE, 2nd class, saver                   52.90
+                                                                                    fare
+ 09 Jul 2027              Berlin Hbf to Wernstadt Hbf   15:52      ICE, 2nd class, saver                   52.90
+                                                                                    fare
+
+                                                                           Total (EUR)                   105.80
+Paid by credit card.
+

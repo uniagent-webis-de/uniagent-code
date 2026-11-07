@@ -1,0 +1,14 @@
+ Taxi München
+ Taxi receipt
+ 13 Apr 2027, 18:12
+ From: Messe Riem, Eingang Ost
+ To: Isarbogen 30
+
+Fare                             32.00
+
+TOTAL EUR                        32.00
+
+ Paid in cash
+
+ Thank you for riding with us.
+

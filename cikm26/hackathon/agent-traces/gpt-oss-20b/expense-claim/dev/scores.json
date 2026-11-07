@@ -1,0 +1,18 @@
+{
+  "scenario": "expense-claim",
+  "cases": 14,
+  "predicted": 14,
+  "unknown_case_ids": [],
+  "amount_accuracy": 0.869,
+  "claims_fully_correct": 0.7143,
+  "total_mean_absolute_error": 117.4,
+  "field_accuracy": {
+    "transport": 0.8571,
+    "accommodation": 0.8571,
+    "registration": 0.9286,
+    "per_diem": 0.8571,
+    "other": 1.0,
+    "total": 0.7143
+  },
+  "model": "gpt-oss:20b"
+}

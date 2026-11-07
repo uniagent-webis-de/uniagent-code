@@ -1,0 +1,18 @@
+{
+  "scenario": "expense-claim",
+  "cases": 14,
+  "predicted": 14,
+  "unknown_case_ids": [],
+  "amount_accuracy": 0.7619,
+  "claims_fully_correct": 0.5714,
+  "total_mean_absolute_error": 125.78,
+  "field_accuracy": {
+    "transport": 0.7143,
+    "accommodation": 0.8571,
+    "registration": 0.8571,
+    "per_diem": 0.7143,
+    "other": 0.8571,
+    "total": 0.5714
+  },
+  "model": "01 - GPT-OSS-120b - an open model released by OpenAI in August 2025"
+}

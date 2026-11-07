@@ -1,0 +1,25 @@
+Dr. Hiroshi Tanabe                                                                           Kestrel Travel GmbH
+                                                            Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                               Bahnhofstrasse 6, 35291 Wernstadt
+Department of Chemistry                                                            service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                        Invoice no. KT-R-27-33021
+                                                                                                 Date 02 Sep 2027
+                                                                                         Passenger Hiroshi Tanabe
+
+
+
+Invoice
+ Date                                           Route    Dep.                         Ticket            Amount
+ 03 Oct 2027              Wernstadt Hbf to München Hbf   15:30      ICE, 2nd class, saver                   62.90
+                                                                                     fare
+ 05 Oct 2027              München Hbf to Wernstadt Hbf   16:45      ICE, 2nd class, saver                   62.90
+                                                                                     fare
+
+                                                                            Total (EUR)                   125.80
+Paid by credit card.
+

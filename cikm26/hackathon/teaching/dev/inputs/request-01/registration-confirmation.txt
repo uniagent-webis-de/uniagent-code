@@ -1,0 +1,18 @@
+University of Wernstadt
+Examination portal
+
+
+Registration confirmation
+Student                                     Lena Hoffbauer
+Matriculation number                        9318542
+Programme                                   B.Sc. Computer Science
+Module examination                          Database Systems
+Type                                        Written examination, 90 minutes
+Date and time                               Monday, 12 July 2027, 09:00
+Room                                        Lecture Hall C2
+Attempt                                     1
+Registered on                               Wednesday, 16 June 2027
+
+
+Printed from the examination portal of the University of Wernstadt.
+

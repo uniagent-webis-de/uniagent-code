@@ -1,0 +1,25 @@
+Dr. Chiara Benedetti                                                                                               Kestrel Travel GmbH
+                                                                                  Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                                     Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Linguistics                                                                                 service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                                  Offer no. KT-27-15377
+                                                                                                                      Date 20 May 2027
+                                                                                                                 Valid until 27 May 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.     Arr.                      Service                  Fare
+ 22 Jun 2027           Wernstadt Hbf to Saarbrücken Hbf                06:58   10:12      ICE, 2nd class, saver                   41.90
+                                                                                                           fare
+ 23 Jun 2027           Saarbrücken Hbf to Wernstadt Hbf                16:05   19:41      ICE, 2nd class, saver                   41.90
+                                                                                                           fare
+
+                                                                                                  Total (EUR)                     83.80
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+

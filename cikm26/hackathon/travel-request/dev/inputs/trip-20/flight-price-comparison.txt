@@ -1,0 +1,21 @@
+Dr. Gregor Wellenreuther                                                                               Kestrel Travel GmbH
+                                                                      Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                         Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Environmental Engineering                                                       service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                      Offer no. KT-27-12960
+                                                                                                           Date 09 Apr 2027
+
+
+
+Flight price comparison, economy, 24 to 28 May 2027
+ Option                                                 Route      Outbound                    Return                 Price
+ A                                 FRA to MSQ via Warsaw        24 May, 09:50         28 May, 12:40                 389.20
+ B                                   FRA to MSQ via Vilnius     24 May, 07:30         28 May, 15:15                 422.60
+ C                                  FRA to MSQ via Istanbul     24 May, 10:20         28 May, 08:55                 517.00
+Prices per person for the return trip, economy class.
+

@@ -1,0 +1,16 @@
+University of Wernstadt
+Examination office
+Am Lindenhang 40, 35291 Wernstadt
+
+
+Registration of the Master's thesis
+Student                             Tariq Benali
+Matriculation number                9549203
+Programme                           M.Sc. Data Science
+Title                               Anomaly detection in vibration data of wind turbines
+Supervisor                          Dr. Bastian Rehwinkel
+Processing time                     24 weeks
+Start                               Friday, 18 December 2026
+Submission deadline                 Friday, 4 June 2027
+Extensions so far                   none
+

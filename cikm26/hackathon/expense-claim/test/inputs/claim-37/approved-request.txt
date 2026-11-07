@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                         University of Wernstadt
+                                                                                                                    Am Lindenhang 40
+Travel Office
+                                                                                                                     35291 Wernstadt
+                                                                                                                              Germany
+
+
+ Request no. WR-27-4359                                              Status: approved on 27.01.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Nils Bergström
+Position                                        Lab Engineer
+Unit                                            Department of Physics
+Trip type                                       domestic
+Destination                                     Darmstadt, Germany
+Purpose                                         Radiation Protection Refresher Course
+Departure                                       Thursday, 18 February 2027, 07:20
+Return                                          Thursday, 18 February 2027, 18:10
+Means of transport                              Train
+Cost centre                                     2208 3433
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                  Amount
+ Transport                                                                                                                EUR 49.20
+ Accommodation                                                                                                             EUR 0.00
+ Registration fee                                                                                                       EUR 340.00
+ Total                                                                                                                  EUR 389.20
+

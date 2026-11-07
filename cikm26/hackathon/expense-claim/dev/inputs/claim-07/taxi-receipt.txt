@@ -1,0 +1,14 @@
+ Taxi Hamburg
+ Taxi receipt
+ 02 Jun 2027, 10:14
+ From: Hamburg Hbf
+ To: Alsterwinkel 5
+
+Fare                             21.50
+
+TOTAL EUR                        21.50
+
+ Paid in cash
+
+ Thank you for riding with us.
+

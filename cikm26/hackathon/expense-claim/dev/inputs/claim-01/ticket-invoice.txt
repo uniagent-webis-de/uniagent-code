@@ -1,0 +1,25 @@
+Marta Kowalczyk                                                                                   Kestrel Travel GmbH
+                                                                 Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                    Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Hydraulic Engineering                                                      service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                            Invoice no. KT-R-27-20871
+                                                                                                     Date 04 Feb 2027
+                                                                                           Passenger Marta Kowalczyk
+
+
+
+Invoice
+ Date                                                Route    Dep.                         Ticket            Amount
+ 08 Mar 2027                   Wernstadt Hbf to Dresden Hbf   15:12      ICE, 2nd class, saver                   49.90
+                                                                                          fare
+ 11 Mar 2027                   Dresden Hbf to Wernstadt Hbf   13:46      ICE, 2nd class, saver                   49.90
+                                                                                          fare
+
+                                                                                 Total (EUR)                     99.80
+Paid by credit card.
+

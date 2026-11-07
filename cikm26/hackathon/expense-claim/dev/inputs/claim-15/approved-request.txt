@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                         University of Wernstadt
+                                                                                                                    Am Lindenhang 40
+Travel Office
+                                                                                                                     35291 Wernstadt
+                                                                                                                              Germany
+
+
+ Request no. WR-27-4205                                              Status: approved on 12.05.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Annika Strobel
+Position                                        IT Specialist
+Unit                                            Data Centre
+Trip type                                       domestic
+Destination                                     Cologne, Germany
+Purpose                                         Linux Server Administration, Advanced Level
+Departure                                       Monday, 14 June 2027, 05:15
+Return                                          Wednesday, 16 June 2027, 20:50
+Means of transport                              Long-distance bus
+Cost centre                                     9800 4410
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                  Amount
+ Transport                                                                                                                EUR 39.98
+ Accommodation                                                                                                          EUR 158.00
+ Registration fee                                                                                                     EUR 1,290.00
+ Total                                                                                                                EUR 1,487.98
+

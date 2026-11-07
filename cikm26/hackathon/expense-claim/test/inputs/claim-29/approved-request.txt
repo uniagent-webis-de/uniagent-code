@@ -1,0 +1,36 @@
+University of Wernstadt                                                                                             University of Wernstadt
+                                                                                                                        Am Lindenhang 40
+Travel Office
+                                                                                                                         35291 Wernstadt
+                                                                                                                                  Germany
+
+
+ Request no. WR-27-4303                                                  Status: approved on 01.09.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Dr. Hiroshi Tanabe
+Position                                        Postdoctoral Researcher
+Unit                                            Department of Chemistry
+Trip type                                       domestic
+Destination                                     Munich, Germany
+Purpose                                         Munich Symposium on Catalysis
+Departure                                       Sunday, 3 October 2027, 15:10
+Return                                          Tuesday, 5 October 2027, 21:45
+Means of transport                              Train
+Cost centre                                     2208 3420
+Third-party benefits                            none
+Private stay                                    none
+Hotel above EUR 80 per night                    no justification given
+
+Estimated costs
+ Cost type                                                                                                                      Amount
+ Transport                                                                                                                  EUR 125.80
+ Accommodation                                                                                                              EUR 224.00
+ Registration fee                                                                                                           EUR 180.00
+ Total                                                                                                                      EUR 529.80
+

@@ -1,0 +1,11 @@
+From         AIAR office <office@aiar-aachen.example>
+Sent         Tuesday, 2 November 2027, 14:48
+To           Tariq Mansour <tariq.mansour@uni-wernstadt.de>
+Subject      Cancelled: evaluation visit on 9 November 2027
+
+Dear Dr. Mansour,
+unfortunately we have to cancel the evaluation visit at our institute on Tuesday 9 November 2027, as the test
+field cannot be used after the storm damage last week.
+We will propose a new date in spring.
+Kind regards, the office of the Aachen Institute for Agricultural Robotics
+

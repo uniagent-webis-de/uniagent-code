@@ -1,0 +1,21 @@
+University of Wernstadt                                                                  Hotel Speicherblick
+                                                                                          Kehrwiederstieg 12
+Department of Computer Science
+                                                                                             20457 Hamburg
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                      Invoice no. SB-27-0098
+                                                                                             Date 29 Jan 2027
+                                                                                    Guest Jonas Brettschneider
+
+
+
+Invoice
+ Item                                                          Qty             Price               Amount
+ Single room, breakfast included, 28 Jan 2027 to 29 Jan 2027     1             79.00                   79.00
+
+                                                               Total (EUR, incl. VAT)                  79.00
+Paid by credit card.
+

@@ -1,0 +1,25 @@
+Dr. Yuki Matsumoto                                                                                Kestrel Travel GmbH
+                                                                 Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                    Bahnhofstrasse 6, 35291 Wernstadt
+Department of Architecture                                                              service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                            Invoice no. KT-R-27-31170
+                                                                                                     Date 26 Aug 2027
+                                                                                            Passenger Yuki Matsumoto
+
+
+
+Invoice
+ Date                                               Route     Dep.                         Ticket            Amount
+ 22 Sep 2027                 Wernstadt Hbf to Karlsruhe Hbf   08:10      ICE, 2nd class, saver                   44.90
+                                                                                          fare
+ 24 Sep 2027                 Karlsruhe Hbf to Wernstadt Hbf   13:15      ICE, 2nd class, saver                   44.90
+                                                                                          fare
+
+                                                                                 Total (EUR)                     89.80
+Paid by credit card.
+

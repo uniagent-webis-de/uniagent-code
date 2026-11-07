@@ -1,0 +1,16 @@
+University of Wernstadt
+IT Service Centre
+
+
+Confirmation of a technical fault
+Student                              Arjun Mehta
+Matriculation number                 9527714
+Ticket                               INC-27-5208
+Fault                                Portal account blocked by an error in the identity management system
+Period                               Friday, 18 June 2027 to Tuesday, 6 July 2027
+
+We confirm that the student could not log in to the examination portal during this period. The student did not
+cause the fault.
+Wernstadt, 8 July 2027
+IT Service Centre, University of Wernstadt
+

@@ -1,0 +1,21 @@
+Ole Petersen-Kahl                                                                                      Kestrel Travel GmbH
+                                                                      Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                         Bahnhofstrasse 6, 35291 Wernstadt
+Data Centre                                                                                  service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                      Offer no. KT-27-19420
+                                                                                                          Date 19 Aug 2027
+
+
+
+Flight price comparison, economy, 17 to 21 October 2027
+ Option                                                 Route     Outbound                     Return                 Price
+ A                                          FRA to BEY direct   17 Oct, 11:45          21 Oct, 17:20                498.30
+ B                                    FRA to BEY via Athens     17 Oct, 08:10          21 Oct, 12:55                533.80
+ C                                  FRA to BEY via Istanbul     17 Oct, 13:30          21 Oct, 07:40                561.20
+Prices per person for the return trip, economy class.
+

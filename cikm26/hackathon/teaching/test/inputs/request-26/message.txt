@@ -1,0 +1,12 @@
+From: Tariq Benali <tariq.benali@student.uni-wernstadt.de>
+To: examination office <pruefungsamt@uni-wernstadt.de>
+Date: Wednesday, 24 March 2027 14:26
+Subject: Extension of Master's thesis deadline
+
+Dear Sir or Madam,
+
+my Master's thesis uses sensor data from an industry partner. The partner delivered the data set three weeks later than agreed; my supervisor, Dr. Bastian Rehwinkel, confirms this in the attached statement. I therefore request an extension of three weeks. My thesis registration confirmation is attached.
+
+Kind regards,
+Tariq Benali
+M.Sc. Data Science, 9549203

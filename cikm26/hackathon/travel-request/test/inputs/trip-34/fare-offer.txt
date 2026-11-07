@@ -1,0 +1,25 @@
+Prof. Dr. Volker Imhof                                                                                             Kestrel Travel GmbH
+                                                                                  Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                                     Bahnhofstrasse 6, 35291 Wernstadt
+Institute of Applied Mathematics                                                                         service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                                                 Offer no. KT-27-18833
+                                                                                                                      Date 05 Aug 2027
+                                                                                                                 Valid until 12 Aug 2027
+
+
+
+Travel offer
+ Date                                                     Route        Dep.     Arr.                      Service                  Fare
+ 13 Sep 2027                 Wernstadt Hbf to Rostock Hbf              06:05   12:40      ICE, 2nd class, saver                   79.90
+                                                                                                           fare
+ 17 Sep 2027                 Rostock Hbf to Wernstadt Hbf              13:15   19:50      ICE, 2nd class, saver                   79.90
+                                                                                                           fare
+
+                                                                                                  Total (EUR)                   159.80
+Prices in EUR, per person. Tickets are issued after the trip is approved.
+

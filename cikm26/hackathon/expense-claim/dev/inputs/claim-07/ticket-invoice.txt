@@ -1,0 +1,25 @@
+Lea Hoffstetter                                                                              Kestrel Travel GmbH
+                                                            Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                               Bahnhofstrasse 6, 35291 Wernstadt
+University Library                                                                 service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                        Invoice no. KT-R-27-23302
+                                                                                                 Date 06 May 2027
+                                                                                         Passenger Lea Hoffstetter
+
+
+
+Invoice
+ Date                                           Route    Dep.                         Ticket            Amount
+ 02 Jun 2027              Wernstadt Hbf to Hamburg Hbf   06:12      ICE, 2nd class, saver                   54.90
+                                                                                     fare
+ 04 Jun 2027              Hamburg Hbf to Wernstadt Hbf   14:46      ICE, 2nd class, saver                   54.90
+                                                                                     fare
+
+                                                                            Total (EUR)                   109.80
+Paid by credit card.
+

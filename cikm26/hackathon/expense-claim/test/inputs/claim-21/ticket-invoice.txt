@@ -1,0 +1,25 @@
+Dr. Amira Haddad                                                                              Kestrel Travel GmbH
+                                                             Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                Bahnhofstrasse 6, 35291 Wernstadt
+Department of Computer Science                                                      service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                         Invoice no. KT-R-27-12290
+                                                                                                  Date 11 Feb 2027
+                                                                                           Passenger Amira Haddad
+
+
+
+Invoice
+ Date                                            Route    Dep.                         Ticket            Amount
+ 18 Mar 2027              Wernstadt Hbf to Hannover Hbf   06:22      ICE, 2nd class, saver                   36.90
+                                                                                      fare
+ 19 Mar 2027              Hannover Hbf to Wernstadt Hbf   15:35      ICE, 2nd class, saver                   36.90
+                                                                                      fare
+
+                                                                             Total (EUR)                     73.80
+Paid by credit card.
+

@@ -1,0 +1,15 @@
+{
+  "scenario": "teaching",
+  "cases": 15,
+  "predicted": 15,
+  "unknown_case_ids": [],
+  "request_type_accuracy": 1.0,
+  "decision_accuracy": 0.8,
+  "key_value_accuracy": 0.75,
+  "field_accuracy": {
+    "request_type": 1.0,
+    "decision": 0.8,
+    "key_value": 0.75
+  },
+  "model": "01 - GPT-OSS-120b - an open model released by OpenAI in August 2025"
+}

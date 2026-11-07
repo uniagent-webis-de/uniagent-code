@@ -1,0 +1,21 @@
+University of Wernstadt                                                                 Hotel Maschsee Garni
+                                                                                              Am Maschsee 14
+Department of Computer Science
+                                                                                              30169 Hannover
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                    Invoice no. MG-R-27-0577
+                                                                                             Date 19 Mar 2027
+                                                                                      Guest Dr. Amira Haddad
+
+
+
+Invoice
+ Item                                                          Qty             Price               Amount
+ Single room, breakfast included, 18 Mar 2027 to 19 Mar 2027     1             79.00                  79.00
+
+                                                               Total (EUR, incl. VAT)                 79.00
+Paid by credit card.
+

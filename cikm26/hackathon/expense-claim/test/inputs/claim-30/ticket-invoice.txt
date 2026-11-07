@@ -1,0 +1,25 @@
+Katharina Seebach                                                                         Kestrel Travel GmbH
+                                                         Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                            Bahnhofstrasse 6, 35291 Wernstadt
+University Library                                                              service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                    Invoice no. KT-R-27-28844
+                                                                                              Date 15 Jul 2027
+                                                                                 Passenger Katharina Seebach
+
+
+
+Invoice
+ Date                                       Route     Dep.                         Ticket            Amount
+ 25 Aug 2027              Wernstadt Hbf to Kiel Hbf   05:55      ICE, 2nd class, saver                   59.90
+                                                                                  fare
+ 01 Sep 2027              Kiel Hbf to Wernstadt Hbf   14:58      ICE, 2nd class, saver                   59.90
+                                                                                  fare
+
+                                                                         Total (EUR)                   119.80
+Paid by credit card.
+

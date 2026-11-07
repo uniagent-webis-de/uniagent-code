@@ -1,0 +1,23 @@
+Annika Strobel                                                                    Fernlinie Express GmbH
+                                                                               Long-distance coach services
+University of Wernstadt
+                                                              Zentraler Omnibusbahnhof 2, 35291 Wernstadt
+Data Centre                                                               tickets@fernlinie-express.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                 Invoice no. FX-R-27-90412
+                                                                                          Date 13 May 2027
+                                                                                  Passenger Annika Strobel
+
+
+
+Invoice
+ Date                                        Route    Dep.                     Ticket            Amount
+ 14 Jun 2027              Wernstadt ZOB to Köln ZOB   05:40   Coach, standard fare                  19.99
+ 16 Jun 2027              Köln ZOB to Wernstadt ZOB   17:30   Coach, standard fare                  19.99
+
+                                                                     Total (EUR)                    39.98
+Paid by credit card.
+

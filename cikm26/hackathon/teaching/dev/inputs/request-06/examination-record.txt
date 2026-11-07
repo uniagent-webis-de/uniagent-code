@@ -1,0 +1,16 @@
+University of Wernstadt
+Examination portal
+
+
+Record of examinations (extract)
+Student                                     Tobias Kremling
+Matriculation number                        9333915
+Programme                                   B.Sc. Computer Science
+
+Module                             Date                        Attempt   Result         Note
+Theoretical Computer               15 February 2027            1         5.0 (failed)
+Science
+
+
+Printed from the examination portal of the University of Wernstadt.
+

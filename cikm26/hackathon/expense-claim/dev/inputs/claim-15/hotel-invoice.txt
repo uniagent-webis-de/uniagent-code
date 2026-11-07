@@ -1,0 +1,21 @@
+University of Wernstadt                                                                 Hotel Domblick Garni
+                                                                                                Trankgasse 11
+Data Centre
+                                                                                                  50667 Köln
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                    Invoice no. DB-R-27-1172
+                                                                                             Date 16 Jun 2027
+                                                                                         Guest Annika Strobel
+
+
+
+Invoice
+ Item                                                          Qty             Price               Amount
+ Single room, breakfast included, 14 Jun 2027 to 16 Jun 2027     2             79.00                 158.00
+
+                                                               Total (EUR, incl. VAT)                158.00
+Paid by credit card.
+

@@ -1,0 +1,36 @@
+University of Wernstadt                                                                                          University of Wernstadt
+                                                                                                                     Am Lindenhang 40
+Travel Office
+                                                                                                                      35291 Wernstadt
+                                                                                                                               Germany
+
+
+ Request no. WR-27-4226                                               Status: approved on 03.03.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Prof. Dr. Henrik Maurer
+Position                                        Professor
+Unit                                            Department of Physics
+Trip type                                       domestic
+Destination                                     Königswinter, Germany
+Purpose                                         Spring School on Quantum Materials 2027
+Departure                                       Monday, 22 March 2027, 07:30
+Return                                          Wednesday, 24 March 2027, 18:15
+Means of transport                              Private car
+Cost centre                                     2010 0099
+Third-party benefits                            none
+Private stay                                    none
+Private car                                     no valid reasons stated
+
+Estimated costs
+ Cost type                                                                                                                   Amount
+ Transport                                                                                                                 EUR 69.30
+ Accommodation                                                                                                           EUR 130.00
+ Registration fee                                                                                                           EUR 0.00
+ Total                                                                                                                   EUR 199.30
+

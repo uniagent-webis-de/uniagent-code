@@ -1,0 +1,25 @@
+Clara Weißbach                                                                              Kestrel Travel GmbH
+                                                           Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                              Bahnhofstrasse 6, 35291 Wernstadt
+International Office                                                              service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                      Invoice no. KT-R-27-14402
+                                                                                               Date 11 Mar 2027
+                                                                                      Passenger Clara Weißbach
+
+
+
+Invoice
+ Date                                         Route     Dep.                         Ticket            Amount
+ 25 Mar 2027              Wernstadt Hbf to Erfurt Hbf   07:05        IC, 2nd class, saver                  29.90
+                                                                                     fare
+ 25 Mar 2027              Erfurt Hbf to Wernstadt Hbf   16:28        IC, 2nd class, saver                  29.90
+                                                                                     fare
+
+                                                                           Total (EUR)                     59.80
+Paid by credit card.
+

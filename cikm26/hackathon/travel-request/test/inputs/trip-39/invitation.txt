@@ -1,0 +1,11 @@
+From         RDI-EM 2027 <committee@rdi-em.example>
+Sent         Monday, 9 August 2027, 10:10
+To           Ole Petersen-Kahl <ole.petersen-kahl@uni-wernstadt.de>
+Subject      Invitation to present at RDI-EM 2027
+
+Dear Mr Petersen-Kahl,
+we would like to invite you to present your repository at the Conference on Research Data Infrastructures in
+the Eastern Mediterranean in Beirut, Lebanon, from 18 to 20 October 2027.
+Registration fee: EUR 120.00.
+Kind regards, the organising committee (Levant Research Data Consortium)
+

@@ -1,0 +1,15 @@
+{
+  "scenario": "teaching",
+  "cases": 15,
+  "predicted": 15,
+  "unknown_case_ids": [],
+  "request_type_accuracy": 1.0,
+  "decision_accuracy": 0.8,
+  "key_value_accuracy": 0.5,
+  "field_accuracy": {
+    "request_type": 1.0,
+    "decision": 0.8,
+    "key_value": 0.5
+  },
+  "model": "gpt-oss:20b"
+}

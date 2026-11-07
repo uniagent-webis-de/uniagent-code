@@ -1,0 +1,25 @@
+Prof. Dr. Miriam Castellanos                                                                  Kestrel Travel GmbH
+                                                             Contracted travel agency of the University of Wernstadt
+University of Wernstadt
+                                                                                Bahnhofstrasse 6, 35291 Wernstadt
+Department of Architecture                                                          service@kestrel-travel.example
+Am Lindenhang 40
+35291 Wernstadt
+
+
+                                                                                        Invoice no. KT-R-27-27731
+                                                                                                  Date 05 Jul 2027
+                                                                                     Passenger Miriam Castellanos
+
+
+
+Invoice
+ Date                                           Route     Dep.                         Ticket            Amount
+ 11 Jul 2027                   Wernstadt Hbf to Görlitz   09:35      IC/RE, 2nd class, flex                  69.90
+                                                                                      fare
+ 17 Jul 2027                   Görlitz to Wernstadt Hbf   11:50      RE/IC, 2nd class, flex                  69.90
+                                                                                      fare
+
+                                                                             Total (EUR)                   139.80
+Paid by credit card.
+

@@ -1,0 +1,36 @@
+University of Wernstadt                                                                                             University of Wernstadt
+                                                                                                                        Am Lindenhang 40
+Travel Office
+                                                                                                                         35291 Wernstadt
+                                                                                                                                  Germany
+
+
+ Request no. WR-27-4149                                                  Status: approved on 05.05.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Lea Hoffstetter
+Position                                        Librarian
+Unit                                            University Library
+Trip type                                       domestic
+Destination                                     Hamburg, Germany
+Purpose                                         Library Systems Forum 2027
+Departure                                       Wednesday, 2 June 2027, 05:50
+Return                                          Friday, 4 June 2027, 19:20
+Means of transport                              Train
+Cost centre                                     8100 0310
+Third-party benefits                            none
+Private stay                                    none
+Hotel above EUR 80 per night                    no justification given
+
+Estimated costs
+ Cost type                                                                                                                      Amount
+ Transport                                                                                                                  EUR 109.80
+ Accommodation                                                                                                              EUR 192.00
+ Registration fee                                                                                                           EUR 150.00
+ Total                                                                                                                      EUR 451.80
+

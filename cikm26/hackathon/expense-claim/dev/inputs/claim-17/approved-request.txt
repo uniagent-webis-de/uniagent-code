@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                          University of Wernstadt
+                                                                                                                     Am Lindenhang 40
+Travel Office
+                                                                                                                      35291 Wernstadt
+                                                                                                                               Germany
+
+
+ Request no. WR-27-4219                                               Status: approved on 08.01.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Malte Ohlendorf
+Position                                        Technical Officer
+Unit                                            Faculty of Engineering
+Trip type                                       domestic
+Destination                                     Darmstadt, Germany
+Purpose                                         Working Group of Laboratory Safety Officers of Hessian Universities
+Departure                                       Tuesday, 26 January 2027, 07:55
+Return                                          Tuesday, 26 January 2027, 15:40
+Means of transport                              Train
+Cost centre                                     1900 0028
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                   Amount
+ Transport                                                                                                                 EUR 54.80
+ Accommodation                                                                                                              EUR 0.00
+ Registration fee                                                                                                           EUR 0.00
+ Total                                                                                                                     EUR 54.80
+

@@ -1,0 +1,14 @@
+{"transport": 99.8, "accommodation": 222.0, "registration": 120.0, "per_diem": 44.8, "other": 0.0, "total": 486.6, "case_id": "claim-01"}
+{"transport": 103.6, "accommodation": 62.0, "registration": 0.0, "per_diem": 22.4, "other": 8.0, "total": 196.0, "case_id": "claim-02"}
+{"accommodation": 0, "other": 0, "per_diem": 2.8, "registration": 0, "total": 71.8, "transport": 69, "case_id": "claim-04"}
+{"transport": 77.0, "accommodation": 258.0, "registration": 45.0, "per_diem": 56.0, "other": 0.0, "total": 436.0, "case_id": "claim-06"}
+{"accommodation": 160, "other": 0, "per_diem": 0, "registration": 150, "total": 423.6, "transport": 113.6, "case_id": "claim-07"}
+{"transport": 99.8, "accommodation": 78.0, "registration": 95.0, "per_diem": 2.8, "other": 0.0, "total": 275.6, "case_id": "claim-08"}
+{"transport": "0.00", "accommodation": "0.00", "registration": "0.00", "per_diem": "2.80", "other": "0.00", "total": "2.80", "case_id": "claim-09"}
+{"transport": 105.8, "accommodation": 0.0, "registration": 180.0, "per_diem": 56.0, "other": 0.0, "total": 341.8, "case_id": "claim-10"}
+{"accommodation": 0, "other": 0, "per_diem": 22.4, "registration": 0, "total": 112.2, "transport": 89.8, "case_id": "claim-12"}
+{"transport": "59.80", "accommodation": "0.00", "registration": "0.00", "per_diem": "2.80", "other": "0.00", "total": "62.60", "case_id": "claim-13"}
+{"accommodation": 158, "other": 0, "per_diem": 14, "registration": 1290, "total": 1501.98, "transport": 39.98, "case_id": "claim-15"}
+{"transport": 144.6, "accommodation": 204.0, "registration": 0.0, "per_diem": 67.2, "other": 0.0, "total": 415.8, "case_id": "claim-16"}
+{"accommodation": "0.00", "other": "0.00", "per_diem": "0.00", "registration": "0.00", "total": "54.80", "transport": "54.80", "case_id": "claim-17"}
+{"transport": 69.3, "accommodation": 130.0, "registration": 0.0, "per_diem": 44.8, "other": 0.0, "total": 244.1, "case_id": "claim-18"}

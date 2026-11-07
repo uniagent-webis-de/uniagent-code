@@ -1,0 +1,35 @@
+University of Wernstadt                                                                                          University of Wernstadt
+                                                                                                                     Am Lindenhang 40
+Travel Office
+                                                                                                                      35291 Wernstadt
+                                                                                                                               Germany
+
+
+ Request no. WR-27-4170                                               Status: approved on 02.06.2027 by Gesine Hollerbach, Travel Office
+
+
+
+Business Trip Request
+Approval must be obtained before the trip starts.
+
+Trip data
+Traveller                                       Benedikt Rauschenbach
+Position                                        PhD Researcher
+Unit                                            Department of Education
+Trip type                                       domestic
+Destination                                     Berlin, Germany
+Purpose                                         Summer School on Mixed Methods in Educational Research
+Departure                                       Monday, 5 July 2027, 05:20
+Return                                          Friday, 9 July 2027, 20:25
+Means of transport                              Train
+Cost centre                                     6610 2280
+Third-party benefits                            none
+Private stay                                    none
+
+Estimated costs
+ Cost type                                                                                                                   Amount
+ Transport                                                                                                               EUR 105.80
+ Accommodation                                                                                                              EUR 0.00
+ Registration fee                                                                                                        EUR 180.00
+ Total                                                                                                                   EUR 285.80
+

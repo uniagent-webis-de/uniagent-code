@@ -1,0 +1,16 @@
+University of Wernstadt
+IT Service Centre
+
+
+Confirmation of a technical fault
+Student                              Lukas Feldkamp
+Matriculation number                 9318807
+Ticket                               INC-27-4471
+Fault                                Portal account blocked by an error in the identity management system
+Period                               Monday, 14 June 2027 to Friday, 2 July 2027
+
+We confirm that the student could not log in to the examination portal during this period. The student did not
+cause the fault.
+Wernstadt, 5 July 2027
+IT Service Centre, University of Wernstadt
+
