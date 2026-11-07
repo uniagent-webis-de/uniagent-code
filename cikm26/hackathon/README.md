@@ -1,6 +1,6 @@
 # UniAgent Hackathon Data: The University of the Future
 
-This package is the material for Track 2 of the open UniAgent hackathon on 8 November 2026 (CIKM 2026, Rome and online), "Understand Your Agents". It contains the traces of two agents, model A (gpt-oss-120b) and model B (gpt-oss-20b), on invented cases from the administration of a fictional university, together with the cases, the right answers, and the agents' scores. With it, teams analyse for themselves how agents behave and where they fail. Track 1, idea finding and discussion, needs no data.
+This package is the material for Track 2 of the open UniAgent hackathon on 8 November 2026 (CIKM 2026, Rome and online), "Understand Your Agents". It contains the traces of two agents, model A (gpt-oss-120b) and model B (gpt-oss-20b), on invented cases from the administration of a fictional university, together with the cases, the right answers, and the agents' scores. Track 2 is a creative contest, not a ranking: teams explore the data and show what can be done with it, from judging traces to keeping agents within rules to building agents. Track 1, idea finding and discussion, needs no data.
 
 Everything is invented: the University of Wernstadt, all people, companies, events, addresses, and numbers. No case is taken from or modelled on a real case. The travel cases follow the real rules of the University of Kassel and the Hessian travel expenses act, summarised in `rules/travel-rules.md`. The teaching cases follow an invented examination regulation in `rules/examination-regulations.md`.
 
@@ -16,7 +16,7 @@ Everything is invented: the University of Wernstadt, all people, companies, even
 | Rules | the two rule sheets that decide the right answers | `rules/` |
 | Evaluation | `evaluate.py` scores answers against the right answers; `baseline.py` shows the format | top folder |
 
-The traces cover the dev cases only. The 49 test cases have no traces, so that a changed agent can be checked on cases it has not seen.
+The traces cover the dev cases only. The 49 test cases come with right answers but without traces, for trying an idea on cases no agent has seen yet.
 
 ## Scenarios
 
@@ -30,14 +30,14 @@ Each expense claim belongs to the trip with the same number (`claim-07` is the c
 
 ## Ideas for Track 2
 
-Some starting points:
+Track 2 is a creative contest: explore the data, then show what you can do with it. Some starting points:
 
-- Where agents fail: find the rule behind every wrong answer of model A and model B, for example a late claim, a holiday inside a deadline, or a shared taxi.
-- How agents use tools: which documents they read, whether they read the rules, and when they compute or guess.
-- Better rules: find the rules the agents misread, rewrite the rule sheet, rerun `agent.py` on the dev cases, and measure the change; then ask whether you needed a domain expert for it.
-- How models differ: compare model A and model B in steps, reasoning, errors, and time, or add a model of your own.
-- Your own agent: give `agent.py` other tools or another prompt, run it on the dev cases, compare its traces with those of A and B, and check it once on the test cases.
-- A trace viewer that shows the steps of a case at a glance.
+- Judge traces: score each step of an agent, beyond its final answer. Did it read the right document, apply the right rule, compute correctly?
+- Follow rules: keep an agent within a rule set, for example with a checker that stops an answer that breaks a rule, or with a rule sheet the agent follows more reliably.
+- Build agents: your own agent or tool on the cases, for example `agent.py` with other tools (a calendar of holidays) or another prompt, compared with the traces of model A and model B.
+- Find failures: the rule behind each wrong answer, for example a late claim, a holiday inside a deadline, or a shared taxi.
+- Compare models: model A and model B in steps, reasoning, errors, and time, or a model of your own.
+- Show traces: a viewer that shows the steps of a case at a glance.
 
 ## Agent traces
 
@@ -200,9 +200,10 @@ print(reply.choices[0].message.content)
 
 At about 30 requests per minute, a dev split of 20 cases runs in a few minutes. Store the answers, so that you never send the same case twice.
 
-## Rules of the game
+## How to take part
 
-- Build and tune on `dev`. The `test` ground truth is in the package so that you can score yourself during the afternoon; please score on `test` once, at the end, and report that number.
+- Track 2 is a creative contest, not a ranking: there is no leaderboard, and your demo shows your idea, prototype, or finding.
+- The dev and the test cases come with right answers. The traces cover the dev cases; the test cases suit trying an idea on cases no agent has seen yet.
 - Say which model and which tools your system uses, and whether it reads the rule sheets or retrieves the rules itself. The shared task's public corpora (University of Kassel web pages and Hessian law) are in the UniAgent repository and may be used.
 - The travel decisions correspond to the decisions of UniAgent Task 2: `approve` is `angenommen`, `reject` is `abgelehnt`.
 
