@@ -1,8 +1,22 @@
 # UniAgent Hackathon Data: The University of the Future
 
-This package holds invented cases from the administration of a fictional university, for the open UniAgent hackathon on 8 November 2026 (CIKM 2026, Rome and online). Teams can build any agent or tool on it, for example a chatbot that fills a travel request, a checker for expense claims, or an assistant for the examination office, and evaluate it against the ground truth with the script included here.
+This package is the material for Track 2 of the open UniAgent hackathon on 8 November 2026 (CIKM 2026, Rome and online), "Understand Your Agents". It contains the traces of two agents, model A (gpt-oss-120b) and model B (gpt-oss-20b), on invented cases from the administration of a fictional university, together with the cases, the right answers, and the agents' scores. With it, teams analyse for themselves how agents behave and where they fail. Track 1, idea finding and discussion, needs no data.
 
 Everything is invented: the University of Wernstadt, all people, companies, events, addresses, and numbers. No case is taken from or modelled on a real case. The travel cases follow the real rules of the University of Kassel and the Hessian travel expenses act, summarised in `rules/travel-rules.md`. The teaching cases follow an invented examination regulation in `rules/examination-regulations.md`.
+
+## What is included
+
+| Part | What it is | Where |
+|---|---|---|
+| Agent traces | 98 traces: model A and model B, each on the 49 dev cases. Every step of a case: the model's reasoning and message, each tool call with its arguments and the observation, timing, and the final answer. | `agent-traces/<model>/<scenario>/dev/traces/` |
+| Answers and scores | the answers of each agent and their scores against the right answers | `agent-traces/<model>/<scenario>/dev/` |
+| The agent | the tool-calling agent that produced the traces; run it with another model, other tools, or other rules | `agent-traces/agent.py` |
+| Cases | 98 invented cases in three scenarios, with every document the agent can read | `<scenario>/{dev,test}/inputs/` |
+| Right answers | the ground truth of every case, with a short explanation | `<scenario>/{dev,test}/ground-truth.jsonl` |
+| Rules | the two rule sheets that decide the right answers | `rules/` |
+| Evaluation | `evaluate.py` scores answers against the right answers; `baseline.py` shows the format | top folder |
+
+The traces cover the dev cases only. The 49 test cases have no traces, so that a changed agent can be checked on cases it has not seen.
 
 ## Scenarios
 
@@ -14,26 +28,68 @@ Everything is invented: the University of Wernstadt, all people, companies, even
 
 Each expense claim belongs to the trip with the same number (`claim-07` is the claim of `trip-07`). In the travel requests, 30 trips are approved and 10 are refused; four trips go abroad. All texts are in English.
 
-## Ideas
+## Ideas for Track 2
 
-The data serves the two tracks of the hackathon. Some starting points:
+Some starting points:
 
-**Build (Track 1).**
-
-- A travel assistant that turns the traveller's message into the filled request, asks only for what is missing, and warns before a trip that the rules refuse (`travel-request`: form accuracy, F1 of the missing items, decision accuracy).
-- A claim checker that reads the receipts and computes the refund line by line, with the rule behind every line (`expense-claim`: amounts to the cent; the ground truth's `lines` show the rules).
-- An assistant for the examination office that answers a student with a decision and the new deadline, the recognised credits, or the attempts left (`teaching`).
-- An agent that asks instead of guessing: the ground truth leaves unknown values empty, so invented values cost points.
-- A small model that does the job: compare an open model on your laptop with gpt-oss-120b in accuracy, time, and cost.
-- A reply to the applicant that explains a refusal with its rule. The package has no evaluation for it yet, so design one.
-
-**Understand (Track 2).**
-
-- Where agents fail: find the rule behind every wrong answer in the 98 traces, for example a late claim, a holiday inside a deadline, or a shared taxi.
+- Where agents fail: find the rule behind every wrong answer of model A and model B, for example a late claim, a holiday inside a deadline, or a shared taxi.
 - How agents use tools: which documents they read, whether they read the rules, and when they compute or guess.
-- Better rules: find the rules the agents misread, rewrite the rule sheet, rerun `agent.py`, and measure the change; then ask whether you needed a domain expert for it.
-- How models differ: compare the 120b and 20b agents in steps, reasoning, errors, and time, or add a third model.
+- Better rules: find the rules the agents misread, rewrite the rule sheet, rerun `agent.py` on the dev cases, and measure the change; then ask whether you needed a domain expert for it.
+- How models differ: compare model A and model B in steps, reasoning, errors, and time, or add a model of your own.
+- Your own agent: give `agent.py` other tools or another prompt, run it on the dev cases, compare its traces with those of A and B, and check it once on the test cases.
 - A trace viewer that shows the steps of a case at a glance.
+
+## Agent traces
+
+The folder `agent-traces/` holds runs of a tool-calling agent on the dev splits, for teams who study how agents behave: every model step, tool call, observation, and final answer, with timing.
+
+- `agent-traces/agent.py` is the agent: a smolagents `ToolCallingAgent` with four tools, `list_files` and `read_file` (the text files of its case), `read_rules` (the scenario's rule sheet), and `calculate` (arithmetic). It sees only its own case folder and the rule sheet, never the ground truth. Like the shared task's baselines, it uses smolagents and the UniAgent event-logging contract; unlike them, it lets the model choose its tools instead of calling them in a fixed order. It runs on any OpenAI-compatible endpoint (see Free models), and you may change it as you like.
+- `agent-traces/<model>/<scenario>/dev/traces/<case>.jsonl` is the trace of one case.
+- `agent-traces/<model>/<scenario>/dev/predictions.jsonl` and `scores.json` hold the agent's answers and their scores by `evaluate.py`.
+
+A trace has one JSON object per line with the fields of the event-logging contract (`case_id`, `event_id`, `parent_event_id`, `timestamp`, `event_type`, `model`, `tool`, `input`, `output`, `status`, `error`), plus `duration_ms`, the agent's `step`, and the token counts of each model call. The parent of an event is the event before it; the timestamp marks its start in UTC.
+
+| `event_type` | `input` | `output` |
+|---|---|---|
+| `task` | the system prompt and the task, once per case | |
+| `model_call` | not repeated: the task and all earlier events of the case | the model's message: `content`, `reasoning` (when the endpoint returns it), and `tool_calls` with their arguments |
+| `tool_call` | the arguments of the call | the observation the model receives, or the error |
+| `decision` | | the prediction in the format of `evaluate.py` |
+
+**How the traces were made.** Both runs used `agent.py` as it is in this folder (smolagents 1.24.0, at most 20 steps per case, the models' default sampling) on all 49 dev cases, on 6 November 2026. The run `gpt-oss-120b` (model A) used GPT-OSS-120b at Blablador (Helmholtz), model id "01 - GPT-OSS-120b - an open model released by OpenAI in August 2025", four cases in parallel, 30 minutes in total. The run `gpt-oss-20b` (model B) used `gpt-oss:20b` in Ollama 0.40.14 on a laptop (Apple M4 Pro, 24 GB, context of 32,768 tokens), one case at a time, 37 minutes in total. Neither run saw the ground truth.
+
+| Dev scores | model A (`gpt-oss-120b`) | model B (`gpt-oss-20b`) |
+|---|---|---|
+| Travel requests: form accuracy | 0.98 | 0.96 |
+| Travel requests: F1 of the missing items (precision, recall) | 0.34 (0.21, 1.00) | 0.56 (0.38, 1.00) |
+| Travel requests: decision accuracy | 1.00 | 0.90 |
+| Travel requests: rule accuracy on refused trips | 1.00 | 0.60 |
+| Expense claims: amount accuracy | 0.76 | 0.87 |
+| Expense claims: claims fully correct | 0.57 | 0.71 |
+| Teaching: request type accuracy | 1.00 | 1.00 |
+| Teaching: decision accuracy | 0.80 | 0.80 |
+| Teaching: key value accuracy | 0.75 | 0.50 |
+
+| Mean per case (travel / claims / teaching) | model A (`gpt-oss-120b`) | model B (`gpt-oss-20b`) |
+|---|---|---|
+| Steps (model calls) | 11.2 / 14.1 / 8.9 | 8.8 / 11.9 / 8.5 |
+| Steps without a tool call | 4.7 / 4.4 / 3.4 | 2.3 / 3.4 / 2.8 |
+| Seconds | 143 / 172 / 110 | 46 / 65 / 26 |
+
+What the traces show, as starting points:
+
+- Both agents read the rule sheet in 97 of 98 cases, no tool call failed, and they used the calculator at most 1.6 times per case, even for refunds.
+- In 26 to 42 percent of their steps, the models send no tool call (plain text or an empty message); smolagents records an error and asks again. Model A hit the step limit twice and once ended without an answer (`claim-02`).
+- Both agents list fields as missing that are empty by definition, such as a fee when there is none; model A also lists the dates of a private stay that does not exist. The agent's prompt asks for "fields you could not fill"; the rule sheet means fields whose value the documents do not give. Both also ask for an invitation where a fair ticket with the appointments, a confirmation of the archive, or the organiser's mail is attached, because the rule's "or similar document" leaves room.
+- Both paid a claim filed eight months after the trip (`claim-15`, rule E1), both overlooked Ascension Day when counting working days (`request-03`), both let a student withdraw from a third attempt without a reason (`request-07`), and both set a thesis deadline on Whit Monday (`request-14`).
+- Model B approved a trip to an online conference (`trip-05`) and a keynote with an honorarium (`trip-11`), and it ignored the cap on recognised credits (`request-13`). Model A refunded a shared taxi in full (`claim-06`), a taxi taken for comfort (`claim-07`), and parking for a private car without approved reasons (`claim-18`).
+
+To run the agent yourself, for example with Ollama:
+
+```bash
+pip install smolagents openai
+OPENAI_API_KEY=ollama python agent-traces/agent.py travel-request/dev --model gpt-oss:20b --base-url http://localhost:11434/v1 --out my-run
+```
 
 ## Files
 
@@ -143,58 +199,6 @@ print(reply.choices[0].message.content)
 ```
 
 At about 30 requests per minute, a dev split of 20 cases runs in a few minutes. Store the answers, so that you never send the same case twice.
-
-## Agent traces
-
-The folder `agent-traces/` holds runs of a tool-calling agent on the dev splits, for teams who study how agents behave: every model step, tool call, observation, and final answer, with timing.
-
-- `agent-traces/agent.py` is the agent: a smolagents `ToolCallingAgent` with four tools, `list_files` and `read_file` (the text files of its case), `read_rules` (the scenario's rule sheet), and `calculate` (arithmetic). It sees only its own case folder and the rule sheet, never the ground truth. Like the shared task's baselines, it uses smolagents and the UniAgent event-logging contract; unlike them, it lets the model choose its tools instead of calling them in a fixed order. It runs on any OpenAI-compatible endpoint (see Free models), and you may change it as you like.
-- `agent-traces/<model>/<scenario>/dev/traces/<case>.jsonl` is the trace of one case.
-- `agent-traces/<model>/<scenario>/dev/predictions.jsonl` and `scores.json` hold the agent's answers and their scores by `evaluate.py`.
-
-A trace has one JSON object per line with the fields of the event-logging contract (`case_id`, `event_id`, `parent_event_id`, `timestamp`, `event_type`, `model`, `tool`, `input`, `output`, `status`, `error`), plus `duration_ms`, the agent's `step`, and the token counts of each model call. The parent of an event is the event before it; the timestamp marks its start in UTC.
-
-| `event_type` | `input` | `output` |
-|---|---|---|
-| `task` | the system prompt and the task, once per case | |
-| `model_call` | not repeated: the task and all earlier events of the case | the model's message: `content`, `reasoning` (when the endpoint returns it), and `tool_calls` with their arguments |
-| `tool_call` | the arguments of the call | the observation the model receives, or the error |
-| `decision` | | the prediction in the format of `evaluate.py` |
-
-**How the traces were made.** Both runs used `agent.py` as it is in this folder (smolagents 1.24.0, at most 20 steps per case, the models' default sampling) on all 49 dev cases, on 6 November 2026. The run `gpt-oss-120b` used GPT-OSS-120b at Blablador (Helmholtz), model id "01 - GPT-OSS-120b - an open model released by OpenAI in August 2025", four cases in parallel, 30 minutes in total. The run `gpt-oss-20b` used `gpt-oss:20b` in Ollama 0.40.14 on a laptop (Apple M4 Pro, 24 GB, context of 32,768 tokens), one case at a time, 37 minutes in total. Neither run saw the ground truth.
-
-| Dev scores | `gpt-oss-120b` | `gpt-oss-20b` |
-|---|---|---|
-| Travel requests: form accuracy | 0.98 | 0.96 |
-| Travel requests: F1 of the missing items (precision, recall) | 0.34 (0.21, 1.00) | 0.56 (0.38, 1.00) |
-| Travel requests: decision accuracy | 1.00 | 0.90 |
-| Travel requests: rule accuracy on refused trips | 1.00 | 0.60 |
-| Expense claims: amount accuracy | 0.76 | 0.87 |
-| Expense claims: claims fully correct | 0.57 | 0.71 |
-| Teaching: request type accuracy | 1.00 | 1.00 |
-| Teaching: decision accuracy | 0.80 | 0.80 |
-| Teaching: key value accuracy | 0.75 | 0.50 |
-
-| Mean per case (travel / claims / teaching) | `gpt-oss-120b` | `gpt-oss-20b` |
-|---|---|---|
-| Steps (model calls) | 11.2 / 14.1 / 8.9 | 8.8 / 11.9 / 8.5 |
-| Steps without a tool call | 4.7 / 4.4 / 3.4 | 2.3 / 3.4 / 2.8 |
-| Seconds | 143 / 172 / 110 | 46 / 65 / 26 |
-
-What the traces show, as starting points:
-
-- Both agents read the rule sheet in 97 of 98 cases, no tool call failed, and they used the calculator at most 1.6 times per case, even for refunds.
-- In 26 to 42 percent of their steps, the models send no tool call (plain text or an empty message); smolagents records an error and asks again. The 120b agent hit the step limit twice and once ended without an answer (`claim-02`).
-- Both agents list fields as missing that are empty by definition, such as a fee when there is none; the 120b agent also lists the dates of a private stay that does not exist. The agent's prompt asks for "fields you could not fill"; the rule sheet means fields whose value the documents do not give. Both also ask for an invitation where a fair ticket with the appointments, a confirmation of the archive, or the organiser's mail is attached, because the rule's "or similar document" leaves room.
-- Both paid a claim filed eight months after the trip (`claim-15`, rule E1), both overlooked Ascension Day when counting working days (`request-03`), both let a student withdraw from a third attempt without a reason (`request-07`), and both set a thesis deadline on Whit Monday (`request-14`).
-- The 20b agent approved a trip to an online conference (`trip-05`) and a keynote with an honorarium (`trip-11`), and it ignored the cap on recognised credits (`request-13`). The 120b agent refunded a shared taxi in full (`claim-06`), a taxi taken for comfort (`claim-07`), and parking for a private car without approved reasons (`claim-18`).
-
-To run the agent yourself, for example with Ollama:
-
-```bash
-pip install smolagents openai
-OPENAI_API_KEY=ollama python agent-traces/agent.py travel-request/dev --model gpt-oss:20b --base-url http://localhost:11434/v1 --out my-run
-```
 
 ## Rules of the game
 
