@@ -43,8 +43,8 @@ If `X` contains several shared-task directories (each with `metadata.json`), run
 
 ## Procedure
 
-1. **Read** `metadata.json` and `overview/overview.txt.md` completely.
-2. **Count subtasks.** Determine from the overview how many subtasks/tracks the shared task has, with their names (e.g. "Task 1: Argument Retrieval for Controversial Questions"). If there is only one, the count is 1. Note `umbrella` in `metadata.json` (`overview.is_umbrella`) as a hint.
+1. **Read** `metadata.json` and `overview/overview.txt.md` completely. `metadata.json` has a `participants` list (title, authors, team name, code URLs) and `provenance.task_assignment_method`/`confidence` (a previous, possibly heuristic grouping) as a starting point, but verify it. A `paper_id` is the paper's directory name under `papers/`; the `*_path` entries in `metadata.json` are stale (`data/final/...`), so resolve paper locations via the directory names in `X`. The `overview.txt.md` is machine-converted: headings and bullets may be mangled (e.g. `### - text` for list items), and tables may be flattened. If the text is unusable for a passage, consult `overview/overview.pdf` or `overview/figures`.
+2. **Count subtasks.** Determine from the overview how many subtasks/tracks the shared task has, with their names (e.g. "Task 1: Argument Retrieval for Controversial Questions"). If there is only one, the count is 1. `overview.is_umbrella` in `metadata.json` being `true` means the overview covers several tracks; expect multiple subtasks.
 3. **Assign papers.** For every paper in `papers/` (read at least title, abstract, and the introduction/task section of `paper.txt.md`), determine which subtask(s) it participates in. Cross-check with the participant lists/tables in the overview (team names, paper titles, authors). A paper can belong to several subtasks. Papers that are not participant notebooks (e.g. the overview itself, invited talks) are listed under `excluded`.
 4. **Create output** `Y/task_<n>` per subtask, where `<n>` is the number of the subtask as named by the organizers (use `task_1`, `task_2`, ...; if there is only one, `task_1`). Each contains:
 
@@ -59,7 +59,7 @@ Y/task_<n>/
 ```
 
 5. **Ground truth extraction** (from the overview, scoped to this subtask; if the overview treats subtasks jointly, include the passages relevant to this subtask and say so in `notes`):
-   - `truth-uniagent-task-1.jsonl`: the overview's textual descriptions of participant approaches. One line per participant paper, or per group of papers if the overview describes them jointly: `{"id": "<paper_id or ids joined by ','>", "paper_ids": [...], "summary": "<verbatim text>", "source_section": "..."}` (`id`/`summary` match the existing `touche-20-task-1-spot-check/manual-paper-summaries.jsonl` convention). Also add an optional `"general_summary"` line (`"id": "_overall"`) if the overview contains an overall approach discussion.
+   - `truth-uniagent-task-1.jsonl`: the overview's textual descriptions of participant approaches. One line per participant paper: `{"id": "<paper_id>", "paper_ids": ["<paper_id>"], "summary": "<verbatim text>", "source_section": "..."}` (`id`/`summary` match the existing `touche-20-task-1-spot-check/manual-paper-summaries.jsonl` convention). If one passage covers several papers jointly, write one line with `id` `group-<k>` and all covered `paper_ids`. If the overview has an overall approach discussion, add a line with `id` `_overall` and `paper_ids` of all papers. Papers the overview does not describe get no line.
    - `truth-uniagent-task-2.jsonl`: structured comparison table(s) of the approaches (e.g. "overview of submitted approaches"). One line per table: `{"id": "...", "caption": "...", "table_markdown": "...", "source_section": "..."}`. Only if such a table exists.
    - `truth-uniagent-task-3.jsonl`: the quantitative result tables (e.g. leaderboards, significance tests) and, if present, the textual appraisal of results: `{"id": "...", "type": "table"|"text", "caption": "...", "content": "<verbatim>", "source_section": "..."}`. Only if applicable.
    - If a component has no counterpart, do not create the file, and state it in `subtask-info.json`.
@@ -73,8 +73,8 @@ Y/task_<n>/
  "notes": "..."}
 ```
 
-7. Also write `Y/overview.json` (once per shared task): `{"shared_task_id": "...", "num_subtasks": N, "subtasks": [{"subtask": "task_1", "name": "...", "num_papers": M}], "paper_assignment": {"<paper_id>": ["task_1", ...]}}`.
-8. **Validate**: every JSONL line parses; every paper in `X/papers` appears in at least one `paper_ids`, `excluded`, or `uncertain`; each `task_<n>/papers/` matches `paper_ids`; ground-truth text occurs verbatim in the overview (spot-check with grep); `X` is unchanged.
+7. Also write `Y/overview.json` (once per shared task; if `X` holds several shared tasks, `Y/<task_id>/overview.json`): `{"shared_task_id": "...", "num_subtasks": N, "subtasks": [{"subtask": "task_1", "name": "...", "num_papers": M}], "paper_assignment": {"<paper_id>": ["task_1", ...]}}`.
+8. **Validate**: every JSONL line parses; every paper in `X/papers` appears in at least one `paper_ids`, `excluded`, or `uncertain`; each `task_<n>/papers/` matches `paper_ids`; ground-truth text occurs in the overview (spot-check with grep, ignoring whitespace and markdown heading/bullet markers; table cell text may be re-formatted as Markdown but numbers and words must be unchanged); `X` is unchanged.
 9. **Report** to the user: number of subtasks, papers per subtask, which ground-truth files exist per subtask, and all `uncertain` papers needing a decision.
 
 ## Notes
