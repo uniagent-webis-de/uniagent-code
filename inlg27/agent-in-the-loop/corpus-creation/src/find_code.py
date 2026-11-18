@@ -5,6 +5,8 @@ import json
 import logging
 import re
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -22,10 +24,18 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 
 HEAD_TIMEOUT_SECONDS = 10
 
+# The body is Markdown, so a URL ends at a link delimiter ( ] ) > " ` | ), not just whitespace.
 CODE_URL_RE = re.compile(
-    r"https?://(?:www\.)?(?:github\.com|gitlab\.[a-z0-9.\-]+|zenodo\.org/record|huggingface\.co)/\S+",
+    r"https?://(?:www\.)?(?:github\.com|gitlab\.[a-z0-9.\-]+|zenodo\.org/records?|huggingface\.co)/[^\s\])>\"'<`|{}\\]*",
     re.IGNORECASE,
 )
+# liteparse renders PDF hyperlinks as ``[visible text](href)``. The visible text is often
+# chopped by line wrapping while the href is complete, so the href is authoritative.
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(<?\s*(https?://[^)\s>]+)\s*>?\)")
+MARKDOWN_ESCAPE_RE = re.compile(r"\\([_*#\[\]()<>`~|])")
+# huggingface.co paths that are documentation, not a model/dataset/space repository.
+HF_NON_REPO = {"transformers", "docs", "blog", "models", "datasets", "spaces", "learn", "papers", "tasks", "api", "join", "pricing"}
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
 TIRA_URL_RE = re.compile(r"https?://(?:www\.)?tira\.io/\S+", re.IGNORECASE)
 TIRA_DOCKER_RE = re.compile(r"\bdocker\.io/[\w\-./:]+", re.IGNORECASE)
 
@@ -124,6 +134,45 @@ def clean_url(url: str) -> str:
     return TRAILING_PUNCTUATION_RE.sub("", url)
 
 
+def canonical_repo_url(url: str) -> str | None:
+    """Reduce a matched URL to the repository it names, or None when it names no
+    repository (a bare profile/org, a docs page, a truncated or malformed link).
+
+    https, no ``www``, no ``.git``, and no deep path (``/tree/main/...``), so the same
+    repository found in different spellings is stored once."""
+    url = clean_url(url)
+    match = re.match(r"https?://(?:www\.)?([^/]+)/(.*)$", url, re.IGNORECASE)
+    if not match:
+        return None
+    host, path = match.group(1).lower(), match.group(2)
+    segments = [seg for seg in re.split(r"[/?#]", path.split("/-/")[0]) if seg]
+    if host == "zenodo.org":
+        return f"https://zenodo.org/records/{segments[1]}" if len(segments) >= 2 and segments[1].isdigit() else None
+    if host == "huggingface.co":
+        if not segments or segments[0] in HF_NON_REPO and segments[0] not in {"datasets", "spaces"}:
+            return None
+        depth = 3 if segments[0] in {"datasets", "spaces"} else 2
+        segments = segments[:depth]
+        if len(segments) < depth:
+            return None
+    elif host == "github.com" or host.startswith("gitlab."):
+        # GitLab project paths may nest in subgroups; cut at the first web-UI segment.
+        for i, seg in enumerate(segments):
+            if seg in {"tree", "blob", "issues", "pull", "pulls", "wiki", "releases", "commit", "commits", "raw"} and i >= 2:
+                segments = segments[:i]
+                break
+        if host == "github.com":
+            segments = segments[:2]
+        if len(segments) < 2:
+            return None
+    else:
+        return None
+    segments[-1] = re.sub(r"\.git$", "", segments[-1])
+    if not all(NAME_RE.match(seg) for seg in segments):
+        return None
+    return f"https://{host}/" + "/".join(segments)
+
+
 def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
     """Return (candidate_code_links, third_party_urls, tira_refs) from a paper's text.
 
@@ -133,11 +182,13 @@ def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
     Third-party URLs are returned separately rather than discarded, so the exclusion stays
     auditable instead of silently dropping data."""
     body = strip_bibliography(text)
+    body = MARKDOWN_LINK_RE.sub(r" \1 ", body)
+    body = MARKDOWN_ESCAPE_RE.sub(r"\1", body)
 
     candidates: dict[str, bool] = {}
     third_party: set[str] = set()
     for match in CODE_URL_RE.finditer(body):
-        url = clean_url(match.group(0))
+        url = canonical_repo_url(match.group(0))
         if not url:
             continue
         if is_third_party(url):
@@ -150,21 +201,60 @@ def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
         {clean_url(u) for u in TIRA_URL_RE.findall(body)}
         | {clean_url(u) for u in TIRA_DOCKER_RE.findall(body)}
     )
+    # A link cut off by line wrapping ("…/semeval26_task10_") is superseded by the full URL
+    # when the same paper also contains it (usually as the Markdown href).
+    for url in list(candidates):
+        if url.endswith(("-", "_")) and any(other != url and other.startswith(url) for other in candidates):
+            del candidates[url]
     candidate_links = [{"url": u, "evidence": candidates[u]} for u in sorted(candidates)]
     return candidate_links, sorted(third_party), tira_refs
 
 
+_STATUS_CACHE: dict[str, str] = {}
+HEADERS = {"User-Agent": "uniagent-corpus-builder/0.1"}
+RETRY_STATUSES = {403, 405, 429, 500, 502, 503, 504}
+
+
 def validate_url(url: str, logger: logging.Logger) -> str:
-    """HEAD-check a code URL. Returns a status label; a dead link is kept (not dropped)
-    since per PLAN.md it's still evidence the team had a repo."""
-    try:
-        response = requests.head(url, timeout=HEAD_TIMEOUT_SECONDS, allow_redirects=True, headers={"User-Agent": "uniagent-corpus-builder/0.1"})
-        status = str(response.status_code)
-    except requests.RequestException as exc:
-        status = "unreachable"
-        logger.warning("HEAD check failed for %s: %s", url, exc)
+    """Check a code URL once. HEAD first, then GET for servers that reject HEAD; rate
+    limits (429) are retried with backoff. A dead link is kept (not dropped) since per
+    PLAN.md it's still evidence the team had a repo — the status says which it is."""
+    if url in _STATUS_CACHE:
+        return _STATUS_CACHE[url]
+    status = "unreachable"
+    for attempt in range(5):
+        try:
+            response = requests.head(url, timeout=HEAD_TIMEOUT_SECONDS, allow_redirects=True, headers=HEADERS)
+            if response.status_code in RETRY_STATUSES:
+                response = requests.get(url, timeout=HEAD_TIMEOUT_SECONDS, allow_redirects=True, headers=HEADERS, stream=True)
+                response.close()
+            status = str(response.status_code)
+        except requests.RequestException as exc:
+            status = "unreachable"
+            logger.warning("check failed for %s: %s", url, exc)
+        if status not in {str(c) for c in RETRY_STATUSES}:
+            break
+        time.sleep(2 ** (attempt + 1))
     logger.info("code URL check: %s -> %s", url, status)
+    _STATUS_CACHE[url] = status
     return status
+
+
+def load_known_statuses() -> None:
+    """Seed the cache with definitive results (200/404) from an earlier run, so a re-run
+    after an extraction fix only network-checks the URLs it has not seen."""
+    for path in CODE_DIR.glob("*.json"):
+        for result in json.loads(path.read_text(encoding="utf-8")):
+            for link in result["code_urls"]:
+                if link["status"] in {"200", "404"}:
+                    _STATUS_CACHE.setdefault(link["url"], link["status"])
+
+
+def validate_all(urls: set[str], logger: logging.Logger) -> None:
+    """Warm the status cache for many URLs concurrently (each URL is checked once)."""
+    pending = [u for u in sorted(urls) if u not in _STATUS_CACHE]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda u: validate_url(u, logger), pending))
 
 
 def pdf_filename_for(pdf_url: str) -> str:
@@ -193,6 +283,8 @@ def process_participant(task_id: str, participant: dict, logger: logging.Logger)
         {"url": c["url"], "status": validate_url(c["url"], logger), "evidence": c["evidence"]}
         for c in candidates
     ]
+    # A link still ending in "-" or "_" that does not resolve is a truncated fragment.
+    validated = [v for v in validated if v["status"] == "200" or not v["url"].endswith(("-", "_"))]
     return {"pdf_url": pdf_url, "code_urls": validated, "third_party_urls": third_party, "tira_refs": tira_refs}
 
 
@@ -203,6 +295,14 @@ def process_task(task: dict, logger: logging.Logger) -> list[dict]:
         logger.info("code cache hit: %s", out_path)
         return json.loads(out_path.read_text(encoding="utf-8"))
 
+    # Check every distinct URL of the task concurrently first; process_participant then
+    # reads the cached statuses.
+    urls = set()
+    for p in task["participants"]:
+        path = participant_markdown_path(task_id, p["pdf_url"])
+        if path.exists():
+            urls |= {c["url"] for c in extract_links(path.read_text(encoding="utf-8"))[0]}
+    validate_all(urls, logger)
     results = [process_participant(task_id, p, logger) for p in task["participants"]]
 
     CODE_DIR.mkdir(parents=True, exist_ok=True)
@@ -214,6 +314,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Resolve participant code links for candidate tasks.")
     parser.add_argument("--confidence", type=str, default="high", choices=["high", "medium", "all"], help="Which candidate tasks to process (default: high only).")
     parser.add_argument("--task-id", type=str, default=None, help="Process only this single task_id (for testing).")
+    parser.add_argument("--reuse-statuses", type=str, default=None, metavar="OLD_CODE_DIR", help="Reuse 200/404 statuses from an earlier run's code directory.")
     args = parser.parse_args()
 
     log_path = setup_logging()
@@ -224,6 +325,11 @@ def main() -> None:
         logger.error("missing %s — run group_tasks.py first", CANDIDATES_PATH)
         sys.exit(1)
 
+    if args.reuse_statuses:
+        global CODE_DIR
+        keep, CODE_DIR = CODE_DIR, Path(args.reuse_statuses)
+        load_known_statuses()
+        CODE_DIR = keep
     tasks = [json.loads(line) for line in CANDIDATES_PATH.read_text(encoding="utf-8").splitlines()]
     if args.task_id is not None:
         tasks = [t for t in tasks if t["task_id"] == args.task_id]

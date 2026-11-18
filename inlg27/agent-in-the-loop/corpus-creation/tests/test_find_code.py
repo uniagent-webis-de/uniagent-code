@@ -4,6 +4,7 @@ from src.find_code import (
     is_third_party,
     pdf_filename_for,
     strip_bibliography,
+    canonical_repo_url,
 )
 
 SAMPLE_TEXT = """
@@ -17,7 +18,8 @@ Docker image: docker.io/webis/example-image:1.0.
 def test_extracts_team_code_and_zenodo_urls():
     code, _, _ = extract_links(SAMPLE_TEXT)
     urls = [c["url"] for c in code]
-    assert "https://github.com/team-x/repo-name.git" in urls
+    assert "https://github.com/team-x/repo-name" in urls
+    assert "https://zenodo.org/records/1234567" in urls
 
 
 def test_extracts_tira_url_and_docker_image():
@@ -93,3 +95,29 @@ def test_availability_evidence_flag_distinguishes_released_code_from_passing_men
     mention = "We compared against the approach of https://github.com/otherlab/thing in Table 3."
     assert extract_links(released)[0][0]["evidence"] is True
     assert extract_links(mention)[0][0]["evidence"] is False
+
+
+def test_canonical_repo_url_normalises_and_rejects_non_repos():
+    assert canonical_repo_url("http://www.github.com/a/b.git") == "https://github.com/a/b"
+    assert canonical_repo_url("https://github.com/NUSTM/X/tree/main/Cod") == "https://github.com/NUSTM/X"
+    assert canonical_repo_url("https://huggingface.co/datasets/o/d/viewer") == "https://huggingface.co/datasets/o/d"
+    for non_repo in ("https://github.com/percyliang/", "https://huggingface.co/",
+                     "https://huggingface.co/transformers/pretrained_models.html", "https://github.com/*"):
+        assert canonical_repo_url(non_repo) is None
+
+
+def test_extract_links_survives_markdown_debris():
+    text = "Code: [https://github.com/a/b](https://github.com/a/b). Also https://github.com/x/my\\_repo) end."
+    urls = [c["url"] for c in extract_links(text)[0]]
+    assert urls == ["https://github.com/a/b", "https://github.com/x/my_repo"]
+
+
+def test_markdown_link_href_beats_wrapped_visible_text():
+    text = "[https://github.com/K/Sem23\\_](https://github.com/K/Sem23_Legal_Team)\n\n[Legal\\_Team](https://github.com/K/Sem23_Legal_Team)"
+    assert [c["url"] for c in extract_links(text)[0]] == ["https://github.com/K/Sem23_Legal_Team"]
+
+
+def test_truncated_fragment_is_superseded_by_full_url_and_angle_href_is_read():
+    text = "see https://github.com/h/sem26_task10_ and [x](https://github.com/h/sem26_task10_starter_pack) plus [y](< https://github.com/a/b >)"
+    urls = [c["url"] for c in extract_links(text)[0]]
+    assert urls == ["https://github.com/a/b", "https://github.com/h/sem26_task10_starter_pack"]
