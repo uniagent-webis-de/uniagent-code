@@ -10,6 +10,7 @@ def make_args(**overrides):
         "task_id": None,
         "download_workers": 8,
         "semeval_year": None,
+        "acl_year": None,
         "trec_year": None,
         "ntcir_edition": None,
         "fire_year": None,
@@ -37,6 +38,8 @@ def test_stage_order_matches_the_canonical_pipeline():
         "group_tasks",
         "fetch_semeval",
         "collect_semeval",
+        "fetch_acl",
+        "collect_acl",
         "fetch_trec",
         "collect_trec",
         "fetch_ntcir",
@@ -105,3 +108,9 @@ def test_sisap_year_is_forwarded_to_both_sisap_stages():
     commands = dict(stage_commands(make_args(sisap_year=2025)))
     assert commands["fetch_sisap"] == ["fetch_sisap.py", "--year", "2025"]
     assert commands["collect_sisap"] == ["collect_sisap.py", "--year", "2025"]
+
+
+def test_acl_year_is_forwarded_to_both_acl_stages():
+    commands = dict(stage_commands(make_args(acl_year=2018)))
+    assert commands["fetch_acl"] == ["fetch_acl.py", "--year", "2018"]
+    assert commands["collect_acl"] == ["collect_acl.py", "--year", "2018"]

@@ -88,6 +88,10 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
     if args.semeval_year:
         semeval = ["--year", str(args.semeval_year)]
 
+    acl = []
+    if args.acl_year:
+        acl = ["--year", str(args.acl_year)]
+
     trec = []
     if args.trec_year:
         trec = ["--year", str(args.trec_year)]
@@ -114,6 +118,8 @@ def stage_commands(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
         ("group_tasks", ["group_tasks.py", *group]),
         ("fetch_semeval", ["fetch_semeval.py", *semeval]),
         ("collect_semeval", ["collect_semeval.py", *semeval]),
+        ("fetch_acl", ["fetch_acl.py", *acl]),
+        ("collect_acl", ["collect_acl.py", *acl]),
         ("fetch_trec", ["fetch_trec.py", *trec]),
         ("collect_trec", ["collect_trec.py", *trec]),
         ("fetch_ntcir", ["fetch_ntcir.py", *ntcir]),
@@ -177,6 +183,7 @@ def main() -> None:
     parser.add_argument("--ntcir-edition", type=int, help="Process only one configured NTCIR edition during NTCIR stages.")
     parser.add_argument("--fire-year", type=int, help="Process only one configured FIRE year during FIRE stages.")
     parser.add_argument("--mediaeval-year", type=int, help="Process only one configured MediaEval year during MediaEval stages.")
+    parser.add_argument("--acl-year", type=int, help="Process only one configured ACL Anthology (non-SemEval) year during ACL stages.")
     parser.add_argument("--sisap-year", type=int, help="Process only one configured SISAP year during SISAP stages.")
     parser.add_argument(
         "--target",
