@@ -27,6 +27,11 @@ CEUR_BASE_URL_TEMPLATE = "https://ceur-ws.org/Vol-{volume}/"
 VOLUME_MAP = CLEF_VOLUMES
 
 
+def _text(node) -> str:
+    """Node text with whitespace normalised; strip=True would glue words split by inline tags."""
+    return re.sub(r"\s+", " ", node.get_text()).strip()
+
+
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -68,7 +73,7 @@ def parse_ceur_volume(raw_html: str, volume: str) -> list[dict]:
         heading = session_span.find_parent(["h1", "h2", "h3", "h4"])
         if heading is None:
             continue
-        lab_name = re.sub(r"\s+", " ", session_span.get_text(strip=True))
+        lab_name = _text(session_span)
 
         paper_list = heading.find_next_sibling("ul")
         if paper_list is None:
@@ -81,7 +86,7 @@ def parse_ceur_volume(raw_html: str, volume: str) -> list[dict]:
             if title_span is None or link is None:
                 continue
 
-            title = re.sub(r"\s+", " ", title_span.get_text(strip=True))
+            title = _text(title_span)
             authors = []
             author_nodes = item.find_all("span", class_=re.compile(r"^CEURAUTHORS?$"))
             for author_node in author_nodes:
@@ -114,12 +119,12 @@ def parse_dblp_titles(raw_html: str) -> dict[str, list[str]]:
         title_span = entry.find("span", class_="title")
         if title_span is None:
             continue
-        title = title_span.get_text(strip=True).rstrip(".")
+        title = _text(title_span).rstrip(".")
         authors = []
         for author_span in entry.find_all("span", itemprop="author"):
             name_span = author_span.find("span", itemprop="name")
             if name_span is not None:
-                authors.append(name_span.get_text(strip=True))
+                authors.append(_text(name_span))
         lookup[normalize_title(title)] = authors
 
     return lookup

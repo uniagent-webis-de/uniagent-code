@@ -107,6 +107,25 @@ def split_lines(node) -> list[str]:
     return [clean_text(line) for line in node.get_text("\n", strip=True).splitlines() if clean_text(line)]
 
 
+# NIST's legacy pages leave <li> unclosed, so an entry's node can swallow everything after
+# it (headings, other lists, nav links). Author text therefore stops at the first
+# structural element instead of running to the end of the node.
+BOUNDARY_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "dl", "ul", "ol", "table", "center", "hr", "li", "dt", "dd"}
+
+
+def bounded_lines(node) -> list[str]:
+    lines: list[str] = []
+    for item in node.descendants:
+        if getattr(item, "name", None):
+            if item.name in BOUNDARY_TAGS and item is not node:
+                break
+            continue
+        line = clean_text(str(item))
+        if line:
+            lines.append(line)
+    return lines
+
+
 def entry_title(node) -> str:
     """Extract a paper title from modern and legacy NIST entry markup."""
     bold = node.find("b")
@@ -136,8 +155,8 @@ def entry_authors(node, title: str, sibling=None) -> list[str]:
     """Extract simple author lines without treating affiliations as paper titles."""
     source = sibling if sibling is not None else node
     authors: list[str] = []
-    for line in split_lines(source):
-        if line == title or PAGE_RE.fullmatch(line) or "file" in line.lower():
+    for line in bounded_lines(source):
+        if line in title or PAGE_RE.fullmatch(line) or "file" in line.lower():  # `in`: wrapped title fragments
             continue
         if line.startswith("["):
             continue
@@ -460,6 +479,27 @@ def parse_tira_refs(raw_html: str, year: int, track_name: str) -> list[str]:
     return sorted(set(refs))
 
 
+# NIST's tracks.html lists these two TREC 2010 Chemical papers with each other's title and
+# authors; its proceedings.html (and the PDFs themselves) have them the right way round.
+SWAPPED_ENTRIES = (
+    "https://trec.nist.gov/pubs/trec19/papers/CHEM.OVERVIEW.pdf",
+    "https://trec.nist.gov/pubs/trec19/papers/york.univ.chem.pdf",
+)
+
+
+def fix_swapped_entries(papers: list[dict]) -> list[dict]:
+    """Swap title and authors of the known mis-listed pair when both are present."""
+    by_url = {p.get("pdf_url"): p for p in papers}
+    first, second = (by_url.get(url) for url in SWAPPED_ENTRIES)
+    if first is None or second is None:
+        return papers
+    fixed = {
+        first["pdf_url"]: {**first, "title": second["title"], "authors": second["authors"]},
+        second["pdf_url"]: {**second, "title": first["title"], "authors": first["authors"]},
+    }
+    return [fixed.get(p.get("pdf_url"), p) for p in papers]
+
+
 def paper_record(paper: dict, track_name: str, tira_refs: list[str]) -> dict:
     """Convert a parsed NIST paper to the common participant/overview shape."""
     return {
@@ -485,7 +525,7 @@ def build_task_candidate(
     logger: logging.Logger,
 ) -> dict | None:
     """Build and screen one official NIST track section."""
-    papers = section["papers"]
+    papers = fix_swapped_entries(section["papers"])
     if not papers:
         return None
     overviews = [paper for paper in papers if paper["is_overview"]]

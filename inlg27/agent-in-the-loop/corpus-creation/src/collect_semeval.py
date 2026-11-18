@@ -41,7 +41,7 @@ TASK_RE = re.compile(
 )
 ORGANIZER_RE = re.compile(r"^\s*SemEval[- ]20\d{2}\s+Task[- ]?\d+\b", re.IGNORECASE)
 # Both ``Team at SemEval`` and the common compact ``TeamatSemEval`` form occur.
-PARTICIPANT_RE = re.compile(r"(?:\bat\s*|at)SemEval[- ]20\d{2}\s+Task[- ]?\d+\b", re.IGNORECASE)
+PARTICIPANT_RE = re.compile(r"at\s*SemEval[- ]20\d{2}\s+Task[- ]?\d+\b", re.IGNORECASE)
 # Modern ACL identifiers look like ``2025.semeval-1.12``; older SemEval volumes
 # use identifiers such as ``S19-2012``. Restricting this pattern prevents generic
 # navigation links from being mistaken for papers.
@@ -67,7 +67,7 @@ def setup_logging() -> Path:
 
 def clean_html_text(node) -> str:
     """Read an ACL title/author while preserving text split across markup spans."""
-    return re.sub(r"\s+", " ", node.get_text("", strip=True)).strip()
+    return re.sub(r"\s+", " ", node.get_text("")).strip()
 
 
 def find_paper_container(title_link):
