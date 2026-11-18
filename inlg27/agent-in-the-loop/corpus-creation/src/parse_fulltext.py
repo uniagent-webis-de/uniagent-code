@@ -53,6 +53,20 @@ MIN_CHARS_PER_PAGE = 200
 MIN_CHARS_PER_DOCUMENT = 2000
 
 
+# A broken font encoding yields a text layer full of symbols, so length checks pass while
+# the content is garbage. Real papers (English, or CJK) always show a high share of common
+# English function words or of CJK characters; documents with neither are garbled.
+GARBLED_STOPWORD_RATE = 0.08
+_STOPWORDS = frozenset("the of and to in is for that with on as are by this we be from an or at which it was can not".split())
+_CJK_RE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]")
+
+
+def is_garbled(text: str) -> bool:
+    words = re.findall(r"[a-z]+", text.lower())
+    stopword_rate = sum(w in _STOPWORDS for w in words) / max(len(words), 1)
+    return stopword_rate < GARBLED_STOPWORD_RATE and len(_CJK_RE.findall(text)) / max(len(text), 1) < 0.15
+
+
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -291,12 +305,18 @@ def rewrite_figure_refs(markdown_path: Path, figures_rel_prefix: str) -> None:
         markdown_path.write_text(rewritten, encoding="utf-8")
 
 
+BUILTIN_OCR = "builtin"  # sentinel for --builtin-ocr (liteparse built-in Tesseract)
+
+
 def parse_document(pdf_path: Path, out_path: Path, ocr_server_url: str | None, ocr_language: str, logger: logging.Logger, figures_dir: Path | None = None) -> bool:
     """Parse one PDF to markdown. Returns True on success."""
     command = ["lit", "parse", str(pdf_path), "--format", "markdown", "-o", str(out_path), "-q"]
     if figures_dir is not None:
         command += ["--extract-images", "--image-mode", "embed", "--image-output-dir", str(figures_dir)]
-    if ocr_server_url:
+    if ocr_server_url == BUILTIN_OCR:
+        # liteparse's bundled Tesseract: no server, so simply do not pass --no-ocr.
+        command += ["--ocr-language", ocr_language]
+    elif ocr_server_url:
         # Routing OCR to a server (e.g. a served PaddleOCR-VL) — do not pass --no-ocr,
         # otherwise liteparse would never call it.
         command += ["--ocr-server-url", ocr_server_url, "--ocr-language", ocr_language]
@@ -308,6 +328,15 @@ def parse_document(pdf_path: Path, out_path: Path, ocr_server_url: str | None, o
         logger.error("lit parse failed for %s: %s", pdf_path, result.stderr.strip()[:300])
         return False
     return True
+
+
+def preserve_ocr_flag(record: dict, previous: dict | None) -> dict:
+    """A later no-OCR run re-reads the cached OCR text; it must not forget that OCR was used
+    (provenance), nor re-flag a document whose text is OCR output as needing OCR."""
+    if previous and previous.get("ocr_server_used"):
+        record["ocr_server_used"] = True
+        record["needs_ocr"] = False
+    return record
 
 
 def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_server_url: str | None, ocr_language: str, logger: logging.Logger) -> dict | None:
@@ -359,6 +388,8 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         reasons.append(f"only {len(text)} chars extracted in total")
     if pages is None:
         reasons.append("page count could not be determined")
+    if is_garbled(text):
+        reasons.append("garbled text layer (broken font encoding)")
 
     record = {
         "task_id": task_id,
@@ -437,7 +468,7 @@ separator.
 |---|---|
 | `task_id` | Unique, filesystem-safe ID for the task |
 | `venue` | Task, track, or lab name, such as Touché or SemEval |
-| `parent_venue` | Main collection: CLEF, SemEval, TREC, NTCIR, FIRE, MediaEval, or SISAP |
+| `parent_venue` | Main collection: CLEF, SemEval, TREC, NTCIR, FIRE, MediaEval, SISAP, or an ACL Anthology workshop family such as CoNLL |
 | `year` | Year of the shared task |
 | `task_name` | Human-readable task name |
 | `ceur_volume` | CEUR-WS volume number; empty for sources not hosted by CEUR |
@@ -543,9 +574,12 @@ def main() -> None:
     parser.add_argument("--task-id", type=str, default=None, help="Parse only this task (for testing).")
     parser.add_argument("--confidence", type=str, default="high", choices=["high", "medium", "all"], help="Which candidate tasks to parse (default: high, matching build_corpus.py).")
     parser.add_argument("--ocr-server-url", type=str, default=None, help="HTTP OCR server URL (e.g. a served PaddleOCR-VL). Default: use the PDF's own text layer.")
+    parser.add_argument("--builtin-ocr", action="store_true", help="Use liteparse's bundled Tesseract OCR instead of a server (slower, weaker on tables).")
     parser.add_argument("--ocr-language", type=str, default="eng", help="OCR language passed through to the OCR server (default: eng).")
     parser.add_argument("--only-needs-ocr", action="store_true", help="Re-parse only documents a previous run flagged as needing OCR.")
     args = parser.parse_args()
+    if args.builtin_ocr:
+        args.ocr_server_url = args.ocr_server_url or BUILTIN_OCR
 
     log_path = setup_logging()
     logger = logging.getLogger("parse_fulltext")
@@ -603,7 +637,7 @@ def main() -> None:
             record = process_document(task["task_id"], role, pdf_url, task_dir, args.ocr_server_url, args.ocr_language, logger)
             if record:
                 previous = previous_by_key.get(key) or previous_by_url.get(pdf_url)
-                records.append(preserve_extractor_fields(record, previous))
+                records.append(preserve_ocr_flag(preserve_extractor_fields(record, previous), previous))
 
     if (retry_only or args.task_id) and MANIFEST_PATH.exists():
         # Merge into the existing manifest so a targeted OCR or single-task re-run does

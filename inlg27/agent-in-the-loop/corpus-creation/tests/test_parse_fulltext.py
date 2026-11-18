@@ -158,3 +158,11 @@ def test_figure_refs_are_rewritten_to_the_figures_directory(tmp_path):
     md.write_text("text ![](img_p4_1.png) more\n", encoding="utf-8")
     rewrite_figure_refs(md, "../figures/paper")
     assert "![](../figures/paper/img_p4_1.png)" in md.read_text(encoding="utf-8")
+
+
+def test_preserve_ocr_flag_keeps_provenance_across_no_ocr_runs():
+    from src.parse_fulltext import preserve_ocr_flag
+
+    fresh = {"ocr_server_used": False, "needs_ocr": True}
+    assert preserve_ocr_flag(dict(fresh), {"ocr_server_used": True}) == {"ocr_server_used": True, "needs_ocr": False}
+    assert preserve_ocr_flag(dict(fresh), None) == fresh
