@@ -5,6 +5,7 @@ import csv
 import json
 import logging
 import random
+import re
 import shutil
 import sys
 from collections import Counter
@@ -160,6 +161,79 @@ def load_fulltext_manifest(logger: logging.Logger) -> dict:
         manifest.setdefault(record["pdf_url"], record)
     logger.info("loaded full-text manifest with %d documents", len(manifest))
     return manifest
+
+
+NON_PAPER_NAME_RE = re.compile(r"poster|slides|sample|(?:^|[-_])(?:topics?|formalrun\w*|fmlrun\w*)(?:[-_.]|$)|-inv-", re.IGNORECASE)
+NON_PAPER_TITLE_RE = re.compile(r"^(?:full list\b|\d{4}(?:-\d{2,4})? document sets?\b)", re.IGNORECASE)
+MIN_PAPER_CHARS = 3000  # below this a PDF is an abstract / one-pager, not a working-note paper
+
+
+def is_non_paper(record: dict | None) -> bool:
+    """True for abstract-only (1 page or <3000 chars), poster, slide, or sample PDFs.
+
+    Two-page papers are legitimate (MediaEval, TREC notebooks), so page count alone is
+    not the signal; thin extracted text is, after OCR has had its chance."""
+    if record is None:
+        return False
+    name = record["pdf_url"].rsplit("/", 1)[-1]
+    return (
+        record["pages"] <= 1 or record["chars"] < MIN_PAPER_CHARS
+        or bool(NON_PAPER_NAME_RE.search(name))
+    )
+
+
+DROPPED_PATH = FINAL_DIR / "dropped_documents.jsonl"
+
+
+def load_dropped() -> set[tuple[str, str]]:
+    """(task_id, pdf_url) pairs dropped by earlier builds. Their files are deleted and the
+    manifest forgets them, so the decision must be remembered to stay repeatable."""
+    if not DROPPED_PATH.exists():
+        return set()
+    rows = (json.loads(line) for line in DROPPED_PATH.read_text(encoding="utf-8").splitlines() if line.strip())
+    return {(r["task_id"], r["pdf_url"]) for r in rows}
+
+
+def save_dropped(dropped: list[tuple[str, str, str]], previous: set[tuple[str, str]]) -> None:
+    pairs = previous | {(tid, url) for tid, _, url in dropped}
+    FINAL_DIR.mkdir(parents=True, exist_ok=True)
+    DROPPED_PATH.write_text(
+        "".join(json.dumps({"task_id": tid, "pdf_url": url}) + "\n" for tid, url in sorted(pairs)), encoding="utf-8"
+    )
+
+
+def drop_non_papers(tasks: list[dict], manifest: dict, logger: logging.Logger, previously_dropped: frozenset | set = frozenset()) -> tuple[list[dict], list[tuple[str, str, str]]]:
+    """Remove non-paper participants; drop tasks whose overview is a non-paper or that
+    have fewer than 2 real participant papers (the corpus floor). Returns (kept, dropped) where
+    dropped holds (task_id, role, pdf_url) — a dropped task lists all its documents."""
+    kept, dropped = [], []
+    for task in tasks:
+        tid = task["task_id"]
+
+        def lookup(url: str) -> dict | None:
+            return manifest.get((tid, url)) or manifest.get(url)
+
+        def non_paper(doc: dict) -> bool:
+            url = doc["pdf_url"]
+            return (tid, url) in previously_dropped or is_non_paper(lookup(url)) or bool(NON_PAPER_TITLE_RE.search(doc["title"]))
+
+        bad = [p for p in task["participants"] if non_paper(p)]
+        if non_paper(task["overview"]):
+            reason = "overview is not a full paper"
+        elif len(task["participants"]) - len(bad) < 2:
+            reason = "fewer than 2 real participant papers"
+        else:
+            reason = None
+        if reason:
+            logger.warning("dropping task %s: %s", tid, reason)
+            dropped += [(tid, "overview", task["overview"]["pdf_url"])] + [(tid, "participant", p["pdf_url"]) for p in task["participants"]]
+            continue
+        for p in bad:
+            logger.warning("%s: dropping non-paper participant %s", tid, p["pdf_url"])
+            dropped.append((tid, "participant", p["pdf_url"]))
+        task["participants"] = [p for p in task["participants"] if p not in bad]
+        kept.append(task)
+    return kept, dropped
 
 
 CONFIDENCE_RANK = {"high": 0, "medium": 1, "low": 2}
@@ -339,6 +413,18 @@ def write_jsonl(tasks: list[dict], path: Path) -> None:
             f.write(json.dumps(t, ensure_ascii=False) + "\n")
 
 
+def write_summary_csv(tasks: list[dict], path: Path) -> None:
+    """Short per-task listing: name, source, year, notebook papers, and where it was sourced."""
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["task_id", "name", "source", "year", "notebook_papers", "source_url", "task_page_url"])
+        for t in sorted(tasks, key=lambda t: (t["parent_venue"], t["year"], t["task_name"])):
+            src = t["source"]
+            page = src.get("track_url") or src.get("official_url") or src.get("toc_url") or src.get("tasks_url") or ""
+            writer.writerow([t["task_id"], t["task_name"], t["parent_venue"], t["year"],
+                             len(t["participants"]), src["proceedings_url"], page])
+
+
 def write_csv(tasks: list[dict], path: Path) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
@@ -477,6 +563,16 @@ def main() -> None:
     logger.info("assembling corpus from %d tasks (confidence=%s)", len(tasks), args.confidence)
 
     fulltext_manifest = load_fulltext_manifest(logger)
+    strict_layout = args.task_id is None and args.target is None and args.confidence == "high"
+    if fulltext_manifest:
+        previously_dropped = load_dropped()
+        tasks, dropped = drop_non_papers(tasks, fulltext_manifest, logger, previously_dropped)
+        logger.info("dropped %d non-paper document(s); %d tasks remain", len(dropped), len(tasks))
+        if strict_layout:  # final/ must mirror the corpus, so remove what was dropped
+            save_dropped(dropped, previously_dropped)
+            kept_ids = {t["task_id"] for t in tasks}
+            for tid, role, url in dropped:
+                shutil.rmtree(task_dir(tid) if tid not in kept_ids else document_pdf_path(tid, role, url).parent, ignore_errors=True)
     for task in tasks:
         join_counts(task, logger)
         join_code_links(task, logger)
@@ -484,7 +580,6 @@ def main() -> None:
 
     tasks = select_corpus(tasks, args.target, logger)
 
-    strict_layout = args.task_id is None and args.target is None and args.confidence == "high"
     layout_ok = validate_final_task_directories(tasks, logger) if strict_layout else True
     if not validate(tasks, logger) or not validate_output_files(tasks, logger) or not layout_ok:
         logger.error("validation failed — see errors above. Deliverables NOT written.")
@@ -496,6 +591,7 @@ def main() -> None:
         write_subtask_indexes(task)
     write_jsonl(tasks, FINAL_DIR / "shared_tasks.jsonl")
     write_csv(tasks, FINAL_DIR / "shared_tasks.csv")
+    write_summary_csv(tasks, FINAL_DIR / "shared_tasks_summary.csv")
     write_report(tasks, FINAL_DIR / "report.md")
     logger.info("wrote %d tasks to data/final/shared_tasks.jsonl, .csv, report.md", len(tasks))
 

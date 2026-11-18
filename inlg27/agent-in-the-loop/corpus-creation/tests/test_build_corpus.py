@@ -179,3 +179,59 @@ def test_subtask_indexes_list_multi_subtask_papers_in_each_subtask(tmp_path, mon
     plain["source"] = {}
     write_subtask_indexes(plain)
     assert not (tmp_path / "clef2024-lab" / "subtasks").exists()
+
+
+def test_drop_non_papers():
+    import logging
+
+    from src.build_corpus import drop_non_papers
+
+    def rec(url, pages, chars):
+        return {"pdf_url": url, "pages": pages, "chars": chars}
+
+    def task(tid, ov, parts):
+        return {"task_id": tid, "overview": {"pdf_url": ov, "title": "T"}, "participants": [{"pdf_url": u, "title": "T"} for u in parts]}
+
+    manifest = {
+        "o1": rec("o1", 8, 40000), "a": rec("a", 2, 9000), "b": rec("b", 6, 30000),
+        "abs": rec("abs", 1, 1500), "x/poster.pdf": rec("x/poster.pdf", 4, 20000),
+        "o2": rec("o2", 1, 2900), "c": rec("c", 5, 20000), "d": rec("d", 5, 20000),
+        "o3": rec("o3", 8, 40000), "e": rec("e", 5, 20000), "thin": rec("thin", 3, 2800),
+    }
+    tasks = [
+        task("keep", "o1", ["a", "b", "abs", "x/poster.pdf"]),  # 2 real papers remain
+        task("bad-overview", "o2", ["c", "d"]),
+        task("too-few", "o3", ["e", "thin"]),
+    ]
+    kept, dropped = drop_non_papers(tasks, manifest, logging.getLogger("t"))
+    assert [t["task_id"] for t in kept] == ["keep"]
+    assert [p["pdf_url"] for p in kept[0]["participants"]] == ["a", "b"]
+    assert {d[0] for d in dropped} == {"keep", "bad-overview", "too-few"}
+
+
+def test_write_summary_csv(tmp_path):
+    import csv
+
+    from src.build_corpus import write_summary_csv
+
+    t = {"task_id": "x2020-a", "task_name": "A", "parent_venue": "X", "year": 2020,
+         "participants": [{}, {}], "source": {"proceedings_url": "http://p", "track_url": "http://t"}}
+    write_summary_csv([t], tmp_path / "s.csv")
+    row = next(csv.DictReader((tmp_path / "s.csv").open()))
+    assert (row["notebook_papers"], row["source_url"], row["task_page_url"]) == ("2", "http://p", "http://t")
+
+
+def test_drop_non_papers_catches_topic_files_and_invited_talks():
+    import logging
+
+    from src.build_corpus import drop_non_papers
+
+    def rec(url):
+        return {"pdf_url": url, "pages": 5, "chars": 20000}
+
+    urls = ["a/NTCIR3-WEB-X.pdf", "a/NTCIR3-INV-HarmanD.pdf", "a/NTCIR3-TOPIC-WEB.pdf", "a/inv-pap8-CR.pdf", "b"]
+    manifest = {u: rec(u) for u in urls + ["ov"]}
+    task = {"task_id": "t", "overview": {"pdf_url": "ov", "title": "O"},
+            "participants": [{"pdf_url": u, "title": "Full list Japanese" if u == "b" else "P"} for u in urls]}
+    kept, _ = drop_non_papers([task], manifest, logging.getLogger("t"))
+    assert [p["pdf_url"] for p in kept[0]["participants"]] == ["a/NTCIR3-WEB-X.pdf", "a/inv-pap8-CR.pdf"]

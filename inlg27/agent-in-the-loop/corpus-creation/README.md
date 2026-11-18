@@ -90,6 +90,7 @@ The `src/*_config.py` files contain the editions and official URLs:
 
 - `clef_config.py`
 - `semeval_config.py`
+- `acl_config.py`
 - `trec_config.py`
 - `ntcir_config.py`
 - `fire_config.py`
@@ -104,6 +105,9 @@ Current configured coverage:
 
 - CLEF: 2000–2025
 - SemEval: 2007, 2010, and 2012–2026 where listed by ACL Anthology
+- ACL Anthology shared tasks other than SemEval (CoNLL 2000–2020, IJCNLP 2017, WNUT, CASE,
+  WANLP/NADI, NLPTEA, MADAR, and others): the curated tasks in `acl_config.py`, seeded
+  from the overview papers listed in `data/raw/martin_22_shared_tasks.json`
 - TREC: 1992–2025
 - NTCIR: NTCIR-1 through NTCIR-18 (1999–2025)
 - FIRE: 2008 and 2010–2025; its archive has no 2009 link
@@ -116,6 +120,7 @@ Authoritative sources:
 |---|---|
 | CLEF | [CEUR-WS](https://ceur-ws.org/) working-note volumes |
 | SemEval | [ACL Anthology](https://aclanthology.org/) proceedings |
+| ACL Anthology tasks | [ACL Anthology](https://aclanthology.org/) volume pages, curated task by task |
 | TREC | [NIST TREC](https://trec.nist.gov/proceedings/proceedings.html) proceedings |
 | NTCIR | [NII NTCIR](https://research.nii.ac.jp/ntcir/workshop/OnlineProceedings/index.html) proceedings |
 | FIRE | [FIRE](https://fire.irsi.org.in/fire/2025/home) archive and CEUR working notes |
@@ -187,6 +192,7 @@ Each source writes its own candidate file:
 ```text
 data/intermediate/candidates/clef.jsonl
 data/intermediate/candidates/semeval.jsonl
+data/intermediate/candidates/acl.jsonl
 data/intermediate/candidates/trec.jsonl
 data/intermediate/candidates/ntcir.jsonl
 data/intermediate/candidates/fire.jsonl
@@ -251,6 +257,11 @@ python3 src/parse_fulltext.py \
   --only-needs-ocr
 ```
 
+With no OCR server, `--builtin-ocr` uses liteparse's bundled Tesseract instead (slower, weaker on
+tables, English only unless `--ocr-language` is set). A document is also flagged when its text
+layer exists but is garbled (a broken font encoding: almost no English function words and no CJK
+text), which length checks alone miss.
+
 ## Step 9: Extract figures and tables
 
 `extract_figs_tbls.py` uses PDFFigures2 to extract captioned figures and tables, including
@@ -290,7 +301,13 @@ Intermediate results are stored in:
 data/intermediate/code/{task_id}.json
 ```
 
-Links are checked, but dead links remain as historical evidence with their status.
+Every link is reduced to the repository it names (`https://github.com/owner/repo`: no `www`, `.git`
+or `/tree/...` path), so one repository is stored once. Profile-only, documentation, and truncated
+links are dropped; for Markdown hyperlinks the href is used rather than the line-wrapped visible
+text. Each distinct URL is checked once (HEAD, then GET, with retries on rate limits). Dead links
+remain as historical evidence with their status (`200` live, `404` gone, `401` gated or missing on
+Hugging Face). `--reuse-statuses <old code dir>` reuses earlier 200/404 results after an
+extraction change.
 
 ## Step 12: Build the final corpus
 
@@ -300,6 +317,7 @@ Links are checked, but dead links remain as historical evidence with their statu
 data/final/
 ├── shared_tasks.jsonl
 ├── shared_tasks.csv
+├── shared_tasks_summary.csv   # name, source, year, notebook papers, source links
 ├── manifest.jsonl
 ├── report.md
 └── {task_id}/
@@ -339,6 +357,14 @@ Source-specific differences:
   medium confidence.
 - **SemEval:** explicit year/task number, one organizer, and at least two clearly marked
   participants.
+- **ACL Anthology (non-SemEval):** the curated overview is on the volume page, at least two
+  participants are selected by the task's rule, and every PDF link comes from the page.
+  `provenance.task_assignment_method` records the evidence: `dedicated_volume` (the whole
+  volume is the task's proceedings), `curated_range` (a hand-checked run of papers), or
+  `title_marker` (titles name the task, e.g. `Task 2`). Anthology pages have no task
+  sections, so tasks whose participants cannot be separated without guessing (SENSEVAL
+  per-language tasks, WMT findings, SMM4H, most SIGMORPHON tasks, BioNLP 2011 sub-tasks)
+  are not configured. Add a task by appending to `ACL_TASKS` after reading its volume page.
 - **TREC and NTCIR:** one overview and at least two participants in an official section.
 - **FIRE:** one overview and at least two unambiguous participants in the official section.
 - **MediaEval:** one labelled overview and at least two labelled participant papers.
@@ -362,6 +388,7 @@ The full runner also accepts filters:
 ```bash
 python3 src/run_pipeline.py --volume 2696
 python3 src/run_pipeline.py --semeval-year 2025
+python3 src/run_pipeline.py --acl-year 2018
 python3 src/run_pipeline.py --trec-year 2025
 python3 src/run_pipeline.py --ntcir-edition 18
 python3 src/run_pipeline.py --fire-year 2025
@@ -390,6 +417,7 @@ The default is `--confidence high`.
 | `fetch_volumes.py` | Downloads CLEF CEUR and DBLP pages |
 | `parse_sections.py` | Parses CLEF pages into sections and papers |
 | `group_tasks.py` | Creates CLEF overview/participant groups |
+| `fetch_acl.py`, `collect_acl.py` | Fetch and collect the curated non-SemEval ACL Anthology tasks |
 | `fetch_*.py` | Downloads pages for one source |
 | `collect_*.py` | Parses and screens candidates for one source |
 | `merge_candidates.py` | Merges candidates and creates the review queue |
@@ -450,3 +478,11 @@ The latest complete run documented here contains:
 These numbers can change when sources or configurations are updated. Thirty-five documents
 in that run were marked for optional OCR. Five others had a PDFFigures2-specific failure
 while retaining their PDF, Markdown, and Liteparse assets.
+
+## Non-paper filtering and `dropped_documents.jsonl`
+
+`build_corpus.py` drops documents that are not papers: one-page abstracts, under 3,000 characters
+of text, poster/slide/sample/topic-list/invited-talk files. A task whose overview is dropped is
+removed; any task with fewer than two real participant papers is removed. Each decision is
+appended to `data/final/dropped_documents.jsonl` so rebuilds stay repeatable after the files are
+deleted. To restore a document, delete its line there and re-run the download stage.
