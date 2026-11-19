@@ -486,3 +486,12 @@ of text, poster/slide/sample/topic-list/invited-talk files. A task whose overvie
 removed; any task with fewer than two real participant papers is removed. Each decision is
 appended to `data/final/dropped_documents.jsonl` so rebuilds stay repeatable after the files are
 deleted. To restore a document, delete its line there and re-run the download stage.
+
+## Research field label (`field`)
+
+Every task carries `field`: `NLP` (language understanding/generation), `IR` (retrieval, search,
+ranking, recommendation) or `Other` (neither, e.g. vision, audio, clinical prediction). TREC and
+SISAP are IR; SemEval, CoNLL and the ACL workshops are NLP; CLEF, NTCIR, FIRE and MediaEval mix
+fields, so their tasks are labelled by the ordered rules in `src/task_field.py` from the task's
+subject, not the venue's name. The label is a judgement: borderline tasks (e.g. eRisk, Lifelog,
+FIRE's IRSE) follow the rule that is documented in that file.

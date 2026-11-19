@@ -214,11 +214,11 @@ def test_write_summary_csv(tmp_path):
 
     from src.build_corpus import write_summary_csv
 
-    t = {"task_id": "x2020-a", "task_name": "A", "parent_venue": "X", "year": 2020,
+    t = {"task_id": "x2020-a", "task_name": "A", "parent_venue": "X", "year": 2020, "field": "IR",
          "participants": [{}, {}], "source": {"proceedings_url": "http://p", "track_url": "http://t"}}
     write_summary_csv([t], tmp_path / "s.csv")
     row = next(csv.DictReader((tmp_path / "s.csv").open()))
-    assert (row["notebook_papers"], row["source_url"], row["task_page_url"]) == ("2", "http://p", "http://t")
+    assert (row["field"], row["notebook_papers"], row["source_url"], row["task_page_url"]) == ("IR", "2", "http://p", "http://t")
 
 
 def test_drop_non_papers_catches_topic_files_and_invited_talks():

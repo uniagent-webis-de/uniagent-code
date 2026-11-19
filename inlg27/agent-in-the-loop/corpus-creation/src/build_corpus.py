@@ -15,6 +15,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.task_field import field_for
 from src.corpus_paths import (
     FINAL_DIR,
     MANIFEST_PATH,
@@ -35,7 +36,7 @@ FULLTEXT_MANIFEST_PATH = MANIFEST_PATH
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 CSV_FIELDS = [
-    "task_id", "venue", "parent_venue", "year", "task_name", "ceur_volume",
+    "task_id", "venue", "parent_venue", "year", "field", "task_name", "ceur_volume",
     "overview_title", "overview_pdf_url", "overview_authors", "is_umbrella",
     "notebook_papers", "teams_claimed_in_overview", "runs_claimed_in_overview", "coverage_ratio",
     "participant_pdf_urls", "team_names", "overview_pdf_path", "participant_pdf_paths",
@@ -417,11 +418,11 @@ def write_summary_csv(tasks: list[dict], path: Path) -> None:
     """Short per-task listing: name, source, year, notebook papers, and where it was sourced."""
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["task_id", "name", "source", "year", "notebook_papers", "source_url", "task_page_url"])
+        writer.writerow(["task_id", "name", "source", "year", "field", "notebook_papers", "source_url", "task_page_url"])
         for t in sorted(tasks, key=lambda t: (t["parent_venue"], t["year"], t["task_name"])):
             src = t["source"]
             page = src.get("track_url") or src.get("official_url") or src.get("toc_url") or src.get("tasks_url") or ""
-            writer.writerow([t["task_id"], t["task_name"], t["parent_venue"], t["year"],
+            writer.writerow([t["task_id"], t["task_name"], t["parent_venue"], t["year"], t["field"],
                              len(t["participants"]), src["proceedings_url"], page])
 
 
@@ -442,6 +443,7 @@ def write_csv(tasks: list[dict], path: Path) -> None:
                 "venue": t["venue"],
                 "parent_venue": t["parent_venue"],
                 "year": t["year"],
+                "field": t["field"],
                 "task_name": t["task_name"],
                 "ceur_volume": t["ceur_volume"],
                 "overview_title": t["overview"]["title"],
@@ -574,6 +576,7 @@ def main() -> None:
             for tid, role, url in dropped:
                 shutil.rmtree(task_dir(tid) if tid not in kept_ids else document_pdf_path(tid, role, url).parent, ignore_errors=True)
     for task in tasks:
+        task["field"] = field_for(task["parent_venue"], task["task_name"])
         join_counts(task, logger)
         join_code_links(task, logger)
         join_fulltext_paths(task, fulltext_manifest, logger)
