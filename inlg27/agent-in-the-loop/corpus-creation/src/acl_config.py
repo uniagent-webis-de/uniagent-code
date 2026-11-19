@@ -95,7 +95,7 @@ ACL_TASKS = [
     _task("TextGraphs", 2019, "D19-53", "D19-5309", "Multi-Hop Inference for Explanation Regeneration",
           first="D19-5310", match=r"TextGraphs|Explanation|Multi-Hop"),
     _task("COIN", 2019, "D19-60", "D19-6007", "Commonsense Inference in Natural Language Processing",
-          first="D19-6008", last="D19-6013"),
+          first="D19-6008", last="D19-6012"),  # D19-6013 is a regular workshop paper
     _task("MADAR", 2019, "W19-46", "W19-4622", "Arabic Fine-Grained Dialect Identification",
           first="W19-4623", last="W19-4639"),
     _task("LoResMT", 2020, "2020.loresmt-1", "2020.loresmt-1.4", "Zero-Shot for Low-Resource Languages",
