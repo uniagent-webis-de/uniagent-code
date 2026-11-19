@@ -104,7 +104,10 @@ written. New editions must be added to the configuration.
 Current configured coverage:
 
 - CLEF: 2000–2025
-- SemEval: 2007, 2010, and 2012–2026 where listed by ACL Anthology
+- SemEval: 2007, 2010, and 2012–2026 where listed by ACL Anthology. Participant papers of 2007–2015
+  have plain titles, so `semeval_legacy_tasks.py` reads each one's first two pages and assigns it to
+  a task only when exactly one `SemEval-YYYY Task N` is named (and neighbouring papers agree);
+  `provenance.task_assignment_method` is then `first_page_task_mention`
 - ACL Anthology shared tasks other than SemEval (CoNLL 2000–2020, IJCNLP 2017, WNUT, CASE,
   WANLP/NADI, NLPTEA, MADAR, and others): the curated tasks in `acl_config.py`, seeded
   from the overview papers listed in `data/raw/martin_22_shared_tasks.json`
@@ -454,6 +457,7 @@ The default is `--confidence high`.
 | `parse_fulltext.py` | Converts PDFs to Markdown and extracts Liteparse assets |
 | `extract_figs_tbls.py` | Extracts captioned figures and tables |
 | `extract_counts.py` | Finds team and run counts in overview papers |
+| `semeval_legacy_tasks.py` | Assigns untitled 2007–2015 SemEval participant papers to tasks from their first pages |
 | `find_code.py` | Finds participant code and TIRA links |
 | `build_corpus.py` | Produces and validates final indexes and metadata |
 
@@ -498,11 +502,10 @@ and would leak the result.
 
 The latest complete run documented here contains:
 
-- 501 high-confidence tasks
-- 5,880 participant papers
-- 6,381 documents including overviews
-- 105 CLEF, 122 SemEval, 42 TREC, 102 NTCIR, 68 FIRE, and 62 MediaEval tasks
-- no released SISAP task yet because available editions did not pass all public-PDF checks
+- 587 tasks
+- 6,631 participant papers
+- 7,218 documents including overviews
+- 99 CLEF, 159 SemEval, 42 TREC, 101 NTCIR, 68 FIRE, 62 MediaEval, 52 other ACL Anthology, and 4 SISAP tasks
 
 These numbers can change when sources or configurations are updated. Thirty-five documents
 in that run were marked for optional OCR. Five others had a PDFFigures2-specific failure

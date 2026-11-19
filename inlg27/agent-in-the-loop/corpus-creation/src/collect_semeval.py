@@ -81,11 +81,18 @@ def find_paper_container(title_link):
     return title_link.parent, None
 
 
+def load_legacy_evidence() -> dict:
+    """Task numbers read from legacy participant papers' first pages (semeval_legacy_tasks.py)."""
+    path = PROJECT_ROOT / "data" / "intermediate" / "semeval_task_evidence.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
 def parse_papers(raw_html: str, volume: dict) -> list[dict]:
     """Parse task-paper metadata and source-provided PDF links from one volume page."""
     soup = BeautifulSoup(raw_html, "lxml")
     base_url = volume["url"]
     papers: list[dict] = []
+    legacy_evidence = load_legacy_evidence()
     for title_link in soup.select("a.align-middle[href]"):
         match = PAPER_ID_RE.match(title_link.get("href", ""))
         if match is None:
@@ -100,14 +107,17 @@ def parse_papers(raw_html: str, volume: dict) -> list[dict]:
                 authors.append(author)
         pdf_url = urljoin(base_url, pdf_link["href"]) if pdf_link is not None else None
         task_match = TASK_RE.search(title)
+        evidence = legacy_evidence.get(paper_id, {})
+        from_evidence = task_match is None and evidence.get("status") == "assigned"
         papers.append({
             "source_id": paper_id,
             "paper_url": urljoin(base_url, title_link["href"]),
             "pdf_url": pdf_url,
             "title": title,
             "authors": authors,
-            "task_year": int(task_match.group("year")) if task_match else None,
-            "task_number": int(task_match.group("number")) if task_match else None,
+            "task_year": int(task_match.group("year")) if task_match else (volume["year"] if from_evidence else None),
+            "task_number": int(task_match.group("number")) if task_match else (evidence["task_numbers"][0] if from_evidence else None),
+            "task_from_first_page": from_evidence,
             "is_organizer": bool(ORGANIZER_RE.search(title)),
             "is_participant": bool(PARTICIPANT_RE.search(title)),
         })
@@ -221,7 +231,7 @@ def build_task_candidate(group: list[dict], volume: dict, logger: logging.Logger
             "coverage_ratio": None,
         },
         "provenance": {
-            "task_assignment_method": "explicit_task_number",
+            "task_assignment_method": "first_page_task_mention" if any(p.get("task_from_first_page") for p in participants) else "explicit_task_number",
             "confidence": confidence,
             "confidence_reasons": reasons,
             "extracted_at": datetime.now().date().isoformat(),
