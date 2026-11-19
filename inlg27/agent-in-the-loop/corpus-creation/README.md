@@ -265,6 +265,20 @@ text), which length checks alone miss.
 OCR text is lower fidelity than a PDF text layer (words can be displaced and columns interleaved),
 so each document record carries `text_source`: `text_layer` or `ocr`.
 
+**Better OCR (optional stage).** liteparse's bundled Tesseract reads columns and tables badly.
+`src/ocr_vlm.py` re-reads those documents with a vision-language OCR model (default
+`lightonai/LightOnOCR-3-1B`), which returns Markdown in reading order; its HTML tables are converted
+to Markdown tables. On the 10 worst documents it raised a word-order score (share of word pairs found
+in clean papers) from 0.64-0.70 to 0.66-0.80 (clean papers: about 0.82), and on a table-heavy page the
+numbers matched the PDF cell for cell. It needs a GPU stack that is not in `requirements.txt`
+(`torch` with Apple MPS or CUDA, `transformers>=5`, `pypdfium2`), so run it natively in its own
+environment, not in Docker; the 0.8B/4B LightOnOCR variants are impractical on a Mac (no fast
+kernels), use the 1B. It works in two phases: `python src/ocr_vlm.py` writes staged text and a per-page
+cache to `data/intermediate/ocr_vlm/` (resumable, about 40 s per page on an M4 Pro) and never touches
+`data/final`; `python src/ocr_vlm.py --apply` then replaces each document's text and records
+`ocr_engine` and `ocr_truncated_pages` in the manifest. Download the model with
+`HF_HUB_DISABLE_XET=1` if the default download stalls.
+
 ## Step 9: Extract figures and tables
 
 `extract_figs_tbls.py` uses PDFFigures2 to extract captioned figures and tables, including

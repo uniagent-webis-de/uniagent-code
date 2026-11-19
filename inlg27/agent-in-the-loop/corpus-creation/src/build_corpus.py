@@ -127,6 +127,7 @@ def join_fulltext_paths(task: dict, manifest: dict, logger: logging.Logger) -> N
         # "ocr" text (scanned or garbled PDFs) is lower fidelity: words can be displaced and
         # columns interleaved, so consumers can filter on this.
         document["text_source"] = "ocr" if record and record.get("ocr_server_used") else "text_layer"
+        document["ocr_engine"] = record.get("ocr_engine") if record else None
         document["figures_dir"] = record.get("figures_dir") if record else None
         document["n_figures"] = record.get("n_figures", 0) if record else 0
         document["pdffigures2_status"] = record.get("pdffigures2_status") if record else None
