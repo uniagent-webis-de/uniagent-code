@@ -235,3 +235,37 @@ def test_drop_non_papers_catches_topic_files_and_invited_talks():
             "participants": [{"pdf_url": u, "title": "Full list Japanese" if u == "b" else "P"} for u in urls]}
     kept, _ = drop_non_papers([task], manifest, logging.getLogger("t"))
     assert [p["pdf_url"] for p in kept[0]["participants"]] == ["a/NTCIR3-WEB-X.pdf", "a/inv-pap8-CR.pdf"]
+
+
+def test_prune_unreferenced_removes_orphans_and_stale_manifest_rows(tmp_path, monkeypatch):
+    import json
+    import logging
+
+    from src import build_corpus as bc
+
+    monkeypatch.setattr(bc, "FINAL_DIR", tmp_path)
+    monkeypatch.setattr(bc, "MANIFEST_PATH", tmp_path / "manifest.jsonl")
+    monkeypatch.setattr(bc, "task_dir", lambda tid: tmp_path / tid)
+    monkeypatch.setattr(bc, "participant_dir", lambda tid, url: tmp_path / tid / "papers" / url)
+    (tmp_path / "t" / "papers" / "keep").mkdir(parents=True)
+    (tmp_path / "t" / "papers" / "orphan").mkdir(parents=True)
+    (tmp_path / "manifest.jsonl").write_text(
+        json.dumps({"task_id": "t", "pdf_url": "keep"}) + "\n" + json.dumps({"task_id": "gone", "pdf_url": "x"}) + "\n"
+    )
+    task = {"task_id": "t", "overview": {"pdf_url": "ov"}, "participants": [{"pdf_url": "keep"}]}
+    bc.prune_unreferenced([task], logging.getLogger("t"))
+    assert (tmp_path / "t" / "papers" / "keep").exists() and not (tmp_path / "t" / "papers" / "orphan").exists()
+    assert [json.loads(l)["task_id"] for l in (tmp_path / "manifest.jsonl").read_text().splitlines()] == ["t"]
+
+
+def test_task_whose_filed_overview_is_a_participant_paper_is_dropped():
+    import logging
+
+    from src.build_corpus import PARTICIPANT_PAPERS_FILED_AS_OVERVIEW, drop_non_papers
+
+    ov = sorted(PARTICIPANT_PAPERS_FILED_AS_OVERVIEW)[0]
+    good = {"pdf_url": "p1", "title": "T"}
+    manifest = {u: {"pdf_url": u, "pages": 8, "chars": 40000} for u in (ov, "p1", "p2")}
+    task = {"task_id": "t", "overview": {"pdf_url": ov, "title": "Report"}, "participants": [good, {"pdf_url": "p2", "title": "T"}]}
+    kept, dropped = drop_non_papers([task], manifest, logging.getLogger("t"))
+    assert kept == [] and {d[2] for d in dropped} == {ov, "p1", "p2"}

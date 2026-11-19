@@ -24,6 +24,7 @@ from src.corpus_paths import (
     document_pdf_path,
     document_tables_dir,
     paper_id_for,
+    participant_dir,
     task_dir,
     task_metadata_path,
 )
@@ -41,7 +42,7 @@ CSV_FIELDS = [
     "notebook_papers", "teams_claimed_in_overview", "runs_claimed_in_overview", "coverage_ratio",
     "participant_pdf_urls", "team_names", "overview_pdf_path", "participant_pdf_paths",
     "overview_fulltext_path", "participant_fulltext_paths",
-    "code_urls", "code_urls_live", "tira_refs",
+    "code_urls", "code_urls_live", "code_urls_likely_own", "tira_refs",
     "task_assignment_method", "confidence", "extracted_at",
 ]
 
@@ -104,7 +105,10 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         # without re-fetching every link.
         participant["code_urls"] = [c["url"] for c in entry["code_urls"]]
         participant["code_url_details"] = [
-            {"url": c["url"], "status": c["status"], "availability_evidence": c.get("evidence", False)}
+            {
+                "url": c["url"], "status": c["status"], "availability_evidence": c.get("evidence", False),
+                "own_code_score": c.get("own_code_score"), "likely_own_code": c.get("likely_own_code"),
+            }
             for c in entry["code_urls"]
         ]
         participant["third_party_urls"] = entry.get("third_party_urls", [])
@@ -120,6 +124,9 @@ def join_fulltext_paths(task: dict, manifest: dict, logger: logging.Logger) -> N
     def apply(document: dict, record: dict | None) -> None:
         document["pdf_path"] = record.get("pdf_path") if record else None
         document["fulltext_path"] = record["markdown_path"] if record else None
+        # "ocr" text (scanned or garbled PDFs) is lower fidelity: words can be displaced and
+        # columns interleaved, so consumers can filter on this.
+        document["text_source"] = "ocr" if record and record.get("ocr_server_used") else "text_layer"
         document["figures_dir"] = record.get("figures_dir") if record else None
         document["n_figures"] = record.get("n_figures", 0) if record else 0
         document["pdffigures2_status"] = record.get("pdffigures2_status") if record else None
@@ -183,6 +190,14 @@ def is_non_paper(record: dict | None) -> bool:
     )
 
 
+# Papers filed as a task's "overview" that are really a participant's paper (found in the
+# quality review): CEUR holds no organizer overview for these CLEF editions, so the tasks
+# have no overview paper and are dropped.
+PARTICIPANT_PAPERS_FILED_AS_OVERVIEW = frozenset({
+    "https://ceur-ws.org/Vol-1167/CLEF2001wn-adhoc-Savoy2001.pdf",
+    "https://ceur-ws.org/Vol-1169/CLEF2003wn-adhoc-Savoy2003.pdf",
+})
+
 DROPPED_PATH = FINAL_DIR / "dropped_documents.jsonl"
 
 
@@ -203,6 +218,28 @@ def save_dropped(dropped: list[tuple[str, str, str]], previous: set[tuple[str, s
     )
 
 
+def prune_unreferenced(tasks: list[dict], logger: logging.Logger) -> None:
+    """Make data/final mirror the corpus: delete paper folders no participant references
+    (dropped, re-assigned, or empty leftovers from older filename slugs) and remove
+    manifest records of documents that are no longer in the corpus."""
+    expected_docs = set()
+    for task in tasks:
+        expected_docs.add((task["task_id"], task["overview"]["pdf_url"]))
+        expected_docs |= {(task["task_id"], p["pdf_url"]) for p in task["participants"]}
+        keep = {participant_dir(task["task_id"], p["pdf_url"]).name for p in task["participants"]}
+        papers = task_dir(task["task_id"]) / "papers"
+        for path in sorted(papers.iterdir()) if papers.is_dir() else []:
+            if path.is_dir() and path.name not in keep:
+                logger.warning("pruning unreferenced paper folder %s", path)
+                shutil.rmtree(path)
+    if MANIFEST_PATH.exists():
+        rows = [json.loads(line) for line in MANIFEST_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+        kept = [r for r in rows if (r.get("task_id"), r["pdf_url"]) in expected_docs]
+        if len(kept) != len(rows):
+            logger.warning("pruned %d manifest record(s) for documents not in the corpus", len(rows) - len(kept))
+            MANIFEST_PATH.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in kept), encoding="utf-8")
+
+
 def drop_non_papers(tasks: list[dict], manifest: dict, logger: logging.Logger, previously_dropped: frozenset | set = frozenset()) -> tuple[list[dict], list[tuple[str, str, str]]]:
     """Remove non-paper participants; drop tasks whose overview is a non-paper or that
     have fewer than 2 real participant papers (the corpus floor). Returns (kept, dropped) where
@@ -219,7 +256,9 @@ def drop_non_papers(tasks: list[dict], manifest: dict, logger: logging.Logger, p
             return (tid, url) in previously_dropped or is_non_paper(lookup(url)) or bool(NON_PAPER_TITLE_RE.search(doc["title"]))
 
         bad = [p for p in task["participants"] if non_paper(p)]
-        if non_paper(task["overview"]):
+        if task["overview"]["pdf_url"] in PARTICIPANT_PAPERS_FILED_AS_OVERVIEW:
+            reason = "the filed overview is a participant paper (no organizer overview exists)"
+        elif non_paper(task["overview"]):
             reason = "overview is not a full paper"
         elif len(task["participants"]) - len(bad) < 2:
             reason = "fewer than 2 real participant papers"
@@ -436,6 +475,10 @@ def write_csv(tasks: list[dict], path: Path) -> None:
                 d["url"] for p in t["participants"] for d in p.get("code_url_details", [])
                 if d["status"] == "200"
             })
+            likely_own_urls = sorted({
+                d["url"] for p in t["participants"] for d in p.get("code_url_details", [])
+                if d["status"] == "200" and d.get("likely_own_code")
+            })
             team_names = sorted({p["team_name"] for p in t["participants"] if p["team_name"]})
             all_tira_refs = sorted({r for p in t["participants"] for r in p["tira_refs"]})
             writer.writerow({
@@ -463,6 +506,7 @@ def write_csv(tasks: list[dict], path: Path) -> None:
                 "participant_fulltext_paths": "; ".join(p.get("fulltext_path") or "" for p in t["participants"]),
                 "code_urls": "; ".join(all_code_urls),
                 "code_urls_live": "; ".join(live_code_urls),
+                "code_urls_likely_own": "; ".join(likely_own_urls),
                 "tira_refs": "; ".join(all_tira_refs),
                 "task_assignment_method": t["provenance"]["task_assignment_method"],
                 "confidence": t["provenance"]["confidence"],
@@ -583,6 +627,8 @@ def main() -> None:
 
     tasks = select_corpus(tasks, args.target, logger)
 
+    if strict_layout:
+        prune_unreferenced(tasks, logger)
     layout_ok = validate_final_task_directories(tasks, logger) if strict_layout else True
     if not validate(tasks, logger) or not validate_output_files(tasks, logger) or not layout_ok:
         logger.error("validation failed — see errors above. Deliverables NOT written.")

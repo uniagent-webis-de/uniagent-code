@@ -262,6 +262,9 @@ tables, English only unless `--ocr-language` is set). A document is also flagged
 layer exists but is garbled (a broken font encoding: almost no English function words and no CJK
 text), which length checks alone miss.
 
+OCR text is lower fidelity than a PDF text layer (words can be displaced and columns interleaved),
+so each document record carries `text_source`: `text_layer` or `ocr`.
+
 ## Step 9: Extract figures and tables
 
 `extract_figs_tbls.py` uses PDFFigures2 to extract captioned figures and tables, including
@@ -308,6 +311,18 @@ text. Each distinct URL is checked once (HEAD, then GET, with retries on rate li
 remain as historical evidence with their status (`200` live, `404` gone, `401` gated or missing on
 Hugging Face). `--reuse-statuses <old code dir>` reuses earlier 200/404 results after an
 extraction change.
+
+**Own-code score.** A link in a paper is not always the team's own code: it may be a library, a
+pretrained model, or the organizers' data. Each link therefore gets `own_code_score` (0 to 1) and
+`likely_own_code` (score >= 0.7) from a small logistic model over transparent features: task, year
+and venue words in the repository name; the repository owner matching a paper author (positive) or
+an overview author (negative); "our code is available" versus "based on / pre-trained" wording around
+the link; and whether the repository README mentions the task, year or paper title (READMEs are
+cached in `data/intermediate/readmes/`). The weights, fitted on 170 hand-labelled links, are in
+`find_code.py`. Cross-validated and re-weighted to the real mix of links, the estimate is about 91%
+precision and 86% recall; the older `availability_evidence` flag alone had about 91% precision but
+only about 38% recall. The labelled sample is small, so treat these as estimates. The CSV column
+`code_urls_likely_own` lists the live links with `likely_own_code`.
 
 ## Step 12: Build the final corpus
 
