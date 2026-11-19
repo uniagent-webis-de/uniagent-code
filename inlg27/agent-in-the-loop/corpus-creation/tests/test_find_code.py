@@ -121,3 +121,29 @@ def test_truncated_fragment_is_superseded_by_full_url_and_angle_href_is_read():
     text = "see https://github.com/h/sem26_task10_ and [x](https://github.com/h/sem26_task10_starter_pack) plus [y](< https://github.com/a/b >)"
     urls = [c["url"] for c in extract_links(text)[0]]
     assert urls == ["https://github.com/a/b", "https://github.com/h/sem26_task10_starter_pack"]
+
+
+TASK = {"parent_venue": "SemEval", "year": 2023, "task_name": "Legal Rhetorical Roles",
+        "overview": {"authors": ["Ashutosh Modi"]}}
+PAPER = {"title": "TeamX at SemEval-2023 Task 6: Rhetorical Roles", "authors": ["Maria Fernandez"]}
+
+
+def _prob(url, before="", after="", readme=None, task=TASK, paper=PAPER):
+    from src.find_code import link_features, own_code_probability
+
+    return own_code_probability(link_features(url, before, after, readme, task, paper))
+
+
+def test_own_repo_scores_high_and_borrowed_or_organizer_repos_low():
+    own = _prob("https://github.com/fernandezm/semeval2023-task6", "Our code is available at ", "", "SemEval-2023 shared task system")
+    library = _prob("https://github.com/someone/bert-tools", "we used the pre-trained models from ", "", "pip install bert-tools")
+    organizer = _prob("https://github.com/modi-lab/semeval23-data", "the datasets are provided by the organizers at ", "", "organizers' baseline and evaluation script")
+    assert own >= 0.7
+    assert library < 0.7 and organizer < 0.7
+
+
+def test_unreadable_readme_is_neutral_not_penalised_or_rewarded():
+    from src.find_code import link_features
+
+    f = link_features("https://gitlab.com/g/p", "", "", None, TASK, PAPER)
+    assert not any(f[k] for k in ("rd_venue", "rd_task", "rd_year", "rd_title", "rd_pkg", "rd_org", "rd_empty"))

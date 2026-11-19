@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 """Stage 8 — resolve participant code links from parsed Markdown."""
 import argparse
+import hashlib
 import json
 import logging
+import math
 import re
 import sys
 import time
@@ -110,6 +112,158 @@ def has_availability_evidence(text: str, position: int) -> bool:
     return bool(CODE_AVAILABILITY_RE.search(window))
 
 
+# ---------------------------------------------------------------------------------------
+# Own-code scoring. A link in a paper is not necessarily the team's own code (it may be a
+# library, a pretrained model, or the organizers' data). Each link gets a probability from
+# a small logistic model over transparent features. The weights were fitted on 170 links
+# whose repository README and paper context were judged by hand; 5-fold cross-validation,
+# re-weighted to the full population of live links, gave about 91% precision and 86% recall
+# at the 0.7 threshold (the older `evidence` flag alone: 91% / 38%). The labelled sample is
+# small, so treat these as estimates, not guarantees.
+# ---------------------------------------------------------------------------------------
+OWN_PHRASE_RE = re.compile(
+    r"(our|we)\W+(\w+\W+){0,3}(code|implementation|system|source|repositor|release|open.?sourc|publish|share|provid)"
+    r"|(code|codes|implementation|source|system|models?|scripts?|data)\W+(\w+\W+){0,4}(is|are|can be|will be|has been|have been)\W+"
+    r"(\w+\W+){0,3}(available|released|found|open.?sourced|public|shared|published|provided)"
+    r"|open.?sourced?|publicly available|available (at|on|in|under)|code\s*[:\u2021\u2020*]|github\s*:|repository|repo\b|reproduc",
+    re.IGNORECASE,
+)
+BORROW_RE = re.compile(
+    r"based on|following|pre-?trained|(we|were|was) (use|used|using|adopt|adopted|utili[sz]e|borrow)|provided by|baseline|"
+    r"organi[sz]er|official|toolkit|library|package|implementation of|tool\b|tools\b|thankful|starting point|original|"
+    r"from the authors|built (on|upon)",
+    re.IGNORECASE,
+)
+REFLINE_RE = re.compile(
+    r"arxiv|cite arxiv|proceedings of|\bpp\.|et al\.|\bin:|\bjournal\b|\(\d{4}\)\.|\b(19|20)\d\d\.\s|conference on|association for",
+    re.IGNORECASE,
+)
+DATA_CONTEXT_RE = re.compile(
+    r"data ?sets?\b|leaderboard|evaluation|scorer|corpus|benchmark|provided|test set|training set", re.IGNORECASE
+)
+VENUE_WORDS = ("semeval", "clef", "ntcir", "trec", "fire", "hasoc", "wassa", "mediaeval", "sisap", "conll", "shared", "competition", "challenge", "task", "track")
+TITLE_STOPWORDS = frozenset("task shared challenge track system systems detection analysis using based language models model for the and of in on to with from at".split())
+
+# Logistic weights (see above). A feature missing from a link (e.g. README unknown) is simply 0.
+LINK_WEIGHTS = {
+    "name_venue": 0.3, "name_year": 0.8, "name_task": 1.0, "own_phrase": 0.8, "own_phrase_near": 1.0,
+    "borrow": -0.7, "refline": -0.2, "rd_venue": 0.7, "rd_task": 0.2, "rd_year": 0.7, "rd_title": 0.6,
+    "rd_pkg": -0.25, "rd_org": -0.1, "rd_empty": 1.0, "pa_match": 1.0, "ov_match": -0.5, "ctx_data": -0.3,
+}
+LINK_INTERCEPT = -2.07
+OWN_CODE_THRESHOLD = 0.7
+README_DIR = PROJECT_ROOT / "data" / "intermediate" / "readmes"
+
+
+def _content_tokens(text: str) -> list[str]:
+    return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) >= 4 and w not in TITLE_STOPWORDS]
+
+
+def _last_names(authors: list[str]) -> set[str]:
+    """First and last name tokens (>=4 letters) of an author list, lowercased."""
+    names: set[str] = set()
+    for author in authors or []:
+        for part in re.split(r"[,;]| and ", author):
+            tokens = [t for t in re.findall(r"[A-Za-z\u00c0-\u00ff'\-]+", part) if len(t) >= 4]
+            if tokens:
+                names.update({tokens[0].lower(), tokens[-1].lower()})
+    return names
+
+
+def link_features(url: str, before: str, after: str, readme: str | None, task: dict, paper: dict) -> dict[str, bool]:
+    """Boolean features of one candidate link. ``readme`` is None when it could not be read
+    (unsupported host, dead link): README features then stay False instead of guessing."""
+    owner_repo = url.split("://", 1)[1].split("/", 1)[1].lower()
+    squashed = owner_repo.replace("-", "").replace("_", "")
+    owner = owner_repo.split("/")[0].replace("-", "").replace("_", "")
+    venue, year = str(task["parent_venue"]).lower(), str(task["year"])
+    task_tokens = set(_content_tokens(task["task_name"])) | set(_content_tokens(paper["title"]))
+    near = before[-140:] + after[:60]
+    paper_match = any(n in owner for n in _last_names(paper.get("authors")))
+    f = {
+        "name_venue": any(w in owner_repo for w in (venue, *VENUE_WORDS)),
+        "name_year": year in owner_repo or year[2:] in re.findall(r"\d+", owner_repo),
+        "name_task": any(t in squashed for t in task_tokens),
+        "own_phrase": bool(OWN_PHRASE_RE.search(before + after)),
+        "own_phrase_near": bool(OWN_PHRASE_RE.search(near)),
+        "borrow": bool(BORROW_RE.search(before[-170:] + after[:50])),
+        "refline": bool(REFLINE_RE.search(before + after)),
+        "pa_match": paper_match,
+        "ov_match": any(n in owner for n in _last_names(task["overview"].get("authors"))) and not paper_match,
+        "ctx_data": bool(DATA_CONTEXT_RE.search(before[-120:] + after[:50])),
+    }
+    rl = (readme or "").lower()
+    known = readme is not None
+    f.update({
+        "rd_venue": known and bool(rl) and bool(re.search(re.escape(venue), rl) or re.search(r"shared task|challenge|competition|track", rl)),
+        "rd_task": known and sum(t in rl for t in task_tokens) >= 2,
+        "rd_year": known and year in rl,
+        "rd_title": known and sum(t in rl for t in _content_tokens(paper["title"])) >= 3,
+        "rd_pkg": known and bool(re.search(r"pip install|pypi|conda install", rl)),
+        "rd_org": known and bool(re.search(r"organi[sz]ers?|starter|baseline|official (scor|eval)|evaluation script", rl[:1500])),
+        "rd_empty": known and len(rl.strip()) < 80,
+    })
+    return f
+
+
+def own_code_probability(features: dict[str, bool]) -> float:
+    """Probability that a link is the paper's own code, from the logistic weights."""
+    logit = LINK_INTERCEPT + sum(weight for name, weight in LINK_WEIGHTS.items() if features.get(name))
+    return 1.0 / (1.0 + math.exp(-logit))
+
+
+_README_CACHE: dict[str, str | None] = {}
+
+
+def _readme_urls(url: str) -> list[str]:
+    path = url.split("://", 1)[1].split("/", 1)[1]
+    if url.startswith("https://github.com/"):
+        base = f"https://raw.githubusercontent.com/{path}/HEAD/"
+        return [base + name for name in ("README.md", "readme.md", "README.rst", "README.txt", "README")]
+    if url.startswith("https://huggingface.co/"):
+        return [f"https://huggingface.co/{path}/raw/main/README.md"]
+    return []
+
+
+def fetch_readme(url: str) -> str | None:
+    """First ~4000 characters of a repository README, '' if the repo has none, None when the
+    host is unsupported or the network failed. Cached on disk, one file per URL."""
+    if url in _README_CACHE:
+        return _README_CACHE[url]
+    candidates = _readme_urls(url)
+    if not candidates:
+        return None
+    cache_file = README_DIR / (hashlib.sha1(url.encode()).hexdigest() + ".txt")
+    if cache_file.exists():
+        text = cache_file.read_text(encoding="utf-8")
+    else:
+        text, failed = "", False
+        for candidate in candidates:
+            try:
+                response = requests.get(candidate, timeout=HEAD_TIMEOUT_SECONDS, headers=HEADERS)
+            except requests.RequestException:
+                failed = True
+                break
+            if response.status_code == 200:
+                text = response.text[:4000]
+                break
+            if response.status_code in RETRY_STATUSES:
+                failed = True
+                break
+        if failed:
+            _README_CACHE[url] = None
+            return None
+        README_DIR.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(text, encoding="utf-8")
+    _README_CACHE[url] = text
+    return text
+
+
+def fetch_readmes_all(urls: set[str]) -> None:
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(fetch_readme, sorted(urls)))
+
+
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -185,7 +339,7 @@ def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
     body = MARKDOWN_LINK_RE.sub(r" \1 ", body)
     body = MARKDOWN_ESCAPE_RE.sub(r"\1", body)
 
-    candidates: dict[str, bool] = {}
+    candidates: dict[str, dict] = {}
     third_party: set[str] = set()
     for match in CODE_URL_RE.finditer(body):
         url = canonical_repo_url(match.group(0))
@@ -195,7 +349,15 @@ def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
             third_party.add(url)
             continue
         evidence = has_availability_evidence(body, match.start())
-        candidates[url] = candidates.get(url, False) or evidence
+        seen = candidates.get(url)
+        # Keep the occurrence that carries availability evidence (else the first one) as
+        # the context the own-code score reads.
+        if seen is None or (evidence and not seen["evidence"]):
+            candidates[url] = {
+                "evidence": evidence,
+                "before": body[max(0, match.start() - 260):match.start()],
+                "after": body[match.end():match.end() + 110],
+            }
 
     tira_refs = sorted(
         {clean_url(u) for u in TIRA_URL_RE.findall(body)}
@@ -206,7 +368,7 @@ def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
     for url in list(candidates):
         if url.endswith(("-", "_")) and any(other != url and other.startswith(url) for other in candidates):
             del candidates[url]
-    candidate_links = [{"url": u, "evidence": candidates[u]} for u in sorted(candidates)]
+    candidate_links = [{"url": u, **candidates[u]} for u in sorted(candidates)]
     return candidate_links, sorted(third_party), tira_refs
 
 
@@ -262,7 +424,7 @@ def pdf_filename_for(pdf_url: str) -> str:
     return paper_id_for(pdf_url)
 
 
-def process_participant(task_id: str, participant: dict, logger: logging.Logger) -> dict:
+def process_participant(task_id: str, participant: dict, logger: logging.Logger, task: dict | None = None) -> dict:
     pdf_url = participant["pdf_url"]
     empty = {"pdf_url": pdf_url, "code_urls": [], "third_party_urls": [], "tira_refs": []}
     txt_path = participant_markdown_path(task_id, pdf_url)
@@ -279,10 +441,16 @@ def process_participant(task_id: str, participant: dict, logger: logging.Logger)
         logger.info("%s: no code links found", pdf_url)
         return {"pdf_url": pdf_url, "code_urls": [], "third_party_urls": third_party, "tira_refs": tira_refs}
 
-    validated = [
-        {"url": c["url"], "status": validate_url(c["url"], logger), "evidence": c["evidence"]}
-        for c in candidates
-    ]
+    validated = []
+    for c in candidates:
+        status = validate_url(c["url"], logger)
+        link = {"url": c["url"], "status": status, "evidence": c["evidence"]}
+        if task is not None:
+            readme = fetch_readme(c["url"]) if status == "200" else None
+            probability = own_code_probability(link_features(c["url"], c["before"], c["after"], readme, task, participant))
+            link["own_code_score"] = round(probability, 3)
+            link["likely_own_code"] = probability >= OWN_CODE_THRESHOLD
+        validated.append(link)
     # A link still ending in "-" or "_" that does not resolve is a truncated fragment.
     validated = [v for v in validated if v["status"] == "200" or not v["url"].endswith(("-", "_"))]
     return {"pdf_url": pdf_url, "code_urls": validated, "third_party_urls": third_party, "tira_refs": tira_refs}
@@ -303,7 +471,8 @@ def process_task(task: dict, logger: logging.Logger) -> list[dict]:
         if path.exists():
             urls |= {c["url"] for c in extract_links(path.read_text(encoding="utf-8"))[0]}
     validate_all(urls, logger)
-    results = [process_participant(task_id, p, logger) for p in task["participants"]]
+    fetch_readmes_all({u for u in urls if _STATUS_CACHE.get(u) == "200"})
+    results = [process_participant(task_id, p, logger, task) for p in task["participants"]]
 
     CODE_DIR.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
