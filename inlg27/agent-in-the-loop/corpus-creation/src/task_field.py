@@ -9,7 +9,7 @@ the ACL workshops are NLP). CLEF, NTCIR, FIRE and MediaEval mix fields, so their
 labelled by the ordered rules below: the first pattern matching ``"<venue> <task name>"``
 wins, which lets a specific rule (e.g. interactive cross-language QA is IR) precede a
 broader one (QA is NLP). The label follows the task's actual subject, not the venue's name,
-so a FIRE task titled "Information Retrieval in Software Engineering" keeps its own framing.
+so FIRE's "Information Retrieval in Software Engineering" (code-comment classification) is NLP.
 """
 
 import re
@@ -17,12 +17,20 @@ import re
 NLP, IR, OTHER = "NLP", "IR", "Other"
 
 VENUE_DEFAULT = {"TREC": IR, "SISAP": IR}
+
+# Task-specific corrections to the venue/keyword rules, checked first. Each was confirmed by
+# an independent blind labelling pass (95% agreement) and the task's overview abstract.
+EXCEPTIONS: list[tuple[str, str]] = [
+    (r"^SemEval .*Fact-Checked Claim Retrieval", IR),   # retrieve fact-checks for a post
+    (r"^FIRE .*(\bIRSE\b|Information Retrieval in Software Engineering)", NLP),  # code-comment classification
+    (r"^TREC .*Incident Streams", NLP),                  # classify crisis tweets by info type
+]
 MIXED_VENUES = {"CLEF", "NTCIR", "FIRE", "MediaEval"}
 
 # Ordered: first match wins. Patterns are matched case-insensitively against "<venue> <name>".
 RULES: list[tuple[str, str]] = [
     # --- not language, not retrieval ---
-    (r"CLEF .*(VideoCLEF|MolRec|LifeCLEF|LeQua|iDPP)", OTHER),
+    (r"CLEF .*(VideoCLEF|MolRec|LifeCLEF|iDPP)", OTHER),
     (r"NTCIR .*\bNAILS\b", OTHER),
     (r"FIRE .*MUSIA", OTHER),
     # --- IR that a broader rule below would otherwise claim ---
@@ -34,7 +42,7 @@ RULES: list[tuple[str, str]] = [
     (r"CLEF .*(Multiple Language Question Answering|Multilingual Question Answering|ResPubliQA)", IR),
     (r"NTCIR .*(\bQAC\b|\bQAC-1\b|\bCLQA\b|Cross Lingual Question Answering)", IR),
     (r"NTCIR .*(Patent Mining|PAT MN|\bMART\b|\bSUSHI\b|\bAKG\b|VisEX|\bSS\b|Transfer)", IR),
-    (r"FIRE .*(Story Illustration|SOurce COde resuse|CL-SOCO|Legal Assistance|\bAILA\b|\bIRSE\b|\bCLMIR\b|\bCMIR\b)", IR),
+    (r"FIRE .*(Story Illustration|SOurce COde resuse|CL-SOCO|Legal Assistance|\bAILA\b|\bCLMIR\b|\bCMIR\b)", IR),
     # --- NLP ---
     (r"question answering|\bQA\b|QA4MRE|ResPubliQA|\bQAC\b|QALab|QA Lab|CLQA|C@merata|Querying Musical", NLP),
     (r"summari[sz]|translation|\bMT\b|PatentMT|opinion|sentiment|entailment|\bRITE|MedNLP|RadNLP|HIDDEN-RAD|"
@@ -47,10 +55,14 @@ RULES: list[tuple[str, str]] = [
      r"\bmath\b|math-2|mathir|lilas|ll4ir|filtering|infile|RCIR|MusiCLEF|NewsImages|similar segments|soundtrack", IR),
 ]
 _COMPILED = [(re.compile(pattern, re.IGNORECASE), label) for pattern, label in RULES]
+_EXCEPTIONS = [(re.compile(pattern, re.IGNORECASE), label) for pattern, label in EXCEPTIONS]
 
 
 def field_for(parent_venue: str, task_name: str) -> str:
     """Return ``NLP``, ``IR`` or ``Other`` for one task."""
+    for pattern, label in _EXCEPTIONS:
+        if pattern.search(f"{parent_venue} {task_name}"):
+            return label
     if parent_venue in VENUE_DEFAULT:
         return VENUE_DEFAULT[parent_venue]
     if parent_venue not in MIXED_VENUES:

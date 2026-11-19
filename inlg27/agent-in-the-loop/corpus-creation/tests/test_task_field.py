@@ -30,3 +30,11 @@ def test_corpus_qa_is_ir_but_reading_comprehension_qa_is_nlp():
     assert field_for("CLEF", "CLEF QA Entrance Exams Task 2015") == "NLP"
     assert field_for("NTCIR", "QA Lab-PoliInfo-2") == "NLP"
     assert field_for("SemEval", "Community Question Answering") == "NLP"
+
+
+def test_confirmed_exceptions():
+    assert field_for("FIRE", "Information Retrieval in Software Engineering (IRSE)") == "NLP"
+    assert field_for("FIRE", "IRSE") == "NLP"
+    assert field_for("SemEval", "Multilingual and Crosslingual Fact-Checked Claim Retrieval") == "IR"
+    assert field_for("TREC", "Incident Streams") == "NLP"
+    assert field_for("CLEF", "LeQua@CLEF 2022: Learning to Quantify") == "NLP"
