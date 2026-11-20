@@ -329,6 +329,12 @@ remain as historical evidence with their status (`200` live, `404` gone, `401` g
 Hugging Face). `--reuse-statuses <old code dir>` reuses earlier 200/404 results after an
 extraction change.
 
+**Authors.** Where the source lists no authors (mostly NTCIR and TREC), they were read from the
+paper's first page and stored in `data/intermediate/authors_extracted.json`
+(`{"task_id|pdf_url": [names]}`). The extraction was done by a language model; each name was then
+checked against the page text before it was kept. `authors_source` on every document says
+`source_metadata` or `extracted_from_text`. 17 documents have no authors because the page shows none.
+
 **Links in every document.** Besides `code_urls`, each overview and participant record has `links`:
 every code, dataset, model and TIRA link in the text, `{url, kind, third_party, in_references,
 own_code_score}` (`src/paper_links.py`). `kind` comes from the host (`huggingface.co/datasets/` and

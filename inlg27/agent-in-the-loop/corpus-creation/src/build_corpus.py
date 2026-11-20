@@ -34,6 +34,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CANDIDATES_PATH = PROJECT_ROOT / "data" / "intermediate" / "all_candidates.jsonl"
 COUNTS_DIR = PROJECT_ROOT / "data" / "intermediate" / "counts"
 CODE_DIR = PROJECT_ROOT / "data" / "intermediate" / "code"
+# Authors read from a paper's first page where the source listed none: {"task_id|pdf_url": [names]}.
+# Every name was checked against the page text before it was stored.
+AUTHORS_EXTRACTED_PATH = PROJECT_ROOT / "data" / "intermediate" / "authors_extracted.json"
 FULLTEXT_MANIFEST_PATH = MANIFEST_PATH
 LOGS_DIR = PROJECT_ROOT / "logs"
 
@@ -114,6 +117,17 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         ]
         participant["third_party_urls"] = entry.get("third_party_urls", [])
         participant["tira_refs"] = entry["tira_refs"]
+
+
+def join_extracted_authors(task: dict, extracted: dict) -> None:
+    """Fill empty ``authors`` from first-page extraction and record where they came from."""
+    for document in [task["overview"], *task["participants"]]:
+        if document.get("authors"):
+            document["authors_source"] = "source_metadata"
+            continue
+        names = extracted.get(f"{task['task_id']}|{document['pdf_url']}")
+        document["authors"] = names or []
+        document["authors_source"] = "extracted_from_text" if names else None
 
 
 def join_links(task: dict) -> None:
@@ -651,12 +665,14 @@ def main() -> None:
             kept_ids = {t["task_id"] for t in tasks}
             for tid, role, url in dropped:
                 shutil.rmtree(task_dir(tid) if tid not in kept_ids else document_pdf_path(tid, role, url).parent, ignore_errors=True)
+    extracted_authors = json.loads(AUTHORS_EXTRACTED_PATH.read_text(encoding="utf-8")) if AUTHORS_EXTRACTED_PATH.exists() else {}
     for task in tasks:
         task["field"] = field_for(task["parent_venue"], task["task_name"])
         join_counts(task, logger)
         join_code_links(task, logger)
         join_fulltext_paths(task, fulltext_manifest, logger)
         join_links(task)
+        join_extracted_authors(task, extracted_authors)
 
     tasks = select_corpus(tasks, args.target, logger)
 

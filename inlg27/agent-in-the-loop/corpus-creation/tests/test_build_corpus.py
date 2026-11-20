@@ -269,3 +269,15 @@ def test_task_whose_filed_overview_is_a_participant_paper_is_dropped():
     task = {"task_id": "t", "overview": {"pdf_url": ov, "title": "Report"}, "participants": [good, {"pdf_url": "p2", "title": "T"}]}
     kept, dropped = drop_non_papers([task], manifest, logging.getLogger("t"))
     assert kept == [] and {d[2] for d in dropped} == {ov, "p1", "p2"}
+
+
+def test_extracted_authors_fill_only_missing_ones():
+    from src.build_corpus import join_extracted_authors
+
+    task = {"task_id": "t", "overview": {"pdf_url": "o", "authors": ["Real Author"]},
+            "participants": [{"pdf_url": "a", "authors": []}, {"pdf_url": "b", "authors": []}]}
+    join_extracted_authors(task, {"t|a": ["Found Name"], "t|o": ["Ignored"]})
+    assert task["overview"]["authors"] == ["Real Author"] and task["overview"]["authors_source"] == "source_metadata"
+    assert task["participants"][0]["authors"] == ["Found Name"]
+    assert task["participants"][0]["authors_source"] == "extracted_from_text"
+    assert task["participants"][1]["authors"] == [] and task["participants"][1]["authors_source"] is None
