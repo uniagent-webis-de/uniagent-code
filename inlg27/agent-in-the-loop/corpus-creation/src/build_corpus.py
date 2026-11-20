@@ -433,6 +433,11 @@ def write_task_metadata(task: dict) -> None:
     path = task_metadata_path(task["task_id"])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(task, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # Each document's links also sit next to its PDF and text, as ``links.json``.
+    for document in [task["overview"], *task["participants"]]:
+        if document.get("fulltext_path"):
+            folder = (PROJECT_ROOT / document["fulltext_path"]).parent
+            (folder / "links.json").write_text(json.dumps(document.get("links", []), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def write_subtask_indexes(task: dict) -> None:

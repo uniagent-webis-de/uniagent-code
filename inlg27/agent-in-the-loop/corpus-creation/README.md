@@ -335,7 +335,8 @@ own_code_score}` (`src/paper_links.py`). `kind` comes from the host (`huggingfac
 Kaggle/Figshare/OSF are datasets, other Hugging Face repositories are models, Zenodo is a dataset
 when the surrounding text talks about data, else code). Links are not fetched. A link after the
 reference list is kept and flagged `in_references`, because teams often put their own repository on
-the last page. `data/final/paper_links.jsonl` has the same links one per row with `task_id`,
+the last page. Each document folder also has a `links.json` beside `paper.pdf` and `paper.txt.md`, and
+`data/final/paper_links.jsonl` has the same links one per row with `task_id`,
 `document` (`overview` or `participant`) and `pdf_url`. Datasets on other sites (project pages,
 Google Drive) are not recognised.
 
