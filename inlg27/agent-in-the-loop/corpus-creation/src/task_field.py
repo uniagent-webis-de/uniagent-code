@@ -24,6 +24,7 @@ EXCEPTIONS: list[tuple[str, str]] = [
     (r"^SemEval .*Fact-Checked Claim Retrieval", IR),   # retrieve fact-checks for a post
     (r"^FIRE .*(\bIRSE\b|Information Retrieval in Software Engineering)", NLP),  # code-comment classification
     (r"^TREC .*Incident Streams", NLP),                  # classify crisis tweets by info type
+    (r"^FIRE .*Information Extraction from Microblogs", IR),  # FIRE 2016: retrieve tweets matching needs
 ]
 MIXED_VENUES = {"CLEF", "NTCIR", "FIRE", "MediaEval"}
 

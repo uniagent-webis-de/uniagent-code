@@ -15,6 +15,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.clean_authors import clean_authors, clean_title
 from src.paper_links import document_links
 from src.task_field import field_for
 from src.corpus_paths import (
@@ -122,12 +123,27 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
 def join_extracted_authors(task: dict, extracted: dict) -> None:
     """Fill empty ``authors`` from first-page extraction and record where they came from."""
     for document in [task["overview"], *task["participants"]]:
+        raw = document.get("authors")
+        document["authors"] = clean_authors(raw)
+        if raw and not document["authors"]:
+            document["authors"] = raw if isinstance(raw, list) else [raw]  # never lose all names to cleaning
+        names = extracted.get(f"{task['task_id']}|{document['pdf_url']}")
         if document.get("authors"):
             document["authors_source"] = "source_metadata"
+            # Some sources keep only the first authors; extend with names read from the page.
+            surnames = {a.split()[-1].lower() for a in document["authors"]}
+            extra = [n for n in names or [] if n.split()[-1].lower() not in surnames]
+            if extra:
+                document["authors"] = document["authors"] + extra
+                document["authors_source"] = "source_metadata+extracted_from_text"
             continue
-        names = extracted.get(f"{task['task_id']}|{document['pdf_url']}")
         document["authors"] = names or []
         document["authors_source"] = "extracted_from_text" if names else None
+
+
+def clean_titles(task: dict) -> None:
+    for document in [task["overview"], *task["participants"]]:
+        document["title"] = clean_title(document["title"], document.get("authors", []))
 
 
 def join_links(task: dict) -> None:
@@ -673,6 +689,7 @@ def main() -> None:
         join_fulltext_paths(task, fulltext_manifest, logger)
         join_links(task)
         join_extracted_authors(task, extracted_authors)
+        clean_titles(task)
 
     tasks = select_corpus(tasks, args.target, logger)
 

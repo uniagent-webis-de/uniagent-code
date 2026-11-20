@@ -38,3 +38,7 @@ def test_confirmed_exceptions():
     assert field_for("SemEval", "Multilingual and Crosslingual Fact-Checked Claim Retrieval") == "IR"
     assert field_for("TREC", "Incident Streams") == "NLP"
     assert field_for("CLEF", "LeQua@CLEF 2022: Learning to Quantify") == "NLP"
+
+
+def test_fire_2016_microblog_information_extraction_is_retrieval():
+    assert field_for("FIRE", "Information Extraction from Microblogs Posted during Disasters") == "IR"

@@ -276,7 +276,7 @@ def test_extracted_authors_fill_only_missing_ones():
 
     task = {"task_id": "t", "overview": {"pdf_url": "o", "authors": ["Real Author"]},
             "participants": [{"pdf_url": "a", "authors": []}, {"pdf_url": "b", "authors": []}]}
-    join_extracted_authors(task, {"t|a": ["Found Name"], "t|o": ["Ignored"]})
+    join_extracted_authors(task, {"t|a": ["Found Name"], "t|o": ["Real Author"]})
     assert task["overview"]["authors"] == ["Real Author"] and task["overview"]["authors_source"] == "source_metadata"
     assert task["participants"][0]["authors"] == ["Found Name"]
     assert task["participants"][0]["authors_source"] == "extracted_from_text"

@@ -333,7 +333,11 @@ extraction change.
 paper's first page and stored in `data/intermediate/authors_extracted.json`
 (`{"task_id|pdf_url": [names]}`). The extraction was done by a language model; each name was then
 checked against the page text before it was kept. `authors_source` on every document says
-`source_metadata` or `extracted_from_text`. 17 documents have no authors because the page shows none.
+`source_metadata` or `extracted_from_text`. 17 documents have no authors because the page shows none. Author lists are normalised in
+`src/clean_authors.py` (one person per entry, affiliations and scraped markup removed); where a
+source kept only the first authors, the names read from the page are appended
+(`authors_source` = `source_metadata+extracted_from_text`). Titles lose a trailing page range or
+author list that some proceedings pages append.
 
 **Links in every document.** Besides `code_urls`, each overview and participant record has `links`:
 every code, dataset, model and TIRA link in the text, `{url, kind, third_party, in_references,
