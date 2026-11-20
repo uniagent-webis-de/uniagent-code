@@ -333,7 +333,9 @@ extraction change.
 paper's first page and stored in `data/intermediate/authors_extracted.json`
 (`{"task_id|pdf_url": [names]}`). The extraction was done by a language model; each name was then
 checked against the page text before it was kept. `authors_source` on every document says
-`source_metadata` or `extracted_from_text`. 17 documents have no authors because the page shows none. Author lists are normalised in
+`source_metadata` or `extracted_from_text`. 17 documents have no authors because the page shows none. Lists found wrong by a full audit were
+replaced with the names printed on the page (`authors_source` = `corrected_from_text`, from
+`data/intermediate/authors_corrections.json`). Author lists are normalised in
 `src/clean_authors.py` (one person per entry, affiliations and scraped markup removed); where a
 source kept only the first authors, the names read from the page are appended
 (`authors_source` = `source_metadata+extracted_from_text`). Titles lose a trailing page range or
@@ -524,9 +526,9 @@ and would leak the result.
 
 The latest complete run documented here contains:
 
-- 587 tasks
-- 6,631 participant papers
-- 7,218 documents including overviews
+- 585 tasks
+- 6,540 participant papers
+- 7,125 documents including overviews
 - 99 CLEF, 159 SemEval, 42 TREC, 101 NTCIR, 68 FIRE, 62 MediaEval, 52 other ACL Anthology, and 4 SISAP tasks
 
 These numbers can change when sources or configurations are updated. Thirty-five documents

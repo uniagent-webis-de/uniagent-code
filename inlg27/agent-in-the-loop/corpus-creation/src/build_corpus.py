@@ -38,6 +38,9 @@ CODE_DIR = PROJECT_ROOT / "data" / "intermediate" / "code"
 # Authors read from a paper's first page where the source listed none: {"task_id|pdf_url": [names]}.
 # Every name was checked against the page text before it was stored.
 AUTHORS_EXTRACTED_PATH = PROJECT_ROOT / "data" / "intermediate" / "authors_extracted.json"
+# Full corrected author lists for papers whose source names were misspelled or wrong, found by
+# reading each paper's first page: {"task_id|pdf_url": [names]}.
+AUTHORS_CORRECTIONS_PATH = PROJECT_ROOT / "data" / "intermediate" / "authors_corrections.json"
 FULLTEXT_MANIFEST_PATH = MANIFEST_PATH
 LOGS_DIR = PROJECT_ROOT / "logs"
 
@@ -120,7 +123,7 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         participant["tira_refs"] = entry["tira_refs"]
 
 
-def join_extracted_authors(task: dict, extracted: dict) -> None:
+def join_extracted_authors(task: dict, extracted: dict, corrections: dict | None = None) -> None:
     """Fill empty ``authors`` from first-page extraction and record where they came from."""
     for document in [task["overview"], *task["participants"]]:
         raw = document.get("authors")
@@ -128,6 +131,10 @@ def join_extracted_authors(task: dict, extracted: dict) -> None:
         if raw and not document["authors"]:
             document["authors"] = raw if isinstance(raw, list) else [raw]  # never lose all names to cleaning
         names = extracted.get(f"{task['task_id']}|{document['pdf_url']}")
+        fixed = (corrections or {}).get(f"{task['task_id']}|{document['pdf_url']}")
+        if fixed:
+            document["authors"], document["authors_source"] = fixed, "corrected_from_text"
+            continue
         if document.get("authors"):
             document["authors_source"] = "source_metadata"
             # Some sources keep only the first authors; extend with names read from the page.
@@ -681,6 +688,7 @@ def main() -> None:
             kept_ids = {t["task_id"] for t in tasks}
             for tid, role, url in dropped:
                 shutil.rmtree(task_dir(tid) if tid not in kept_ids else document_pdf_path(tid, role, url).parent, ignore_errors=True)
+    author_corrections = json.loads(AUTHORS_CORRECTIONS_PATH.read_text(encoding="utf-8")) if AUTHORS_CORRECTIONS_PATH.exists() else {}
     extracted_authors = json.loads(AUTHORS_EXTRACTED_PATH.read_text(encoding="utf-8")) if AUTHORS_EXTRACTED_PATH.exists() else {}
     for task in tasks:
         task["field"] = field_for(task["parent_venue"], task["task_name"])
@@ -688,7 +696,7 @@ def main() -> None:
         join_code_links(task, logger)
         join_fulltext_paths(task, fulltext_manifest, logger)
         join_links(task)
-        join_extracted_authors(task, extracted_authors)
+        join_extracted_authors(task, extracted_authors, author_corrections)
         clean_titles(task)
 
     tasks = select_corpus(tasks, args.target, logger)
