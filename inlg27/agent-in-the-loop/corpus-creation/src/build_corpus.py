@@ -15,6 +15,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.paper_links import document_links
 from src.task_field import field_for
 from src.corpus_paths import (
     FINAL_DIR,
@@ -113,6 +114,27 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         ]
         participant["third_party_urls"] = entry.get("third_party_urls", [])
         participant["tira_refs"] = entry["tira_refs"]
+
+
+def join_links(task: dict) -> None:
+    """Attach ``links`` (code, dataset, model, TIRA) to the overview and every participant,
+    read from each document's parsed text. Needs ``fulltext_path``, so run after
+    join_fulltext_paths."""
+    for document in [task["overview"], *task["participants"]]:
+        path = document.get("fulltext_path")
+        text = (PROJECT_ROOT / path).read_text(encoding="utf-8") if path else ""
+        scores = {d["url"]: d.get("own_code_score") for d in document.get("code_url_details", [])}
+        document["links"] = document_links(text, scores)
+
+
+def write_paper_links(tasks: list[dict], path: Path) -> None:
+    """One row per link: task_id, document (overview|participant), pdf_url, then the link."""
+    with path.open("w", encoding="utf-8") as handle:
+        for task in tasks:
+            for role, document in [("overview", task["overview"])] + [("participant", p) for p in task["participants"]]:
+                for link in document.get("links", []):
+                    row = {"task_id": task["task_id"], "document": role, "pdf_url": document["pdf_url"], **link}
+                    handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def join_fulltext_paths(task: dict, manifest: dict, logger: logging.Logger) -> None:
@@ -625,6 +647,7 @@ def main() -> None:
         join_counts(task, logger)
         join_code_links(task, logger)
         join_fulltext_paths(task, fulltext_manifest, logger)
+        join_links(task)
 
     tasks = select_corpus(tasks, args.target, logger)
 
@@ -642,6 +665,7 @@ def main() -> None:
     write_jsonl(tasks, FINAL_DIR / "shared_tasks.jsonl")
     write_csv(tasks, FINAL_DIR / "shared_tasks.csv")
     write_summary_csv(tasks, FINAL_DIR / "shared_tasks_summary.csv")
+    write_paper_links(tasks, FINAL_DIR / "paper_links.jsonl")
     write_report(tasks, FINAL_DIR / "report.md")
     logger.info("wrote %d tasks to data/final/shared_tasks.jsonl, .csv, report.md", len(tasks))
 

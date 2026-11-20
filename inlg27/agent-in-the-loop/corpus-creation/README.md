@@ -329,6 +329,16 @@ remain as historical evidence with their status (`200` live, `404` gone, `401` g
 Hugging Face). `--reuse-statuses <old code dir>` reuses earlier 200/404 results after an
 extraction change.
 
+**Links in every document.** Besides `code_urls`, each overview and participant record has `links`:
+every code, dataset, model and TIRA link in the text, `{url, kind, third_party, in_references,
+own_code_score}` (`src/paper_links.py`). `kind` comes from the host (`huggingface.co/datasets/` and
+Kaggle/Figshare/OSF are datasets, other Hugging Face repositories are models, Zenodo is a dataset
+when the surrounding text talks about data, else code). Links are not fetched. A link after the
+reference list is kept and flagged `in_references`, because teams often put their own repository on
+the last page. `data/final/paper_links.jsonl` has the same links one per row with `task_id`,
+`document` (`overview` or `participant`) and `pdf_url`. Datasets on other sites (project pages,
+Google Drive) are not recognised.
+
 **Own-code score.** A link in a paper is not always the team's own code: it may be a library, a
 pretrained model, or the organizers' data. Each link therefore gets `own_code_score` (0 to 1) and
 `likely_own_code` (score >= 0.7) from a small logistic model over transparent features: task, year
@@ -459,6 +469,7 @@ The default is `--confidence high`.
 | `extract_counts.py` | Finds team and run counts in overview papers |
 | `semeval_legacy_tasks.py` | Assigns untitled 2007–2015 SemEval participant papers to tasks from their first pages |
 | `find_code.py` | Finds participant code and TIRA links |
+| `paper_links.py` | Lists code, dataset, model and TIRA links of every document (`links`, `paper_links.jsonl`) |
 | `build_corpus.py` | Produces and validates final indexes and metadata |
 
 ## Logs and restarting
