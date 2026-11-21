@@ -1,0 +1,143 @@
+{
+  "978-3-032-42224-8_30": [
+    {
+      "url": "https://github.com/channelEs/seed_42-SISAP-26",
+      "commit": "c6db4f5e50636f98930f0aeacea90197ecd97c9b",
+      "branch": "PoC_test",
+      "tasks": [
+        "task3"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_31": [
+    {
+      "url": "https://github.com/Aftab5550/SISAP-2026-task1",
+      "commit": "0920c31d04782ef215f5e2722de5ef9c3b5756a9",
+      "branch": "main",
+      "tasks": [
+        "task1"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_32": [
+    {
+      "url": "https://github.com/MetricSearch/hampynn-descent",
+      "commit": "abbbe421dfb4e41e348ce334774e2fc917de00d3",
+      "branch": "main",
+      "tasks": [
+        "task1"
+      ]
+    },
+    {
+      "url": "https://github.com/MetricSearch/r-trunks",
+      "commit": "abbbe421dfb4e41e348ce334774e2fc917de00d3",
+      "branch": "main",
+      "tasks": [
+        "task1"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_33": [
+    {
+      "url": "https://github.com/S3RXxX/sisap26",
+      "commit": "d52e53e4f69208748023c3942532c0897893edeb",
+      "branch": "mem-fix",
+      "tasks": [
+        "task1"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_34": [
+    {
+      "url": "https://github.com/Visual-Computing/sisap26-deglib",
+      "commit": "62a4c34a82c5f717919a9f6760d4e58a4225c3eb",
+      "branch": "master",
+      "tasks": [
+        "task1",
+        "task2"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_35": [
+    {
+      "url": "https://github.com/henrixapp/sisap2026-plain-local-search",
+      "commit": "5011cae8bc12ec0fc67202071cf655e9f3946699",
+      "branch": "main",
+      "tasks": [
+        "task1"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_36": [
+    {
+      "url": "https://github.com/TusKANNy/kannolo_sisap2026_challenge",
+      "commit": "5e497ae8e1c799d50a7f755d9d48a1b5c15a5a74",
+      "branch": "main",
+      "tasks": [
+        "task3"
+      ]
+    },
+    {
+      "url": "https://github.com/TusKANNy/seismic_sisap2026",
+      "commit": "5d38aeef1dec563b356800766f98a9c8b442bc7c",
+      "branch": "main",
+      "tasks": [
+        "task3"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_37": [
+    {
+      "url": "https://github.com/Coda-Research-Group/sisap26-dream-team",
+      "commit": "55991b0eea888264bb212c7fd6cdfc27ec924d11",
+      "branch": "main",
+      "tasks": [
+        "task1",
+        "task2"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_38": [
+    {
+      "url": "https://github.com/TobiasRubel/sisap2026-task1-submit",
+      "commit": "dc2a38a6953d4ce70e25b15cbb1fb94d7e709a32",
+      "branch": "master",
+      "tasks": [
+        "task1"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_39": [
+    {
+      "url": "https://github.com/levyy7/nmf-ivf",
+      "commit": "b53b285091445d689cd3506ce301a9b7b5078edd",
+      "branch": "master",
+      "tasks": [
+        "task3"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_40": [],
+  "978-3-032-42224-8_41": [
+    {
+      "url": "https://github.com/eth42/sisap26challenge",
+      "commit": "8da1fdf144e421dfc4f063241691bf5d41b0155f",
+      "branch": "main",
+      "tasks": [
+        "task1",
+        "task2",
+        "task3"
+      ]
+    }
+  ],
+  "978-3-032-42224-8_42": [
+    {
+      "url": "https://github.com/NinhPham/FalconnLite",
+      "commit": "2867fd351096dae5d02b1babaee73ad31acfcc4b",
+      "branch": "main",
+      "tasks": [
+        "task1"
+      ]
+    }
+  ]
+}

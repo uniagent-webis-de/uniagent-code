@@ -1,0 +1,21 @@
+{
+  "source": "https://sisap-challenges.github.io/2026/index.html#test_data_queries_number_of_hyperparameters",
+  "task2": [
+    {
+      "dataset": "llama-eval",
+      "description": "Held-out evaluation dataset (Llama-3-8B-262k) with the gold standard embedded in the HDF5 file; released after the challenge",
+      "url": "https://huggingface.co/datasets/sisap-challenges/SISAP2026/resolve/main/llama-eval/llama-eval.h5",
+      "config": "https://huggingface.co/datasets/sisap-challenges/SISAP2026/resolve/main/llama-eval/config.json",
+      "gold_standard": {"knns": "test/knns", "dists": "test/dists", "queries": "test/queries", "k": 30}
+    }
+  ],
+  "task3": [
+    {
+      "dataset": "nq-eval",
+      "description": "Held-out evaluation dataset (NQ embedded with SPLADE-v3) with the gold standard embedded in the HDF5 file; released after the challenge",
+      "url": "https://huggingface.co/datasets/sisap-challenges/SISAP2026/resolve/main/nq-eval/nq-eval.h5",
+      "config": "https://huggingface.co/datasets/sisap-challenges/SISAP2026/resolve/main/nq-eval/config.json",
+      "gold_standard": {"knns": "otest/knns", "dists": "otest/dists", "queries": "otest/queries", "k": 30}
+    }
+  ]
+}
