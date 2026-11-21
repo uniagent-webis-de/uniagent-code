@@ -30,9 +30,10 @@ published truths from TIRA when `--truths` is omitted.
 In addition to whatever measure(s) `tira.evaluators.evaluate()` reports (e.g.
 `accuracy` or `nDCG@10`), this script always adds:
 
-- `model`: the LLM model used for the run, taken from the first
-  non-placeholder `model` field found in the submission's
-  `run-trace.jsonl.log.gz` event trace, or `"-"` if the trace has none (as is
+- `model`: the LLM model used for the run, the non-placeholder
+  `model` with the most `model_call` events in the submission's
+  `run-trace.jsonl.log.gz` event trace (falling back to the most frequent
+  model over all events if there are no `model_call` events), or `"-"` if the trace has none (as is
   expected for model-free/deterministic submissions such as
   `business-trip-always-rejected` or the retrieval baselines).
 - `valid_log_lines` / `invalid_log_lines`: how many lines of the run-trace

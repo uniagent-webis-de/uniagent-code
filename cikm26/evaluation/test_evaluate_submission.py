@@ -93,6 +93,20 @@ class AnalyzeRunTraceTest(unittest.TestCase):
         self.assertEqual(1, valid)
         self.assertEqual(0, invalid)
 
+    def test_reports_the_model_with_the_most_model_calls(self):
+        events = [
+            _valid_event(model="small", event_type="model_call"),
+            _valid_event(model="big", event_type="model_call"),
+            _valid_event(model="big", event_type="model_call"),
+            _valid_event(model="small", event_type="tool_call"),
+            _valid_event(model="small", event_type="tool_call"),
+            _valid_event(model="small", event_type="tool_call"),
+        ]
+        with TemporaryDirectory() as tmp:
+            path = _write_run_trace(Path(tmp), [json.dumps(e) for e in events])
+            model, _, _ = analyze_run_trace(path)
+        self.assertEqual("big", model)
+
     def test_ignores_blank_lines(self):
         with TemporaryDirectory() as tmp:
             path = _write_run_trace(Path(tmp), ["", "   ", json.dumps(_valid_event())])

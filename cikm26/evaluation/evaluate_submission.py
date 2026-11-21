@@ -34,6 +34,7 @@ alongside its task measure(s).
 """
 import gzip
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
 
@@ -120,9 +121,11 @@ def _is_valid_event(entry: Any) -> bool:
 def analyze_run_trace(path: Path) -> tuple[str, int, int]:
     """Return `(model, valid_line_count, invalid_line_count)` for a run-trace log.
 
-    `model` is the first non-placeholder (i.e. not `"-"`) model identifier
-    found across all valid events, or `"-"` if the log has none (e.g. a
-    purely deterministic submission). A missing file is treated as zero
+    `model` is the non-placeholder (i.e. not `"-"`) model identifier with the
+    most `model_call` events across all valid events (ties go to the model
+    seen first); if no `model_call` names a model, the most frequent
+    identifier over all valid events is used. `"-"` is returned if the log
+    has none (e.g. a purely deterministic submission). A missing file is treated as zero
     valid and zero invalid lines rather than an error, since logging can
     legitimately be skipped entirely for submissions with no tools and no
     model calls (contract requirement 1).
@@ -130,7 +133,8 @@ def analyze_run_trace(path: Path) -> tuple[str, int, int]:
     if not path.is_file():
         return "-", 0, 0
 
-    model = "-"
+    call_models: Counter = Counter()
+    event_models: Counter = Counter()
     valid = 0
     invalid = 0
     with gzip.open(path, "rt", encoding="utf-8") as handle:
@@ -147,10 +151,13 @@ def analyze_run_trace(path: Path) -> tuple[str, int, int]:
                 invalid += 1
                 continue
             valid += 1
-            if model == "-":
-                candidate = entry.get("model")
-                if candidate and candidate != "-":
-                    model = candidate
+            candidate = entry["model"].strip()
+            if candidate != "-":
+                event_models[candidate] += 1
+                if entry["event_type"] == "model_call":
+                    call_models[candidate] += 1
+    counts = call_models or event_models
+    model = counts.most_common(1)[0][0] if counts else "-"
     return model, valid, invalid
 
 
