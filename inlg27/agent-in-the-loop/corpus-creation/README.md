@@ -31,7 +31,7 @@ and extracted images.
 
 ```bash
 python3 -m pip install -r requirements.txt
-npm install -g @llamaindex/liteparse
+npm install -g @llamaindex/liteparse@2.13.0
 mkdir -p third_party
 git clone https://github.com/allenai/pdffigures2.git third_party/pdffigures2
 cd third_party/pdffigures2
@@ -111,6 +111,8 @@ Current configured coverage:
 - ACL Anthology shared tasks other than SemEval (CoNLL 2000–2020, IJCNLP 2017, WNUT, CASE,
   WANLP/NADI, NLPTEA, MADAR, and others): the curated tasks in `acl_config.py`, seeded
   from the overview papers listed in `data/raw/martin_22_shared_tasks.json`
+- INLG: 13 editions from 2008–2024, collected through the ACL Anthology configuration.
+  [The ACL configuration](src/acl_config.py) lists the exact overview and participant IDs.
 - TREC: 1992–2025
 - NTCIR: NTCIR-1 through NTCIR-18 (1999–2025)
 - FIRE: 2008 and 2010–2025; its archive has no 2009 link
@@ -287,6 +289,25 @@ cache to `data/intermediate/ocr_vlm/` (resumable, about 40 s per page on an M4 P
 `extract_figs_tbls.py` uses PDFFigures2 to extract captioned figures and tables, including
 many vector graphics. They are stored beside each document under `figures/` and `tables/`.
 
+The bundled extractor uses PDFBox 2.0.26. Two PDFs with malformed font CMaps were
+successfully retried with the compatible PDFBox 2.0.37 release. With an assembled
+extractor JAR, set `PDFFIGURES2_CLASSPATH` to the **absolute path** of
+`pdfbox-app-2.0.37.jar` before running the stage; this puts its classes ahead of the
+bundled versions for both single-document and batch extraction. Obtain the JAR from
+the [Apache PDFBox distribution](https://pdfbox.apache.org/download.html) or
+[Maven Central](https://repo.maven.apache.org/maven2/org/apache/pdfbox/pdfbox-app/2.0.37/).
+The recovered manifest records carry `pdffigures2_pdfbox_version`. Cached images are
+preserved on repeat calls. Fifteen PDFs unsupported by PDFFigures2 (13 scanned-page
+rejections and two invalid-font-metric errors) now have 48 visually checked recovery
+crops: 15 figures and 33 tables. Their original PDFFigures2 errors remain recorded;
+`reviewed_assets.status: ok` records the separate recovery. The stage reads
+[`curation/figure_regions.json`](curation/figure_regions.json), verifies each source PDF's
+SHA-256, and renders the reviewed page regions with PyMuPDF from `requirements.txt`.
+Images use a `reviewed-` prefix;
+page numbers are physical PDF pages and crops include their captions. Source or
+annotation changes invalidate the recovery cache. See [corpus curation](#corpus-curation)
+for the correction inputs and remaining limitations.
+
 ## Step 10: Extract participation counts
 
 `extract_counts.py` searches the beginning of each overview for statements such as:
@@ -306,6 +327,12 @@ coverage_ratio = participant papers / participating teams
 
 If no trustworthy number is found, the value is `null`.
 
+The 13 imported INLG editions use hand-checked organizer quotations in
+[`curation/inlg_counts.json`](curation/inlg_counts.json), which take precedence over cached
+automatic counts. Each record distinguishes registrations, withdrawals, institution
+counts and missing reports.
+System totals are not converted into run counts.
+
 ## Step 11: Extract code and TIRA links
 
 `find_code.py` scans participant Markdown for GitHub, GitLab, Hugging Face, Zenodo, and
@@ -314,6 +341,11 @@ TIRA links. It ignores the bibliography and separates:
 - `code_urls`: likely links to the team's own artifacts
 - `third_party_urls`: libraries or models used by the team
 - `tira_refs`: TIRA URLs or container references
+
+Final `code_urls` excludes recognized dataset and model repositories; those resources
+remain in `links`. The intermediate code cache retains all artifact candidates.
+Five dataset-bearing GitHub repositories found in the INLG audit have explicit dataset
+labels in `paper_links.py`; other GitHub repositories still default to code.
 
 Intermediate results are stored in:
 
@@ -329,17 +361,43 @@ remain as historical evidence with their status (`200` live, `404` gone, `401` g
 Hugging Face). `--reuse-statuses <old code dir>` reuses earlier 200/404 results after an
 extraction change.
 
+Use `--refresh` to rescan the Markdown despite an existing task cache, optionally with
+`--reuse-statuses data/intermediate/code` to reuse earlier successful/dead-link checks.
+For example, `python3 src/find_code.py --task-id inlg2024-long-story-generation --refresh`.
+Missing participant Markdown now stops extraction before a new task cache is written.
+Wrapped URL continuations after `/`, `_` or `-` inside fenced PDF footnotes are rejoined
+by both link extractors; other reading-order problems still need review.
+
 **Authors.** Where the source lists no authors (mostly NTCIR and TREC), they were read from the
 paper's first page and stored in `data/intermediate/authors_extracted.json`
 (`{"task_id|pdf_url": [names]}`). The extraction was done by a language model; each name was then
 checked against the page text before it was kept. `authors_source` on every document says
-`source_metadata` or `extracted_from_text`. 17 documents have no authors because the page shows none. Lists found wrong by a full audit were
+`source_metadata` or `extracted_from_text`. A later PDF audit recovered all 17 previously
+missing author lists: the PDFs did contain authors, including several with broken
+font encodings. These corrections have `authors_source: corrected_from_pdf` and
+`authors_evidence` with the source PDF and page. Lists found wrong by a full audit were
 replaced with the names printed on the page (`authors_source` = `corrected_from_text`, from
 `data/intermediate/authors_corrections.json`). Author lists are normalised in
 `src/clean_authors.py` (one person per entry, affiliations and scraped markup removed); where a
 source kept only the first authors, the names read from the page are appended
 (`authors_source` = `source_metadata+extracted_from_text`). Titles lose a trailing page range or
 author list that some proceedings pages append.
+
+**Reviewed metadata and text corrections.** `curation/metadata_corrections.json` is joined
+at the end of metadata assembly by `src/corpus_corrections.py`. It records the 63 INLG
+participant labels (57 organizer roster labels and six explicitly marked affiliation
+labels), the 17 recovered author lists, and GEM's top-level data-to-text/summarization
+assignments. This annotates the existing task; it does not create downstream synthesis
+tasks. `curation/fulltext_corrections.json` contains exact PDF-checked text edits applied by
+`parse_fulltext.py` on both fresh and cached Markdown. Edits are repeatable and reject
+unexpected source changes. The current edits restore AutoMin's Synapse system-section
+reading order and demote OSU GEM table labels that had become section headings.
+They do not certify the reading order of every paragraph in the corpus.
+Further reviewed edits restore GEM overview criteria tables, CUET's interleaved results
+page and missing numeric cells, the long-story summary/chapter section order, and
+table column labels in three other papers. Correction evidence is retained on fresh
+and cached text-stage runs.
+PDF rendering dependencies are included in `requirements.txt`.
 
 **Links in every document.** Besides `code_urls`, each overview and participant record has `links`:
 every code, dataset, model and TIRA link in the text, `{url, kind, third_party, in_references,
@@ -350,7 +408,11 @@ reference list is kept and flagged `in_references`, because teams often put thei
 the last page. A document with at least one link also has a `links.json` beside `paper.pdf` and `paper.txt.md`, and
 `data/final/paper_links.jsonl` has the same links one per row with `task_id`,
 `document` (`overview` or `participant`) and `pdf_url`. Datasets on other sites (project pages,
-Google Drive) are not recognised.
+Google Drive) are not recognised. Reviewed repository-specific kinds and evidence are
+stored in [`curation/artifact_kinds.json`](curation/artifact_kinds.json); these take
+precedence over host rules. The audit distinguishes dataset repositories from similarly
+named implementations and preprocessing tools. Historical URLs and HTTP failures are
+preserved; a resource's name or availability does not establish code ownership.
 
 **Own-code score.** A link in a paper is not always the team's own code: it may be a library, a
 pretrained model, or the organizers' data. Each link therefore gets `own_code_score` (0 to 1) and
@@ -526,14 +588,48 @@ and would leak the result.
 
 The latest complete run documented here contains:
 
-- 585 tasks
-- 6,540 participant papers
-- 7,125 documents including overviews
-- 99 CLEF, 159 SemEval, 42 TREC, 101 NTCIR, 68 FIRE, 62 MediaEval, 52 other ACL Anthology, and 4 SISAP tasks
+- 598 tasks
+- 6,603 participant papers
+- 7,201 documents including overviews
+- 97 CLEF, 159 SemEval, 42 TREC, 101 NTCIR, 68 FIRE, 62 MediaEval, 13 INLG, 52 other ACL Anthology, and 4 SISAP tasks
 
-These numbers can change when sources or configurations are updated. Thirty-five documents
-in that run were marked for optional OCR. Five others had a PDFFigures2-specific failure
-while retaining their PDF, Markdown, and Liteparse assets.
+These numbers can change when sources or configurations are updated. The 76 INLG
+documents all have extracted Markdown and passed PDFFigures2 extraction. The manifest
+retains PDFFigures2 errors for 15 earlier documents, all recovered separately through
+reviewed crops. No known figure/table extraction failure currently lacks a recovery.
+
+## Corpus curation
+
+The five files in `curation/` are pipeline inputs, not generated audit output:
+
+| File | Purpose | Consumer |
+|---|---|---|
+| [inlg_counts.json](curation/inlg_counts.json) | Organizer quotations and participation denominators | `extract_counts.py` |
+| [metadata_corrections.json](curation/metadata_corrections.json) | Authors, team labels, GEM tracks and dead-link recovery evidence | `build_corpus.py` |
+| [fulltext_corrections.json](curation/fulltext_corrections.json) | Exact source-backed Markdown repairs | `parse_fulltext.py` |
+| [figure_regions.json](curation/figure_regions.json) | PDF hashes and reviewed recovery crop coordinates | `extract_figs_tbls.py` |
+| [artifact_kinds.json](curation/artifact_kinds.json) | Reviewed code/dataset/model classifications | `paper_links.py` |
+
+Keep these inputs when rebuilding: deleting them loses reviewed corrections or prevents
+the pipeline from loading. Source evidence stays beside each decision.
+
+The INLG import contains 13 overviews and 63 participant papers. Known limitations:
+E2E has four reports for 17 submitting institutions, DialogSum has three for four
+submitters, six participant labels use documented affiliations, and the AutoMin
+Darbarer and GEM `d2t-gem` repositories remain unavailable. Run counts stay unknown
+where the organizer reports only systems or variants. Additional proceedings and
+downstream synthesis tasks remain deferred.
+
+The corpus-wide layout review leaves 67 candidates requiring PDF-backed reconstruction;
+none belongs to the 13 INLG imports. Reviewed passages are not a guarantee of complete
+Markdown fidelity, and repository ownership scores remain heuristic. The last verified
+suite passed 240 local tests.
+
+Detailed coverage/quality reports and the unused layout/link audit files are local
+history under `data/intermediate/repository_cleanup_2026-11-25/audits/`, outside the
+versioned pipeline inputs. Original repair snapshots remain under
+`data/intermediate/quality_round3/`. Link-recovery evidence is retained in
+`metadata_corrections.json`; there is no separate runtime link-recovery file.
 
 ## Non-paper filtering and `dropped_documents.jsonl`
 

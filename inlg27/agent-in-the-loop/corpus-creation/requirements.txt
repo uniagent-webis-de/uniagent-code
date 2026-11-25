@@ -1,5 +1,6 @@
 beautifulsoup4==4.15.0
 lxml==6.1.1
 pillow==12.3.0
+pymupdf==2.1
 pytest==9.1.1
 requests==2.34.2
