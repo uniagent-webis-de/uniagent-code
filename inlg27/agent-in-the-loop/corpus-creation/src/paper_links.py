@@ -9,6 +9,8 @@ Reuses the repository canonicalisation and third-party list from ``find_code``.
 from __future__ import annotations
 
 import re
+import json
+from pathlib import Path
 
 from src.find_code import (
     MARKDOWN_ESCAPE_RE,
@@ -17,6 +19,7 @@ from src.find_code import (
     canonical_repo_url,
     clean_url,
     is_third_party,
+    rejoin_fenced_urls,
 )
 
 LINK_RE = re.compile(
@@ -25,6 +28,10 @@ LINK_RE = re.compile(
     re.IGNORECASE,
 )
 DATASET_CONTEXT_RE = re.compile(r"data\s?set|corpus|corpora|\bdata\b|annotat", re.IGNORECASE)
+# Reviewed artifact kinds are data, with paper/README evidence kept beside the decision.
+ARTIFACT_KINDS = json.loads(
+    (Path(__file__).resolve().parent.parent / "curation" / "artifact_kinds.json").read_text(encoding="utf-8")
+)
 # The parser writes headings as "## References".
 REFERENCES_RE = re.compile(r"(?im)^[ \t]*#*[ \t]*(?:\d+\.?\s*)?(?:references|bibliography|works cited)[ \t]*$")
 
@@ -49,6 +56,8 @@ def canonical_link(url: str) -> str | None:
 
 
 def kind_of(url: str, context: str) -> str:
+    if url.lower() in ARTIFACT_KINDS:
+        return ARTIFACT_KINDS[url.lower()]["kind"]
     if "huggingface.co/datasets/" in url or "kaggle.com/datasets/" in url or "figshare.com" in url or "osf.io" in url:
         return "dataset"
     if "huggingface.co/spaces/" in url:
@@ -66,6 +75,7 @@ def document_links(text: str, own_code_scores: dict[str, float] | None = None) -
     # page, footnote), so links there are kept and marked ``in_references`` instead.
     body = MARKDOWN_LINK_RE.sub(r" \1 ", text)
     body = MARKDOWN_ESCAPE_RE.sub(r"\1", body)
+    body = rejoin_fenced_urls(body)
     ref_start = references_start(body)
     found: dict[str, dict] = {}
     for match in LINK_RE.finditer(body):

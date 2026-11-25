@@ -137,14 +137,20 @@ def extract_count(window: str, patterns: list[re.Pattern]) -> int | None:
 def process_task(task: dict, logger: logging.Logger) -> dict:
     task_id = task["task_id"]
     out_path = COUNTS_DIR / f"{task_id}.json"
+    # Curated overview evidence takes precedence over stale automatic counts.
+    curated = json.loads((PROJECT_ROOT / "curation" / "inlg_counts.json").read_text(encoding="utf-8"))
+    if task_id in curated:
+        result = curated[task_id]
+        COUNTS_DIR.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+        return result
     if out_path.exists():
         logger.info("counts cache hit: %s", out_path)
         return json.loads(out_path.read_text(encoding="utf-8"))
 
     txt_path = overview_markdown_path(task_id)
     if not txt_path.exists():
-        logger.error("%s: missing parsed overview %s — run parse_fulltext.py first", task_id, txt_path)
-        result = {"teams": None, "runs": None}
+        raise FileNotFoundError(f"{task_id}: missing parsed overview {txt_path} — run parse_fulltext.py first")
     else:
         text = txt_path.read_text(encoding="utf-8")
         window = abstract_and_intro_window(text)

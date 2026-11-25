@@ -327,6 +327,16 @@ def canonical_repo_url(url: str) -> str | None:
     return f"https://{host}/" + "/".join(segments)
 
 
+def rejoin_fenced_urls(text: str) -> str:
+    """Repair PDF footnote URLs wrapped after a URL separator, inside code fences only."""
+    def repair(match: re.Match) -> str:
+        return re.sub(
+            r"(https?://(?:github\.com|huggingface\.co|gitlab\.[a-z0-9.-]+)/[^\s`]*[_/-])\n[ \t]*([A-Za-z0-9_.-]+)(?=\n)",
+            r"\1\2", match.group(0),
+        )
+    return re.sub(r"```[^\n]*\n.*?\n```", repair, text, flags=re.DOTALL)
+
+
 def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
     """Return (candidate_code_links, third_party_urls, tira_refs) from a paper's text.
 
@@ -338,6 +348,7 @@ def extract_links(text: str) -> tuple[list[dict], list[str], list[str]]:
     body = strip_bibliography(text)
     body = MARKDOWN_LINK_RE.sub(r" \1 ", body)
     body = MARKDOWN_ESCAPE_RE.sub(r"\1", body)
+    body = rejoin_fenced_urls(body)
 
     candidates: dict[str, dict] = {}
     third_party: set[str] = set()
@@ -426,11 +437,9 @@ def pdf_filename_for(pdf_url: str) -> str:
 
 def process_participant(task_id: str, participant: dict, logger: logging.Logger, task: dict | None = None) -> dict:
     pdf_url = participant["pdf_url"]
-    empty = {"pdf_url": pdf_url, "code_urls": [], "third_party_urls": [], "tira_refs": []}
     txt_path = participant_markdown_path(task_id, pdf_url)
     if not txt_path.exists():
-        logger.error("%s: missing parsed participant %s — run parse_fulltext.py first", task_id, txt_path)
-        return empty
+        raise FileNotFoundError(f"{task_id}: missing parsed participant {txt_path} — run parse_fulltext.py first")
 
     text = txt_path.read_text(encoding="utf-8")
 
@@ -456,10 +465,10 @@ def process_participant(task_id: str, participant: dict, logger: logging.Logger,
     return {"pdf_url": pdf_url, "code_urls": validated, "third_party_urls": third_party, "tira_refs": tira_refs}
 
 
-def process_task(task: dict, logger: logging.Logger) -> list[dict]:
+def process_task(task: dict, logger: logging.Logger, *, refresh: bool = False) -> list[dict]:
     task_id = task["task_id"]
     out_path = CODE_DIR / f"{task_id}.json"
-    if out_path.exists():
+    if out_path.exists() and not refresh:
         logger.info("code cache hit: %s", out_path)
         return json.loads(out_path.read_text(encoding="utf-8"))
 
@@ -468,8 +477,9 @@ def process_task(task: dict, logger: logging.Logger) -> list[dict]:
     urls = set()
     for p in task["participants"]:
         path = participant_markdown_path(task_id, p["pdf_url"])
-        if path.exists():
-            urls |= {c["url"] for c in extract_links(path.read_text(encoding="utf-8"))[0]}
+        if not path.exists():
+            raise FileNotFoundError(f"{task_id}: missing parsed participant {path} — run parse_fulltext.py first")
+        urls |= {c["url"] for c in extract_links(path.read_text(encoding="utf-8"))[0]}
     validate_all(urls, logger)
     fetch_readmes_all({u for u in urls if _STATUS_CACHE.get(u) == "200"})
     results = [process_participant(task_id, p, logger, task) for p in task["participants"]]
@@ -484,6 +494,7 @@ def main() -> None:
     parser.add_argument("--confidence", type=str, default="high", choices=["high", "medium", "all"], help="Which candidate tasks to process (default: high only).")
     parser.add_argument("--task-id", type=str, default=None, help="Process only this single task_id (for testing).")
     parser.add_argument("--reuse-statuses", type=str, default=None, metavar="OLD_CODE_DIR", help="Reuse 200/404 statuses from an earlier run's code directory.")
+    parser.add_argument("--refresh", action="store_true", help="Re-extract links even when a task cache exists.")
     args = parser.parse_args()
 
     log_path = setup_logging()
@@ -508,7 +519,7 @@ def main() -> None:
     total_participants = 0
     with_code = 0
     for task in tasks:
-        results = process_task(task, logger)
+        results = process_task(task, logger, refresh=args.refresh)
         total_participants += len(results)
         with_code += sum(1 for r in results if r["code_urls"] or r["tira_refs"])
         logger.info("%s: %d/%d participants have a resolved link", task["task_id"], sum(1 for r in results if r["code_urls"] or r["tira_refs"]), len(results))

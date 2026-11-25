@@ -281,3 +281,20 @@ def test_extracted_authors_fill_only_missing_ones():
     assert task["participants"][0]["authors"] == ["Found Name"]
     assert task["participants"][0]["authors_source"] == "extracted_from_text"
     assert task["participants"][1]["authors"] == [] and task["participants"][1]["authors_source"] is None
+def test_code_urls_exclude_datasets_and_models_but_keep_dead_code(tmp_path, monkeypatch):
+    import json
+    import logging
+    from src import build_corpus
+
+    monkeypatch.setattr(build_corpus, "CODE_DIR", tmp_path)
+    (tmp_path / "task.json").write_text(json.dumps([{
+        "pdf_url": "https://example.org/p.pdf", "tira_refs": [], "code_urls": [
+            {"url": "https://github.com/m-popovic/QRev-annotations", "status": "200"},
+            {"url": "https://huggingface.co/team/model", "status": "200"},
+            {"url": "https://github.com/team/code", "status": "404"},
+        ]
+    }]))
+    task = {"task_id": "task", "participants": [{"pdf_url": "https://example.org/p.pdf"}]}
+    build_corpus.join_code_links(task, logging.getLogger(__name__))
+    assert task["participants"][0]["code_urls"] == ["https://github.com/team/code"]
+    assert task["participants"][0]["code_url_details"][0]["status"] == "404"

@@ -7,6 +7,32 @@ from src.extract_counts import (
     TEAM_PATTERNS,
 )
 
+
+def test_missing_overview_does_not_cache_failure(tmp_path, monkeypatch):
+    import logging
+    import pytest
+    from src import extract_counts
+
+    monkeypatch.setattr(extract_counts, "COUNTS_DIR", tmp_path)
+    monkeypatch.setattr(extract_counts, "overview_markdown_path", lambda _: tmp_path / "missing.md")
+    with pytest.raises(FileNotFoundError):
+        extract_counts.process_task({"task_id": "missing", "participants": []}, logging.getLogger(__name__))
+    assert not (tmp_path / "missing.json").exists()
+
+
+def test_curated_inlg_counts_replace_stale_cache(tmp_path, monkeypatch):
+    import json
+    import logging
+    from src import extract_counts
+
+    monkeypatch.setattr(extract_counts, "COUNTS_DIR", tmp_path)
+    task_id = "inlg2022-hinglisheval"
+    (tmp_path / f"{task_id}.json").write_text('{"teams": 23, "runs": null}')
+    result = extract_counts.process_task({"task_id": task_id, "participants": [{}] * 4}, logging.getLogger(__name__))
+    assert result["teams"] == 4
+    assert "four teams have submitted" in result["evidence"]
+    assert json.loads((tmp_path / f"{task_id}.json").read_text()) == result
+
 ERISK_2023_INTRO = """
 1. Introduction
 

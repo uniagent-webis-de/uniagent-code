@@ -166,3 +166,26 @@ def test_preserve_ocr_flag_keeps_provenance_across_no_ocr_runs():
     fresh = {"ocr_server_used": False, "needs_ocr": True}
     assert preserve_ocr_flag(dict(fresh), {"ocr_server_used": True}) == {"ocr_server_used": True, "needs_ocr": False}
     assert preserve_ocr_flag(dict(fresh), None) == fresh
+
+
+def test_corrected_text_keeps_source_evidence_across_cached_runs(tmp_path, monkeypatch):
+    import logging
+    from src import parse_fulltext as parser
+    from src import corpus_corrections
+
+    monkeypatch.setattr(parser, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(corpus_corrections, "CURATION_DIR", tmp_path)
+    pdf, markdown = tmp_path / "paper.pdf", tmp_path / "paper.txt.md"
+    pdf.write_bytes(b"PDF")
+    markdown.write_text("the paper " * 300 + "wrong order")
+    (tmp_path / "fulltext_corrections.json").write_text(json.dumps({"task|url": [
+        {"before": "wrong order", "after": "right order", "source_pdf": "url", "pages": [1]}]}))
+    monkeypatch.setattr(parser, "document_pdf_path", lambda *args: pdf)
+    monkeypatch.setattr(parser, "document_markdown_path", lambda *args: markdown)
+    monkeypatch.setattr(parser, "document_figures_dir", lambda *args: tmp_path / "figures")
+    monkeypatch.setattr(parser, "document_tables_dir", lambda *args: tmp_path / "tables")
+    monkeypatch.setattr(parser, "probe_pdf", lambda *args: (1, False))
+    for _ in range(2):
+        record = parser.process_document("task", "participant", "url", tmp_path, None, "eng", logging.getLogger("test"))
+        assert record["text_corrections"] == [{"source_pdf": "url", "pages": [1]}]
+        assert markdown.read_text().endswith("right order")

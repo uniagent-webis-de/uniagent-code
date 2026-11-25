@@ -16,7 +16,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.clean_authors import clean_authors, clean_title
-from src.paper_links import document_links
+from src.corpus_corrections import apply_metadata_corrections
+from src.paper_links import document_links, kind_of
 from src.task_field import field_for
 from src.corpus_paths import (
     FINAL_DIR,
@@ -111,13 +112,14 @@ def join_code_links(task: dict, logger: logging.Logger) -> None:
         # the code-availability evidence are carried alongside in code_url_details so a
         # consumer can tell a live repo from a 404 or an unverified rate-limited check
         # without re-fetching every link.
-        participant["code_urls"] = [c["url"] for c in entry["code_urls"]]
+        code_links = [c for c in entry["code_urls"] if kind_of(c["url"], "") == "code"]
+        participant["code_urls"] = [c["url"] for c in code_links]
         participant["code_url_details"] = [
             {
                 "url": c["url"], "status": c["status"], "availability_evidence": c.get("evidence", False),
                 "own_code_score": c.get("own_code_score"), "likely_own_code": c.get("likely_own_code"),
             }
-            for c in entry["code_urls"]
+            for c in code_links
         ]
         participant["third_party_urls"] = entry.get("third_party_urls", [])
         participant["tira_refs"] = entry["tira_refs"]
@@ -194,6 +196,9 @@ def join_fulltext_paths(task: dict, manifest: dict, logger: logging.Logger) -> N
         document["pdffigures2_tables"] = record.get("pdffigures2_tables", 0) if record else 0
         document["tables_dir"] = record.get("tables_dir") if record else None
         document["n_tables"] = record.get("n_tables", 0) if record else 0
+        for field in ("text_corrections", "pdffigures2_pdfbox_version", "pdffigures2_failure_kind", "pdffigures2_error", "reviewed_assets"):
+            if record and record.get(field) is not None:
+                document[field] = record[field]
 
     def lookup(pdf_url: str) -> dict | None:
         # Manifests are keyed by (task_id, pdf_url).  The URL-only fallback keeps this
@@ -698,6 +703,7 @@ def main() -> None:
         join_links(task)
         join_extracted_authors(task, extracted_authors, author_corrections)
         clean_titles(task)
+        apply_metadata_corrections(task)
 
     tasks = select_corpus(tasks, args.target, logger)
 

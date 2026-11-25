@@ -35,6 +35,9 @@ from src.corpus_paths import (
     paper_id_for,
 )
 
+from src.corpus_corrections import correct_fulltext
+from src import corpus_corrections
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Reads the candidate list rather than the assembled corpus: build_corpus.py joins this
 # stage's manifest to publish fulltext paths, so depending on its output would be circular.
@@ -367,6 +370,13 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         write_tables(text, tables_dir, pdf_path, logger)
         logger.info("parsed %s -> %s (%d chars)", pdf_path.name, out_path, len(text))
 
+    corrections = json.loads((corpus_corrections.CURATION_DIR / "fulltext_corrections.json").read_text(encoding="utf-8"))
+    corrected = correct_fulltext(task_id, pdf_url, text, corrections)
+    if corrected != text:
+        out_path.write_text(corrected, encoding="utf-8")
+        text = corrected
+        logger.info("applied reviewed fulltext corrections: %s", out_path)
+
     figures = sorted(p.name for p in figures_dir.glob("*")) if figures_dir.exists() else []
     tables = sorted(p.name for p in tables_dir.glob("*.md")) if tables_dir.exists() else []
     table_images = sorted(p.name for p in tables_dir.glob("page*-table*.png")) if tables_dir.exists() else []
@@ -409,6 +419,9 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
         "needs_ocr": bool(reasons) and not ocr_server_url,
         "quality_flags": reasons,
     }
+    edits = corrections.get(f"{task_id}|{pdf_url}", [])
+    if edits:
+        record["text_corrections"] = [{k: v for k, v in edit.items() if k not in ("before", "after")} for edit in edits]
     if reasons:
         logger.warning(
             "%s: %s has a questionable text layer (%s)%s",
@@ -428,7 +441,7 @@ def preserve_extractor_fields(record: dict, previous: dict | None) -> dict:
         record.update({
             key: value
             for key, value in previous.items()
-            if key.startswith(EXTRACTOR_FIELD_PREFIX)
+            if key.startswith(EXTRACTOR_FIELD_PREFIX) or key == "reviewed_assets"
         })
     return record
 
@@ -545,11 +558,13 @@ construct filenames yourself. In the CSV, multiple participant paths are separat
 Liteparse converts the PDF text layer to Markdown. Figures referenced by the Markdown are
 stored in `figures/`. PDFFigures2 stores captioned figure and table images with the prefix
 `pdffigures2-`. For a large or complicated table, prefer its image over flattened Markdown.
+Reviewed recovery crops use `reviewed-`; their source PDF hashes, page regions, and
+separate recovery status are recorded in `reviewed_assets` in the manifest.
 
 `manifest.jsonl` records page and character counts, output paths, extraction status, and
 whether a document needs OCR.
 
-{len(records) - ocr_needed} of {len(records)} documents produced usable text without OCR.
+{len(records) - ocr_needed} of {len(records)} documents have usable text, including any OCR output.
 {"No document currently needs OCR." if not ocr_needed else f"{ocr_needed} document(s) are marked `needs_ocr`."}
 
 To retry only those documents with an OCR server:

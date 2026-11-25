@@ -7,6 +7,47 @@ from src.find_code import (
     canonical_repo_url,
 )
 
+
+def test_missing_fulltext_does_not_poison_task_cache(tmp_path, monkeypatch):
+    import logging
+    import pytest
+    from src import find_code
+
+    monkeypatch.setattr(find_code, "CODE_DIR", tmp_path / "code")
+    monkeypatch.setattr(find_code, "participant_markdown_path", lambda *args: tmp_path / "missing.md")
+    task = {"task_id": "missing", "participants": [{"pdf_url": "https://example.org/p.pdf"}]}
+    with pytest.raises(FileNotFoundError):
+        find_code.process_task(task, logging.getLogger(__name__))
+    assert not (tmp_path / "code/missing.json").exists()
+
+
+def test_refresh_replaces_stale_empty_code_cache(tmp_path, monkeypatch):
+    import json
+    import logging
+    from src import find_code
+
+    monkeypatch.setattr(find_code, "CODE_DIR", tmp_path)
+    text = tmp_path / "paper.md"
+    text.write_text("Our code is available at https://github.com/teamq/sub")
+    monkeypatch.setattr(find_code, "participant_markdown_path", lambda *args: text)
+    monkeypatch.setitem(find_code._STATUS_CACHE, "https://github.com/teamq/sub", "404")
+    (tmp_path / "task.json").write_text("[]")
+    task = {"task_id": "task", "parent_venue": "INLG", "year": 2024,
+            "task_name": "Example", "overview": {},
+            "participants": [{"pdf_url": "https://example.org/p.pdf", "title": "Example"}]}
+    result = find_code.process_task(task, logging.getLogger(__name__), refresh=True)
+    assert result[0]["code_urls"][0]["url"] == "https://github.com/teamq/sub"
+    assert json.loads((tmp_path / "task.json").read_text()) == result
+
+
+def test_pdf_url_continuations_in_fenced_footnotes_are_rejoined():
+    text = "```\n1 https://github.com/sashaboriskin/long_story_\ngeneration\n```"
+    assert [c["url"] for c in extract_links(text)[0]] == [
+        "https://github.com/sashaboriskin/long_story_generation"
+    ]
+    # Prose after a URL is not a URL continuation.
+    assert extract_links("https://github.com/teamq/sub_\nIntroduction\n")[0][0]["url"] == "https://github.com/teamq/sub_"
+
 SAMPLE_TEXT = """
 Our code is available at https://github.com/team-x/repo-name.git and the
 dataset can be found on https://zenodo.org/record/1234567 (accessed 2023).

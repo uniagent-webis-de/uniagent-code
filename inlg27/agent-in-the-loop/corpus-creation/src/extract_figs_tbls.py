@@ -26,6 +26,7 @@ invokes ``sbt -batch`` directly, matching the supplied PDFFigures2 wrapper.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -160,11 +161,14 @@ def pdffigures2_command(
         "-q",
     ]
     if jar is not None:
+        # Put a compatible PDFBox bugfix release ahead of the bundled classes when needed.
+        classpath = os.environ.get("PDFFIGURES2_CLASSPATH")
+        launcher = ["-cp", classpath + os.pathsep + str(jar.resolve()),
+                    "org.allenai.pdffigures2.FigureExtractorBatchCli"] if classpath else ["-jar", str(jar.resolve())]
         return [
             "java",
             "-Dsun.java2d.cmm=sun.java2d.cmm.kcms.KcmsServiceProvider",
-            "-jar",
-            str(jar.resolve()),
+            *launcher,
             *arguments,
         ]
 
@@ -205,13 +209,10 @@ def pdffigures2_batch_command(
         "-t", str(threads),
     ]
     if jar is not None:
-        return [
-            "java",
-            "-Dsun.java2d.cmm=sun.java2d.cmm.kcms.KcmsServiceProvider",
-            "-jar",
-            str(jar.resolve()),
-            *arguments,
-        ]
+        return pdffigures2_command(
+            input_dir, output_dir, pdffigures2_dir=pdffigures2_dir,
+            jar=jar, dpi=dpi, image_format=image_format,
+        ) + ["-e", "-t", str(threads)]
 
     command_text = shlex.join([
         "runMain",
@@ -288,15 +289,76 @@ def refresh_asset_counts(record: dict, figures_dir: Path, tables_dir: Path) -> d
     figures_dir.mkdir(parents=True, exist_ok=True)
     tables_dir.mkdir(parents=True, exist_ok=True)
     figure_files = sorted(path for path in figures_dir.glob("*") if path.is_file()) if figures_dir.is_dir() else []
-    table_files = sorted(path for path in tables_dir.glob("*") if path.is_file()) if tables_dir.is_dir() else []
+    table_files = sorted(path for path in tables_dir.glob("*") if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES) if tables_dir.is_dir() else []
     record["figures_dir"] = relative_project_path(figures_dir)
     record["n_figures"] = len(figure_files)
     record["tables_dir"] = relative_project_path(tables_dir)
-    # PDFFigures2 table images are the only table representation in the final
-    # corpus. Keep the legacy aggregate fields aligned for existing consumers.
+    # Count image representations, including reviewed recovery, without counting
+    # Markdown tables temporarily recreated by a later text-stage run.
     record["n_tables"] = len(table_files)
     record["n_table_images"] = len(table_files)
     return record
+
+
+def apply_reviewed_assets(task_id: str, role: str, pdf_url: str, previous: dict | None,
+                          *, dpi: int, logger: logging.Logger) -> dict | None:
+    """Render source-checked regions for PDFs unsupported by PDFFigures2.
+
+    Preserve the original extractor failure; reviewed recovery has separate provenance.
+    Stage every crop before replacing outputs so a bad annotation cannot erase assets.
+    """
+    path = PROJECT_ROOT / "curation" / "figure_regions.json"
+    entries = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    entry = entries.get(f"{task_id}|{pdf_url}")
+    if entry is None:
+        return None
+    pdf = document_pdf_path(task_id, role, pdf_url)
+    if hashlib.sha256(pdf.read_bytes()).hexdigest() != entry["pdf_sha256"]:
+        raise ValueError(f"reviewed asset source changed: {pdf_url}")
+    signature = hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()
+    record = dict(previous or {})
+    record.update(task_id=task_id, role=role, pdf_url=pdf_url)
+    figures_dir = document_figures_dir(task_id, role, pdf_url)
+    tables_dir = document_tables_dir(task_id, role, pdf_url)
+    cached = record.get("reviewed_assets", {})
+    if (cached.get("annotation_sha256") == signature and cached.get("dpi") == dpi
+            and cached.get("status") == "ok"
+            and len(cached.get("files", [])) == len(entry["regions"])
+            and all((PROJECT_ROOT / f).is_file() for f in cached.get("files", []))):
+        return refresh_asset_counts(record, figures_dir, tables_dir)
+    try:
+        import pymupdf
+    except ImportError as exc:
+        raise RuntimeError("reviewed PDF crops require PyMuPDF; install requirements.txt") from exc
+    files = []
+    with tempfile.TemporaryDirectory(prefix="reviewed-assets-") as temp, pymupdf.open(pdf) as doc:
+        outputs = []
+        for region in entry["regions"]:
+            page_number, kind, label = region["page"], region["kind"], region["label"]
+            x0, y0, x1, y1 = region["bbox_fraction"]
+            if (kind not in ("figure", "table") or not re.fullmatch(r"[\w-]+", label)
+                    or not 1 <= page_number <= len(doc)
+                    or not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1)):
+                raise ValueError(f"invalid reviewed region: {region}")
+            page = doc[page_number - 1]
+            bounds = pymupdf.Rect(x0 * page.rect.width, y0 * page.rect.height,
+                                  x1 * page.rect.width, y1 * page.rect.height)
+            name = f"reviewed-{kind}-{label}-p{page_number}.png"
+            staged = Path(temp) / name
+            page.get_pixmap(clip=bounds, dpi=dpi, alpha=False).save(staged)
+            target = (figures_dir if kind == "figure" else tables_dir) / name
+            outputs.append((staged, target))
+        for directory in (figures_dir, tables_dir):
+            directory.mkdir(parents=True, exist_ok=True)
+            for old in directory.glob("reviewed-*.png"):
+                old.unlink()
+        for staged, target in outputs:
+            shutil.copy2(staged, target)
+            files.append(relative_project_path(target))
+    record["reviewed_assets"] = dict(entry, status="ok", renderer="pymupdf",
+        renderer_version=pymupdf.VersionBind, dpi=dpi, annotation_sha256=signature, files=files)
+    logger.info("%s: rendered %d reviewed regions", pdf_url, len(files))
+    return refresh_asset_counts(record, figures_dir, tables_dir)
 
 
 def run_pdffigures2(
@@ -479,12 +541,14 @@ def process_document(
     if not pdf_path.is_file():
         raise FileNotFoundError(f"missing PDF: {pdf_path} — run download_papers.py first")
 
+    reviewed = apply_reviewed_assets(task_id, role, pdf_url, previous, dpi=dpi, logger=logger)
+    if reviewed is not None:
+        return reviewed
     record = dict(previous or {})
     figures_dir = document_figures_dir(task_id, role, pdf_url)
     tables_dir = document_tables_dir(task_id, role, pdf_url)
     if cached_extraction(record):
         logger.info("PDFFigures2 cache hit: %s", pdf_path)
-        remove_previous_outputs(figures_dir, tables_dir)
         return refresh_asset_counts(record, figures_dir, tables_dir)
 
     with tempfile.TemporaryDirectory(prefix="pdffigures2-") as temp_dir:
@@ -605,6 +669,10 @@ def main() -> None:
             tables_dir = document_tables_dir(task_id, role, pdf_url)
             if not pdf_path.is_file():
                 raise FileNotFoundError(f"missing PDF: {pdf_path} — run download_papers.py first")
+            reviewed = apply_reviewed_assets(task_id, role, pdf_url, previous, dpi=args.dpi, logger=logger)
+            if reviewed is not None:
+                manifest_by_url[(task_id, pdf_url)] = reviewed
+                continue
             if cached_extraction(previous):
                 logger.info("PDFFigures2 cache hit: %s", pdf_path)
                 manifest_by_url[(task_id, pdf_url)] = refresh_asset_counts(dict(previous), figures_dir, tables_dir)

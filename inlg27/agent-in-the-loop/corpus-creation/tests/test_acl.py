@@ -122,3 +122,15 @@ def test_selected_volumes_cover_every_task_and_urls_are_official():
     assert set(selected_volumes()) == {task["collection_id"] for task in ACL_TASKS}
     assert selected_tasks(1900) == []
     assert volume_url("W14-17") == "https://aclanthology.org/volumes/W14-17/"
+
+
+def test_inlg_feedback_generation_keeps_the_task_year_and_papers_on_both_sides_of_overview():
+    task = next(task for task in selected_tasks(2022) if task["overview_id"] == "2023.inlg-genchal.7")
+    ids = [f"2023.inlg-genchal.{number}" for number in range(4, 14)]
+    papers = parse_volume("".join(entry(paper_id, f"Paper {paper_id}") for paper_id in ids),
+                          task["collection_id"])
+    candidate = build_candidate(task, papers, {task["overview_id"]}, LOGGER)
+    assert candidate["year"] == 2022
+    assert candidate["parent_venue"] == "INLG"
+    assert candidate["provenance"]["confidence"] == "high"
+    assert [paper["source_id"] for paper in candidate["participants"]] == ids[1:3] + ids[4:9]
