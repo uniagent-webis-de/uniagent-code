@@ -282,6 +282,14 @@ def cached_extraction(record: dict | None) -> bool:
     return all((PROJECT_ROOT / path).is_file() for path in files)
 
 
+def cached_caption_layout(record: dict | None) -> bool:
+    """Reuse the caption stage's final images instead of recreating old crops."""
+    path = (record or {}).get("figures_tables_assets_path")
+    return bool(path and path.startswith("data/intermediate/figures-tables/")
+                and (PROJECT_ROOT / path).is_file()
+                and record.get("figures_tables_status") in ("ok", "partial"))
+
+
 def refresh_asset_counts(record: dict, figures_dir: Path, tables_dir: Path) -> dict:
     """Refresh aggregate asset counts for the final document-local assets."""
     # These directories are part of the public corpus layout, including for papers
@@ -541,6 +549,9 @@ def process_document(
     if not pdf_path.is_file():
         raise FileNotFoundError(f"missing PDF: {pdf_path} — run download_papers.py first")
 
+    if cached_caption_layout(previous):
+        return refresh_asset_counts(dict(previous), document_figures_dir(task_id, role, pdf_url),
+                                    document_tables_dir(task_id, role, pdf_url))
     reviewed = apply_reviewed_assets(task_id, role, pdf_url, previous, dpi=dpi, logger=logger)
     if reviewed is not None:
         return reviewed
@@ -669,6 +680,9 @@ def main() -> None:
             tables_dir = document_tables_dir(task_id, role, pdf_url)
             if not pdf_path.is_file():
                 raise FileNotFoundError(f"missing PDF: {pdf_path} — run download_papers.py first")
+            if cached_caption_layout(previous):
+                manifest_by_url[(task_id, pdf_url)] = refresh_asset_counts(dict(previous), figures_dir, tables_dir)
+                continue
             reviewed = apply_reviewed_assets(task_id, role, pdf_url, previous, dpi=args.dpi, logger=logger)
             if reviewed is not None:
                 manifest_by_url[(task_id, pdf_url)] = reviewed
