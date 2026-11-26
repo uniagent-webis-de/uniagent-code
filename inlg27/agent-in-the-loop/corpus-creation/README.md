@@ -64,6 +64,111 @@ python3 src/run_pipeline.py --pdffigures2-jar /absolute/path/to/pdffigures2.jar
 The complete run downloads thousands of papers and can take a long time. It is safe to
 run the command again: completed downloads and intermediate files are reused.
 
+## Caption extraction pilot
+
+The isolated pilot exports caption text, one-based PDF page numbers, source checksums,
+bounding boxes, original crops, and new PNG crops containing the original caption pixels.
+It accepts at most three PDFs, refuses existing output directories and writes no changes
+to the assembled corpus. Run it in the local `uniagent` environment:
+
+```bash
+PYENV_VERSION=uniagent pyenv exec python src/pilot_asset_captions.py \
+  data/final/conll2005-semantic-role-labeling/overview/overview.pdf \
+  data/final/clef2011-music-information-retrieval-musiclef-2011/overview/overview.pdf \
+  data/final/fire2016-shared-task-on-code-mix-entity-extraction-in-indian-languages-cmee-il/overview/overview.pdf \
+  --pdffigures2-jar third_party/pdffigures2/pdffigures2.jar \
+  --output-dir data/intermediate/caption-pilot
+```
+
+Open `data/intermediate/caption-pilot/index.html` to compare the images. `figures_tables_assets.jsonl`
+contains one object per detected asset; image paths are relative to the pilot directory.
+`unmatched-captions.jsonl` records detected captions without an asset region. The original
+extractor JSON and crops stay in each `document-NN/raw/` directory. Source checksums and
+run totals are saved separately. Logs go to `logs/pilot_asset_captions.log` (overwritten).
+
+The crop is the union of the asset and caption boxes, with three PDF points of padding,
+rendered at 150 DPI by default. Bounding boxes use top-left coordinates in PDF points.
+For ruled tables ending near a page bottom, the pilot also checks the next page for an
+uncaptioned near-top table with matching column boundaries. Intervening prose, new
+captions, different columns and ambiguous matches stop recovery. Matched page fragments
+are combined vertically into the caption-inclusive image, with a white gap at each page
+break. The original caption is preserved once, on its source-page fragment.
+
+Metadata keeps `page` as the first page, adds `pages` and `caption_page`, and records
+each fragment's page, image, asset box and crop box in `fragments`. Top-level boxes still
+describe the first page; use fragment boxes for a multi-page asset. Inferred continuations
+have `continuation_review_required: true` and must be checked against the source PDF.
+This recovery handles uncaptioned continuations with matching ruled grids; it does not
+claim support for unruled tables, repeated captions or changed column layouts.
+
+Single-page crops support quarter-turn rotations; continuation matching is restricted
+to unrotated pages. A caption box extending up to three points beyond the source page
+is cropped at the page edge and marked `caption_boundary_clipped` for review; larger
+coordinate anomalies fail explicitly. Extraction
+counts do not establish completeness: inspect multi-page table continuations and compare
+against the source PDF before scaling. This pilot is not wired into the full pipeline.
+
+## Full-corpus caption extraction
+
+After assembling the corpus, run this targeted enrichment in the local `uniagent`
+environment. It processes exactly the PDFs referenced by the current `shared_tasks.jsonl`:
+
+```bash
+PDFFIGURES2_CLASSPATH="$PWD/third_party/pdfbox-2.0.37/pdfbox-app-2.0.37.jar" \
+  PYENV_VERSION=uniagent pyenv exec python src/extract_captioned_assets.py \
+  --pdffigures2-jar third_party/pdffigures2/pdffigures2.jar
+```
+
+This first stages results under `data/intermediate/figures-tables-full/`. The original
+corpus is checksummed and its indexes are backed up before processing. Completed documents
+are cached against the extraction code, DPI and JAR. Reuse the same command to resume.
+The run report, explicit failures and review queue are `report.json`, `failures.jsonl`
+and `review.jsonl` in the work directory. Logs overwrite `logs/extract_captioned_assets.log`.
+
+After inspecting a completed staged run, repeat the command with `--finalize --publish`.
+Finalization retries failed crops from saved extractor metadata without repeating Java
+extraction. It verifies
+image files and source checksums, then publishes only the complete caption images
+beside each paper (including organizer overviews):
+
+```text
+figures/*.png
+tables/*.png
+```
+
+Extraction artifacts are stored under `data/intermediate/figures-tables/`, mirroring
+the final task/paper hierarchy. Each document has `figures_tables_assets.jsonl`,
+`figures_tables_extraction.json`, and `figures_tables_unmatched_captions.jsonl` there.
+The `previous/` subtree preserves all former figures/tables (including original crops,
+page fragments and Markdown tables) and the original extraction metadata byte for byte.
+Only the complete combined image is published for a multi-page table.
+All paths in the intermediate asset metadata are relative to this corpus-builder directory.
+The main JSONL, per-task metadata and manifest point to the intermediate metadata;
+their image counts describe the flattened final PNGs. Existing PDFs and Markdown are
+preserved. Caption status, review flags and separate captioned-asset counts are retained.
+CSV task membership is verified and existing CSV contents remain unchanged. Later text
+refreshes and corpus builds preserve the new fields. Later text extraction stores its
+additional image/table artifacts in the intermediate document's `text-assets/` subtree.
+Index updates are backed up and rolled back on promotion failure; individual new assets
+are copied through sibling temporary files so interrupted copies can be retried.
+
+To reorganize an already-published corpus without rerunning extraction:
+
+```bash
+PYENV_VERSION=uniagent pyenv exec python src/organize_captioned_assets.py
+```
+
+This records a per-document migration journal, verifies archived file checksums and
+final image checksums, and repairs index paths transactionally. It can resume after
+interruption. Reports and index snapshots are also retained under
+`data/intermediate/figures-tables/`; logs overwrite `logs/organize_captioned_assets.log`.
+
+Empty successful extraction and extraction failure have distinct status records. Existing
+reviewed crops for unsupported PDFs are preserved, with unavailable caption text left null
+and flagged for review. Continuation matching remains conservative and reviewable; this
+stage does not certify complete extraction for every PDF layout. The full run is a targeted
+post-build enrichment command, not a rerun of collectors or the entire pipeline.
+
 ## Pipeline overview
 
 ```text

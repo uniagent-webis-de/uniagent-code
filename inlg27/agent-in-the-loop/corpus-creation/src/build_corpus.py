@@ -196,6 +196,9 @@ def join_fulltext_paths(task: dict, manifest: dict, logger: logging.Logger) -> N
         document["pdffigures2_tables"] = record.get("pdffigures2_tables", 0) if record else 0
         document["tables_dir"] = record.get("tables_dir") if record else None
         document["n_tables"] = record.get("n_tables", 0) if record else 0
+        if record:
+            document.update({key: value for key, value in record.items()
+                             if key.startswith(("figures_tables_", "n_captioned_"))})
         for field in ("text_corrections", "pdffigures2_pdfbox_version", "pdffigures2_failure_kind", "pdffigures2_error", "reviewed_assets"):
             if record and record.get(field) is not None:
                 document[field] = record[field]

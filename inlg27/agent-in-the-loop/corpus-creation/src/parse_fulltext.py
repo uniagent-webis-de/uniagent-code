@@ -15,6 +15,7 @@ necessary").
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
 import tempfile
@@ -358,16 +359,24 @@ def process_document(task_id: str, role: str, pdf_url: str, out_dir: Path, ocr_s
     figures_dir.mkdir(parents=True, exist_ok=True)
     tables_dir.mkdir(parents=True, exist_ok=True)
 
+    parse_figures, parse_tables = figures_dir, tables_dir
+    if pdf_path.is_relative_to(PROJECT_ROOT / "data/final"):
+        archive = (PROJECT_ROOT / "data/intermediate/figures-tables" /
+                   pdf_path.parent.relative_to(PROJECT_ROOT / "data/final"))
+        if (archive / "layout.json").exists():
+            parse_figures, parse_tables = archive / "text-assets/figures", archive / "text-assets/tables"
+            figures_rel_prefix = os.path.relpath(parse_figures, out_path.parent)
+
     if out_path.exists():
         logger.info("fulltext cache hit: %s", out_path)
         text = out_path.read_text(encoding="utf-8")
     else:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        if not parse_document(pdf_path, out_path, ocr_server_url, ocr_language, logger, figures_dir):
+        if not parse_document(pdf_path, out_path, ocr_server_url, ocr_language, logger, parse_figures):
             return None
         rewrite_figure_refs(out_path, figures_rel_prefix)
         text = out_path.read_text(encoding="utf-8")
-        write_tables(text, tables_dir, pdf_path, logger)
+        write_tables(text, parse_tables, pdf_path, logger)
         logger.info("parsed %s -> %s (%d chars)", pdf_path.name, out_path, len(text))
 
     corrections = json.loads((corpus_corrections.CURATION_DIR / "fulltext_corrections.json").read_text(encoding="utf-8"))
@@ -441,8 +450,10 @@ def preserve_extractor_fields(record: dict, previous: dict | None) -> dict:
         record.update({
             key: value
             for key, value in previous.items()
-            if key.startswith(EXTRACTOR_FIELD_PREFIX) or key == "reviewed_assets"
+            if key.startswith((EXTRACTOR_FIELD_PREFIX, "figures_tables_", "n_captioned_")) or key == "reviewed_assets"
         })
+        if previous.get("figures_tables_assets_path", "").startswith("data/intermediate/figures-tables/"):
+            record.update({key: previous[key] for key in ("n_figures", "n_tables", "n_table_images") if key in previous})
     return record
 
 
